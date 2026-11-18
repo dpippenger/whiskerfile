@@ -6,7 +6,9 @@ Self-hosted pet medical records app. One Bun process serves the JSON API and the
 - `src/web/`: React app. Tailwind v4 tokens live in `src/web/index.css`; the UI is dark only.
 - `src/shared/`: code used by both sides.
 - `drizzle/`: generated migrations. After changing `src/server/db/schema.ts` run `bun run db:generate` and commit the result; migrations apply at startup.
-- Every `/api/*` handler must be wrapped in `authed()` (`src/server/app.ts`).
+- Every `/api/*` handler must be wrapped in `authed()` (`src/server/http.ts`), and each new route added to the 401 lists in `src/server/app.test.ts`.
+- Pure logic shared by server and browser (dates, units, validation) lives in `src/shared/` with its own tests.
+- Run `bun run format` before committing, so review fix commits never carry reformatting.
 - Every screen must work on both desktop and phone widths; check both before finishing UI work.
 - The production image runs from source (`development: false` bundles the frontend at first request) because the `bun build` CLI does not apply the Tailwind plugin from `bunfig.toml`.
 - Client routing uses `wouter`. TanStack Router crashes under Bun's hot-reload module format (a circular import inside router-core), so do not switch back without checking `bun run dev` in a browser.
