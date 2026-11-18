@@ -117,10 +117,36 @@ export const measurements = sqliteTable(
   (t) => [index("measurements_pet_kind_date").on(t.petId, t.kind, t.date), index("measurements_entry").on(t.entryId)],
 );
 
+/**
+ * A stored file filed under a pet, either on a visit (sharing its date) or on
+ * its own. Removing an attachment leaves the stored file in place.
+ */
+export const attachments = sqliteTable(
+  "attachments",
+  {
+    id: integer().primaryKey({ autoIncrement: true }),
+    petId: integer()
+      .notNull()
+      .references(() => pets.id, { onDelete: "cascade" }),
+    entryId: integer().references(() => entries.id, { onDelete: "cascade" }),
+    fileId: integer()
+      .notNull()
+      .references(() => files.id),
+    label: text(),
+    date: text().notNull(),
+    createdBy: integer()
+      .notNull()
+      .references(() => users.id),
+    createdAt: integer().notNull(),
+  },
+  (t) => [index("attachments_pet_date").on(t.petId, t.date), index("attachments_entry").on(t.entryId)],
+);
+
 export type User = typeof users.$inferSelect;
 export type ChipRegistry = typeof chipRegistries.$inferSelect;
 export type StoredFile = typeof files.$inferSelect;
 export type Pet = typeof pets.$inferSelect;
 export type Entry = typeof entries.$inferSelect;
 export type Measurement = typeof measurements.$inferSelect;
+export type Attachment = typeof attachments.$inferSelect;
 export type BackupRun = typeof backupRuns.$inferSelect;

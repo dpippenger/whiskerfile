@@ -124,6 +124,8 @@ export const entryInput = z.object({
   reason: optionalText(200),
   notes: optionalText(8000),
   vitals: vitalsInput,
+  // The visit's attached files. Omitted leaves them as they are; a list replaces them.
+  fileIds: z.array(z.number().int().positive()).max(50).optional(),
 });
 
 export type EntryInput = z.input<typeof entryInput>;
@@ -135,6 +137,13 @@ export const measurementInput = z
     const result = vitalValue(m.kind).safeParse(m.value);
     if (!result.success) ctx.addIssue({ code: "custom", path: ["value"], message: result.error.issues[0]!.message });
   });
+
+/** A file filed under a pet on its own, outside any visit. */
+export const attachmentInput = z.object({
+  fileId: z.number().int().positive(),
+  label: optionalText(120),
+  date,
+});
 
 export const unitsInput = z.object({
   weightUnit: z.enum(WEIGHT_UNITS).nullable(),

@@ -1,17 +1,60 @@
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
-import { entryInput, measurementInput, VITALS, type Vital } from "../../shared/records";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import { attachmentInput, entryInput, measurementInput, VITALS, type Vital } from "../../shared/records";
 import type { Db } from "../db";
-import { entries, measurements, pets, users, type Entry, type Measurement } from "../db/schema";
+import {
+  attachments,
+  entries,
+  files,
+  measurements,
+  pets,
+  users,
+  type Attachment,
+  type Entry,
+  type Measurement,
+  type StoredFile,
+} from "../db/schema";
 import { error, idParam, parseJson, type AppContext, type Authed } from "../http";
 import type { z } from "zod";
 
-export type EntryWithVitals = Entry & { author: string; vitals: Partial<Record<Vital, number>> };
+export type AttachmentWithFile = Attachment & {
+  author: string;
+  file: Pick<StoredFile, "mime" | "sizeBytes" | "originalName">;
+};
+export type EntryWithVitals = Entry & {
+  author: string;
+  vitals: Partial<Record<Vital, number>>;
+  attachments: AttachmentWithFile[];
+};
 export type MeasurementWithAuthor = Measurement & { author: string };
-export type PetRecords = { entries: EntryWithVitals[]; measurements: MeasurementWithAuthor[] };
+/** Visits and home exams, plus readings and files recorded outside any visit. */
+export type PetRecords = {
+  entries: EntryWithVitals[];
+  measurements: MeasurementWithAuthor[];
+  attachments: AttachmentWithFile[];
+};
 
 const petExists = (db: Db, id: number) => !!db.select({ id: pets.id }).from(pets).where(eq(pets.id, id)).get();
 
-/** Saves a visit and replaces its vitals in one transaction, so they always share its date. */
+/** Ids from the list that are not stored files. */
+function unknownFiles(db: Db, ids: number[]): number[] {
+  if (ids.length === 0) return [];
+  const found = new Set(
+    db
+      .select({ id: files.id })
+      .from(files)
+      .where(inArray(files.id, ids))
+      .all()
+      .map((f) => f.id),
+  );
+  return ids.filter((id) => !found.has(id));
+}
+
+const unknownFileError = () => error(400, "Some fields are invalid", { fileIds: "Unknown file" });
+
+/**
+ * Saves a visit with its vitals and attached files in one transaction, so they
+ * always share its date. Omitting `fileIds` leaves the attached files as they are.
+ */
 function saveEntry(
   db: Db,
   petId: number,
@@ -20,7 +63,7 @@ function saveEntry(
   existingId?: number,
 ): Entry | undefined {
   return db.transaction((tx) => {
-    const { vitals, ...fields } = input;
+    const { vitals, fileIds, ...fields } = input;
     const now = Date.now();
     const entry = existingId
       ? tx
@@ -60,6 +103,27 @@ function saveEntry(
           .run();
       }
     }
+
+    tx.update(attachments).set({ date: entry.date }).where(eq(attachments.entryId, entry.id)).run();
+    if (fileIds) {
+      const wanted = new Set(fileIds);
+      const attached = tx.select().from(attachments).where(eq(attachments.entryId, entry.id)).all();
+      for (const a of attached) if (!wanted.has(a.fileId)) tx.delete(attachments).where(eq(attachments.id, a.id)).run();
+      const have = new Set(attached.map((a) => a.fileId));
+      for (const fileId of wanted) {
+        if (have.has(fileId)) continue;
+        tx.insert(attachments)
+          .values({
+            petId: entry.petId,
+            entryId: entry.id,
+            fileId,
+            date: entry.date,
+            createdBy: userId,
+            createdAt: now,
+          })
+          .run();
+      }
+    }
     return entry;
   });
 }
@@ -83,6 +147,20 @@ export function recordRoutes({ db }: AppContext, authed: Authed) {
       .orderBy(desc(measurements.date), desc(measurements.id))
       .all();
 
+    const filed: AttachmentWithFile[] = db
+      .select({
+        a: attachments,
+        author: authorName,
+        file: { mime: files.mime, sizeBytes: files.sizeBytes, originalName: files.originalName },
+      })
+      .from(attachments)
+      .innerJoin(users, eq(users.id, attachments.createdBy))
+      .innerJoin(files, eq(files.id, attachments.fileId))
+      .where(eq(attachments.petId, petId))
+      .orderBy(desc(attachments.date), desc(attachments.id))
+      .all()
+      .map(({ a, author, file }) => ({ ...a, author, file }));
+
     const vitalsByEntry = new Map<number, Partial<Record<Vital, number>>>();
     for (const { m } of readings) {
       if (m.entryId == null) continue;
@@ -91,8 +169,14 @@ export function recordRoutes({ db }: AppContext, authed: Authed) {
       vitalsByEntry.set(m.entryId, vitals);
     }
     return {
-      entries: entryRows.map(({ entry, author }) => ({ ...entry, author, vitals: vitalsByEntry.get(entry.id) ?? {} })),
+      entries: entryRows.map(({ entry, author }) => ({
+        ...entry,
+        author,
+        vitals: vitalsByEntry.get(entry.id) ?? {},
+        attachments: filed.filter((a) => a.entryId === entry.id),
+      })),
       measurements: readings.filter(({ m }) => m.entryId == null).map(({ m, author }) => ({ ...m, author })),
+      attachments: filed.filter((a) => a.entryId == null),
     };
   }
 
@@ -149,6 +233,7 @@ export function recordRoutes({ db }: AppContext, authed: Authed) {
         if (!petId || !petExists(db, petId)) return error(404, "Pet not found");
         const parsed = await parseJson(req, entryInput);
         if ("response" in parsed) return parsed.response;
+        if (unknownFiles(db, parsed.data.fileIds ?? []).length) return unknownFileError();
         return Response.json(saveEntry(db, petId, user.id, parsed.data), { status: 201 });
       }),
     },
@@ -160,12 +245,56 @@ export function recordRoutes({ db }: AppContext, authed: Authed) {
         if (!existing) return error(404, "Entry not found");
         const parsed = await parseJson(req, entryInput);
         if ("response" in parsed) return parsed.response;
+        if (unknownFiles(db, parsed.data.fileIds ?? []).length) return unknownFileError();
         return Response.json(saveEntry(db, existing.petId, user.id, parsed.data, existing.id));
       }),
       DELETE: authed<"/api/entries/:id">((req) => {
         const id = idParam(req.params.id);
         const row = id ? db.delete(entries).where(eq(entries.id, id)).returning().get() : undefined;
         return row ? new Response(null, { status: 204 }) : error(404, "Entry not found");
+      }),
+    },
+
+    // A file filed under the pet on its own, outside any visit.
+    "/api/pets/:id/attachments": {
+      POST: authed<"/api/pets/:id/attachments">(async (req, user) => {
+        const petId = idParam(req.params.id);
+        if (!petId || !petExists(db, petId)) return error(404, "Pet not found");
+        const parsed = await parseJson(req, attachmentInput);
+        if ("response" in parsed) return parsed.response;
+        if (unknownFiles(db, [parsed.data.fileId]).length) return unknownFileError();
+        const row = db
+          .insert(attachments)
+          .values({ ...parsed.data, petId, entryId: null, createdBy: user.id, createdAt: Date.now() })
+          .returning()
+          .get();
+        return Response.json(row, { status: 201 });
+      }),
+    },
+
+    "/api/attachments/:id": {
+      // Label and date of a file filed on its own; a visit's files take the visit's date.
+      PUT: authed<"/api/attachments/:id">(async (req) => {
+        const id = idParam(req.params.id);
+        const existing = id
+          ? db
+              .select()
+              .from(attachments)
+              .where(and(eq(attachments.id, id), isNull(attachments.entryId)))
+              .get()
+          : undefined;
+        if (!existing) return error(404, "Attachment not found");
+        const parsed = await parseJson(req, attachmentInput.omit({ fileId: true }));
+        if ("response" in parsed) return parsed.response;
+        return Response.json(
+          db.update(attachments).set(parsed.data).where(eq(attachments.id, existing.id)).returning().get(),
+        );
+      }),
+      // Removes the attachment; the stored file stays (it may be attached elsewhere).
+      DELETE: authed<"/api/attachments/:id">((req) => {
+        const id = idParam(req.params.id);
+        const row = id ? db.delete(attachments).where(eq(attachments.id, id)).returning().get() : undefined;
+        return row ? new Response(null, { status: 204 }) : error(404, "Attachment not found");
       }),
     },
 
