@@ -1,0 +1,25 @@
+# The app publishes no host port: the Cloudflare tunnel is the only way in,
+# and Cloudflare Access decides who may use it.
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    # Must own ./data and the backup folder on the host.
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    environment:
+      CF_ACCESS_TEAM_DOMAIN: ${CF_ACCESS_TEAM_DOMAIN:?}
+      CF_ACCESS_AUD: ${CF_ACCESS_AUD:?}
+      BACKUP_CRON: ${BACKUP_CRON:-0 3 * * *}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - ./data:/data
+      - ${BACKUP_PATH:-./backups}:/backups
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?}
+    depends_on:
+      - app
