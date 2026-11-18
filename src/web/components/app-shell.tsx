@@ -1,14 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
 import { Cat, PanelLeftClose, PanelLeftOpen, PawPrint, Settings } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { Link } from "wouter";
-import type { User } from "../../server/db/schema";
-import { api } from "../lib/api";
+import { Link, useLocation } from "wouter";
+import { useMe } from "../lib/queries";
 import { cn } from "../lib/utils";
 
 const NAV = [
-  { href: "/", label: "Pets", icon: PawPrint },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/", label: "Pets", icon: PawPrint, section: /^\/(pets(\/|$)|$)/ },
+  { href: "/settings", label: "Settings", icon: Settings, section: /^\/settings(\/|$)/ },
 ];
 
 const RAIL_KEY = "whiskerfile.sidebar.rail";
@@ -24,7 +22,8 @@ function readRail() {
 /** Sidebar on desktop, top bar plus bottom tabs on phones. */
 export function AppShell({ children }: { children: ReactNode }) {
   const [rail, setRail] = useState(readRail);
-  const me = useQuery({ queryKey: ["me"], queryFn: () => api<User>("/me") });
+  const me = useMe();
+  const [location] = useLocation();
 
   const toggleRail = () => {
     setRail((value) => {
@@ -50,17 +49,16 @@ export function AppShell({ children }: { children: ReactNode }) {
           {!rail && <span className="text-base font-bold tracking-tight">Whiskerfile</span>}
         </div>
         <nav className="mt-4 flex flex-1 flex-col gap-1">
-          {NAV.map(({ href, label, icon: Icon }) => (
+          {NAV.map(({ href, label, icon: Icon, section }) => (
             <Link
               key={href}
               href={href}
               title={rail ? label : undefined}
-              className={(active) =>
-                cn(
-                  "flex min-h-11 items-center gap-3 rounded-lg border border-transparent px-3 text-white/60 transition duration-200 hover:bg-white/5 hover:text-foreground",
-                  active && "border-white/10 bg-white/10 text-foreground",
-                )
-              }
+              className={cn(
+                "flex min-h-11 items-center gap-3 rounded-lg border border-transparent px-3 text-white/60 transition duration-200 hover:bg-white/5 hover:text-foreground",
+                section.test(location) && "border-white/10 bg-white/10 text-foreground",
+              )}
+              aria-current={section.test(location) ? "page" : undefined}
             >
               <Icon className="size-4 shrink-0" aria-hidden />
               {!rail && label}
@@ -84,22 +82,19 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Cat className="size-5 text-primary" aria-hidden />
           <span className="text-base font-bold tracking-tight">Whiskerfile</span>
         </header>
-        <main className="min-w-0 flex-1 p-4 pb-24 md:p-6 md:pb-6 lg:p-8">
-          {children}
-        </main>
+        <main className="min-w-0 flex-1 p-4 pb-24 md:p-6 md:pb-6 lg:p-8">{children}</main>
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 flex border-t border-border bg-background-secondary pb-[env(safe-area-inset-bottom)] md:hidden">
-        {NAV.map(({ href, label, icon: Icon }) => (
+        {NAV.map(({ href, label, icon: Icon, section }) => (
           <Link
             key={href}
             href={href}
-            className={(active) =>
-              cn(
-                "flex min-h-14 flex-1 flex-col items-center justify-center gap-1 text-xs text-white/60",
-                active && "text-primary",
-              )
-            }
+            className={cn(
+              "flex min-h-14 flex-1 flex-col items-center justify-center gap-1 text-xs text-white/60",
+              section.test(location) && "text-primary",
+            )}
+            aria-current={section.test(location) ? "page" : undefined}
           >
             <Icon className="size-5" aria-hidden />
             {label}
