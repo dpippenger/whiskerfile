@@ -1,12 +1,34 @@
-import { asc, eq, sql } from "drizzle-orm";
+import { asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { flagResult, type Flag } from "../../shared/labs";
 import { nextChartColor, petInput } from "../../shared/pets";
-import { chipRegistries, files, pets, type Pet } from "../db/schema";
+import {
+  analytes,
+  chipRegistries,
+  files,
+  labResults,
+  pets,
+  vaccinations,
+  type Pet,
+  type Vaccination,
+} from "../db/schema";
 import { IMAGE_TYPES } from "../files";
 import { error, idParam, parseJson, type AppContext, type Authed } from "../http";
 import type { z } from "zod";
 
-/** A pet with what the dashboard shows: its last 12 weights (oldest first) and last vet visit. */
-export type PetSummary = Pet & { weights: { date: string; value: number }[]; lastVetVisit: string | null };
+export type FlaggedResult = { code: string; name: string; valueText: string; unit: string | null; flag: Flag };
+
+/**
+ * A pet with what the dashboard shows: its last 12 weights (oldest first),
+ * last vet visit, every vaccine dose (the browser works out what is due from
+ * its own date), and the results outside their printed range on its latest
+ * lab report.
+ */
+export type PetSummary = Pet & {
+  weights: { date: string; value: number }[];
+  lastVetVisit: string | null;
+  vaccinations: Pick<Vaccination, "id" | "vaccine" | "dateGiven" | "dueDate">[];
+  latestLab: { id: number; date: string; flagged: FlaggedResult[] } | null;
+};
 
 const RECENT_WEIGHTS = 12;
 
@@ -20,16 +42,68 @@ export function petRoutes({ db }: AppContext, authed: Authed) {
     const visits = db.all<{ petId: number; date: string }>(
       sql`select pet_id as petId, max(date) as date from entries where kind = 'vet' group by pet_id`,
     );
+    const doses = db
+      .select({
+        petId: vaccinations.petId,
+        id: vaccinations.id,
+        vaccine: vaccinations.vaccine,
+        dateGiven: vaccinations.dateGiven,
+        dueDate: vaccinations.dueDate,
+      })
+      .from(vaccinations)
+      .orderBy(desc(vaccinations.dateGiven), desc(vaccinations.id))
+      .all();
+    const latestLabs = db.all<{ petId: number; id: number; date: string }>(sql`
+      select pet_id as petId, id, date from (
+        select pet_id, id, date, row_number() over (partition by pet_id order by date desc, id desc) as n
+        from lab_reports
+      ) where n = 1`);
+    const results = latestLabs.length
+      ? db
+          .select({
+            reportId: labResults.reportId,
+            code: analytes.code,
+            name: analytes.name,
+            valueText: labResults.valueText,
+            value: labResults.value,
+            comparator: labResults.comparator,
+            unit: labResults.unit,
+            refLow: labResults.refLow,
+            refHigh: labResults.refHigh,
+          })
+          .from(labResults)
+          .innerJoin(analytes, eq(analytes.id, labResults.analyteId))
+          .where(
+            inArray(
+              labResults.reportId,
+              latestLabs.map((l) => l.id),
+            ),
+          )
+          .orderBy(asc(analytes.sortOrder))
+          .all()
+      : [];
+    const flagged = (reportId: number): FlaggedResult[] =>
+      results
+        .filter((r) => r.reportId === reportId)
+        .flatMap(({ code, name, valueText, unit, ...r }) => {
+          const flag = flagResult(r);
+          return flag === "high" || flag === "low" ? [{ code, name, valueText, unit, flag }] : [];
+        });
     return db
       .select()
       .from(pets)
       .orderBy(asc(pets.name))
       .all()
-      .map((pet) => ({
-        ...pet,
-        weights: weights.filter((w) => w.petId === pet.id).map(({ date, value }) => ({ date, value })),
-        lastVetVisit: visits.find((v) => v.petId === pet.id)?.date ?? null,
-      }));
+      .map((pet) => {
+        const lab = latestLabs.find((l) => l.petId === pet.id);
+        return {
+          ...pet,
+          weights: weights.filter((w) => w.petId === pet.id).map(({ date, value }) => ({ date, value })),
+          lastVetVisit: visits.find((v) => v.petId === pet.id)?.date ?? null,
+          vaccinations: doses.filter((d) => d.petId === pet.id).map(({ petId: _, ...dose }) => dose),
+          latestLab: lab ? { id: lab.id, date: lab.date, flagged: flagged(lab.id) } : null,
+        };
+      });
   }
 
   /** Checks the ids a pet refers to; returns a 400 response when one is wrong. */

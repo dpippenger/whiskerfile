@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { conditions, medications, vaccinations } from "../db/schema";
 import { startApi } from "../test-support";
 import type { PetHealth } from "./health";
+import type { PetSummary } from "./pets";
 
 const PET = {
   name: "Miso",
@@ -105,4 +106,25 @@ test("deleting a pet removes its vaccinations, medications and conditions", asyn
   expect(db.select().from(vaccinations).all()).toEqual([]);
   expect(db.select().from(medications).all()).toEqual([]);
   expect(db.select().from(conditions).all()).toEqual([]);
+});
+
+test("the pet list carries every vaccine dose, newest first, for the browser to judge what's due", async () => {
+  const { call, json, petId } = await setup();
+  const old = await json<{ id: number }>(
+    call(`/api/pets/${petId}/vaccinations`, { method: "POST", body: vaccine({ dateGiven: "2024-12-01" }) }),
+  );
+  const recent = await json<{ id: number }>(
+    call(`/api/pets/${petId}/vaccinations`, {
+      method: "POST",
+      body: vaccine({ vaccine: "FVRCP", dateGiven: "2025-12-01", dueDate: null }),
+    }),
+  );
+  await call("/api/pets", { method: "POST", body: { ...PET, name: "Tofu" } });
+
+  const [miso, tofu] = await json<PetSummary[]>(call("/api/pets"));
+  expect(miso!.vaccinations).toEqual([
+    { id: recent.id, vaccine: "FVRCP", dateGiven: "2025-12-01", dueDate: null },
+    { id: old.id, vaccine: "Rabies", dateGiven: "2024-12-01", dueDate: "2028-12-01" },
+  ]);
+  expect(tofu!.vaccinations).toEqual([]);
 });
