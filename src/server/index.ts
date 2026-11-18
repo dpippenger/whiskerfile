@@ -34,6 +34,8 @@ Bun.cron(config.backupCron, async () => {
 
 const server = Bun.serve({
   port: config.port,
+  // Uploads are capped at 25 MB; this rejects anything far larger before it is read.
+  maxRequestBodySize: 32 * 1024 * 1024,
   development: process.env.NODE_ENV !== "production" && { hmr: true, console: true },
   routes: {
     "/healthz": new Response("ok"),
