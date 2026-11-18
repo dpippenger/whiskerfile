@@ -261,37 +261,39 @@ export function LabsTab({ petId, reports }: { petId: number; reports: LabReportW
   return (
     <ul className="space-y-3">
       <li className="flex justify-end">{add}</li>
-      {reports.map((report) => {
-        const { high, low, allNormal } = flagCounts(report);
-        return (
-          <li key={report.id}>
-            <Link
-              href={`/pets/${petId}/labs/${report.id}`}
-              className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 transition hover:border-border-strong hover:bg-card-hover"
-            >
-              <FlaskConical className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-              <div className="min-w-0 flex-1">
-                <p className="font-medium">
-                  {formatDate(report.date)}
-                  <span className="font-normal text-muted-foreground">
-                    {" "}
-                    · {report.lab ?? LAB_SOURCE_LABEL[report.source]}
-                  </span>
-                </p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {report.results.length} {report.results.length === 1 ? "result" : "results"}:{" "}
-                  {report.results.map((r) => r.code).join(", ")}
-                </p>
-              </div>
-              <div className="flex shrink-0 gap-1.5">
-                {high > 0 && <Badge tone="danger">{high} high</Badge>}
-                {low > 0 && <Badge tone="warning">{low} low</Badge>}
-                {allNormal && <Badge tone="success">In range</Badge>}
-              </div>
-            </Link>
-          </li>
-        );
-      })}
+      {reports.map((report) => (
+        <li key={report.id}>
+          <LabReportRow report={report} />
+        </li>
+      ))}
     </ul>
+  );
+}
+
+/** One report as a link to it: date, lab, the tests on it and how many came back high or low. */
+export function LabReportRow({ report }: { report: LabReportWithResults }) {
+  const { high, low, allNormal } = flagCounts(report);
+  return (
+    <Link
+      href={`/pets/${report.petId}/labs/${report.id}`}
+      className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 transition hover:border-border-strong hover:bg-card-hover"
+    >
+      <FlaskConical className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+      <div className="min-w-0 flex-1">
+        <p className="font-medium">
+          {formatDate(report.date)}
+          <span className="font-normal text-muted-foreground"> · {report.lab ?? LAB_SOURCE_LABEL[report.source]}</span>
+        </p>
+        <p className="truncate text-xs text-muted-foreground">
+          {report.results.length} {report.results.length === 1 ? "result" : "results"}:{" "}
+          {report.results.map((r) => r.code).join(", ")}
+        </p>
+      </div>
+      <div className="flex shrink-0 gap-1.5">
+        {high > 0 && <Badge tone="danger">{high} high</Badge>}
+        {low > 0 && <Badge tone="warning">{low} low</Badge>}
+        {allNormal && <Badge tone="success">In range</Badge>}
+      </div>
+    </Link>
   );
 }
