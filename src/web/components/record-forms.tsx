@@ -4,11 +4,13 @@ import type { Measurement } from "../../server/db/schema";
 import type { EntryWithVitals } from "../../server/routes/records";
 import { localToday } from "../../shared/dates";
 import {
+  editedValue,
   ENTRY_KIND_LABEL,
   entryInput,
   fromCelsius,
   fromGrams,
   measurementInput,
+  parseNumber,
   toCelsius,
   toGrams,
   type Units,
@@ -26,20 +28,6 @@ function issuesToErrors(issues: { path: PropertyKey[]; message: string }[] = [])
   const errors: Errors = {};
   for (const issue of issues) errors[issue.path.join(".")] ??= issue.message;
   return errors;
-}
-
-/** Parses a typed number; "" is null and anything unparseable is NaN, which validation rejects. */
-const parseNumber = (text: string) => (text.trim() === "" ? null : Number(text.replace(",", ".")));
-
-/**
- * The stored value for a converted field. Display text is rounded, so turning
- * it back into a stored value can shift a reading by a few grams or a tenth of
- * a degree; a field the user left as shown keeps its stored value exactly.
- */
-function storedValue(text: string, shown: string, original: number | undefined, convert: (n: number) => number) {
-  if (original !== undefined && text === shown) return original;
-  const typed = parseNumber(text);
-  return typed == null || Number.isNaN(typed) ? typed : convert(typed);
 }
 
 /** Refreshes everything that shows a pet's records after a change. */
@@ -173,8 +161,8 @@ export function EntryForm({
       reason: form.reason,
       notes: form.notes,
       vitals: {
-        weight: storedValue(form.weight, shown.weight, v.weight, (n) => toGrams(n, units.weight)),
-        temperature: storedValue(form.temperature, shown.temperature, v.temperature, (n) =>
+        weight: editedValue(form.weight, shown.weight, v.weight, (n) => toGrams(n, units.weight)),
+        temperature: editedValue(form.temperature, shown.temperature, v.temperature, (n) =>
           toCelsius(n, units.temperature),
         ),
         heart_rate: parseNumber(form.heart_rate),
@@ -357,7 +345,7 @@ export function WeightForm({
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    const value = storedValue(weight, shown, measurement?.value, (n) => toGrams(n, units.weight));
+    const value = editedValue(weight, shown, measurement?.value, (n) => toGrams(n, units.weight));
     const body = { date, kind: "weight", value: value ?? Number.NaN };
     const found = issuesToErrors(measurementInput.safeParse(body).error?.issues);
     if (value == null) found.value = "Enter a weight";

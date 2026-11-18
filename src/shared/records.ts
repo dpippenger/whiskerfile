@@ -35,6 +35,26 @@ export function fromCelsius(celsius: number, unit: TemperatureUnit): number {
   return Math.round((unit === "c" ? celsius : (celsius * 9) / 5 + 32) * 10) / 10;
 }
 
+/** Parses a typed number; "" is null and anything unparseable is NaN, which validation rejects. */
+export const parseNumber = (text: string) => (text.trim() === "" ? null : Number(text.replace(",", ".")));
+
+/**
+ * The stored value for a field typed in display units. Display text is
+ * rounded, so turning it back into a stored value can shift a reading by a few
+ * grams or a tenth of a degree; a field the user left exactly as `shown` keeps
+ * its `original` stored value. Empty text is null, unparseable text NaN.
+ */
+export function editedValue(
+  text: string,
+  shown: string,
+  original: number | undefined,
+  convert: (n: number) => number,
+): number | null {
+  if (original !== undefined && text === shown) return original;
+  const typed = parseNumber(text);
+  return typed == null || Number.isNaN(typed) ? typed : convert(typed);
+}
+
 /** Valid range of each vital in its stored unit; outside it is a typo, not a reading. */
 export const VITAL_LIMITS: Record<Vital, { min: number; max: number; integer: boolean }> = {
   weight: { min: 1, max: 200_000, integer: true },

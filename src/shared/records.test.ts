@@ -1,5 +1,14 @@
 import { expect, test } from "bun:test";
-import { entryInput, formatVital, fromCelsius, fromGrams, measurementInput, toCelsius, toGrams } from "./records";
+import {
+  editedValue,
+  entryInput,
+  formatVital,
+  fromCelsius,
+  fromGrams,
+  measurementInput,
+  toCelsius,
+  toGrams,
+} from "./records";
 
 test("weights round-trip at display precision in both units", () => {
   for (let hundredths = 50; hundredths <= 3000; hundredths += 7) {
@@ -43,4 +52,27 @@ test("implausible readings are refused", () => {
   expect(measurementInput.safeParse({ date: "2026-11-01", kind: "weight", value: 4649 }).success).toBe(true);
   expect(measurementInput.safeParse({ date: "2026-11-01", kind: "weight", value: 4649.5 }).success).toBe(false);
   expect(measurementInput.safeParse({ date: "2026-11-31", kind: "weight", value: 4649 }).success).toBe(false);
+});
+
+test("a reading left as shown keeps its stored value; an edited one is converted", () => {
+  const inLb = (n: number) => toGrams(n, "lb");
+  const inKg = (n: number) => toGrams(n, "kg");
+  // 4650 g is shown as 10.25 lb, which converts back to 4649 g.
+  const lb = String(fromGrams(4650, "lb"));
+  expect(editedValue(lb, lb, 4650, inLb)).toBe(4650);
+  expect(inLb(Number(lb))).toBe(4649);
+  const kg = String(fromGrams(4125, "kg"));
+  expect(editedValue(kg, kg, 4125, inKg)).toBe(4125);
+  // 38.61 °C is shown as 38.6 °C and 101.5 °F.
+  for (const unit of ["c", "f"] as const) {
+    const shown = String(fromCelsius(38.61, unit));
+    expect(editedValue(shown, shown, 38.61, (n) => toCelsius(n, unit))).toBe(38.61);
+  }
+
+  expect(editedValue("10.3", lb, 4650, inLb)).toBe(toGrams(10.3, "lb"));
+  expect(editedValue("", lb, 4650, inLb)).toBeNull();
+  expect(editedValue("abc", lb, 4650, inLb)).toBeNaN();
+  expect(editedValue("4,5", "", undefined, inKg)).toBe(4500);
+  // A new reading has no stored value and is always converted.
+  expect(editedValue("10.25", "10.25", undefined, inLb)).toBe(4649);
 });
