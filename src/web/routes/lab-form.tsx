@@ -139,6 +139,7 @@ function LabForm({
   // Waits for the pet's data to refetch before leaving, so the next page never shows the
   // report as missing or with its old values; the button stays in its saving state meanwhile.
   const done = async (saved: { id: number }) => {
+    void queryClient.invalidateQueries({ queryKey: ["pets"], exact: true });
     await queryClient.invalidateQueries({ queryKey: ["pets", petId] });
     navigate(`/pets/${petId}/labs/${saved.id}`);
   };
@@ -156,6 +157,7 @@ function LabForm({
     onSuccess: () => {
       navigate(`/pets/${petId}/labs`);
       void queryClient.invalidateQueries({ queryKey: ["pets", petId] });
+      void queryClient.invalidateQueries({ queryKey: ["pets"], exact: true });
     },
   });
 

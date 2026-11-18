@@ -2,6 +2,7 @@ import { PawPrint, Plus } from "lucide-react";
 import { Link } from "wouter";
 import type { PetSummary } from "../../server/routes/pets";
 import { formatAge, formatDate, localToday } from "../../shared/dates";
+import { vaccineStatus } from "../../shared/health";
 import { reproductiveLabel, SPECIES_LABEL } from "../../shared/pets";
 import { fromGrams, type Units } from "../../shared/records";
 import { Page } from "../components/page";
@@ -41,6 +42,48 @@ function WeightLine({ pet, units }: { pet: PetSummary; units: Units }) {
   );
 }
 
+/** Vaccines overdue or due soon, then the results outside their range on the latest lab report. */
+function Alerts({ pet, today }: { pet: PetSummary; today: string }) {
+  if (pet.deceasedOn) return null;
+  const due = vaccineStatus(pet.vaccinations, today)
+    .filter((v) => v.status)
+    .sort((a, b) => Number(b.status === "overdue") - Number(a.status === "overdue"));
+  const lab = pet.latestLab;
+  if (due.length === 0 && !lab?.flagged.length) return null;
+  return (
+    <div className="space-y-2 border-t border-border pt-3">
+      {due.length > 0 && (
+        <ul aria-label="Vaccines due" className="flex flex-wrap gap-1.5">
+          {due.map(({ dose, status }) => (
+            <li key={dose.id}>
+              <Badge tone={status === "overdue" ? "danger" : "warning"}>
+                {dose.vaccine} {status === "overdue" ? "overdue" : `due ${formatDate(dose.dueDate!)}`}
+              </Badge>
+            </li>
+          ))}
+        </ul>
+      )}
+      {lab && lab.flagged.length > 0 && (
+        <div>
+          <p className="mb-1 text-xs text-muted-foreground">Out of range on the labs of {formatDate(lab.date)}</p>
+          <ul className="flex flex-wrap gap-1.5">
+            {lab.flagged.map((r) => (
+              <li key={r.code}>
+                <Badge tone={r.flag === "high" ? "danger" : "warning"} title={r.name} className="gap-1.5">
+                  <span className="font-mono tabular-nums">
+                    {r.code} {r.valueText}
+                  </span>
+                  {r.flag === "high" ? "High" : "Low"}
+                </Badge>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PetCard({ pet, today, units }: { pet: PetSummary; today: string; units: Units }) {
   const age = pet.dob ? formatAge(pet.dob, pet.deceasedOn ?? today, pet.dobEstimated) : null;
   const kind = [SPECIES_LABEL[pet.species], pet.breed].filter(Boolean).join(" · ");
@@ -68,6 +111,7 @@ function PetCard({ pet, today, units }: { pet: PetSummary; today: string; units:
           )}
         </div>
       </div>
+      <Alerts pet={pet} today={today} />
       <WeightLine pet={pet} units={units} />
     </Link>
   );
