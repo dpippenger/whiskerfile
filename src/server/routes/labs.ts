@@ -1,6 +1,6 @@
-import { and, asc, desc, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, max } from "drizzle-orm";
 import type { z } from "zod";
-import { labReportInput, parseLabValue } from "../../shared/labs";
+import { analyteInput, labReportInput, parseLabValue } from "../../shared/labs";
 import type { Db } from "../db";
 import {
   analytes,
@@ -28,6 +28,7 @@ export type LabReportWithResults = LabReport & {
 type Input = z.output<typeof labReportInput>;
 
 const invalid = (fields: Record<string, string>) => error(400, "Some fields are invalid", fields);
+const isUniqueViolation = (err: unknown) => err instanceof Error && /UNIQUE constraint failed/.test(err.message);
 
 /** Checks the ids a report refers to; returns a 400 response naming the first bad one. */
 function checkReferences(db: Db, petId: number, input: Input): Response | null {
@@ -165,6 +166,51 @@ export function labRoutes({ db }: AppContext, authed: Authed) {
       GET: authed(() =>
         Response.json(db.select().from(analytes).orderBy(asc(analytes.sortOrder), asc(analytes.id)).all()),
       ),
+      // A household's own test, added after the built-in ones.
+      POST: authed(async (req) => {
+        const parsed = await parseJson(req, analyteInput);
+        if ("response" in parsed) return parsed.response;
+        const last = db
+          .select({ order: max(analytes.sortOrder) })
+          .from(analytes)
+          .get();
+        try {
+          const row = db
+            .insert(analytes)
+            .values({ ...parsed.data, sortOrder: (last?.order ?? 0) + 10 })
+            .returning()
+            .get();
+          return Response.json(row, { status: 201 });
+        } catch (err) {
+          if (isUniqueViolation(err)) return invalid({ code: "Already in the catalog" });
+          throw err;
+        }
+      }),
+    },
+
+    "/api/analytes/:id": {
+      PUT: authed<"/api/analytes/:id">(async (req) => {
+        const id = idParam(req.params.id);
+        if (!id) return error(404, "Test not found");
+        const parsed = await parseJson(req, analyteInput);
+        if ("response" in parsed) return parsed.response;
+        try {
+          const row = db.update(analytes).set(parsed.data).where(eq(analytes.id, id)).returning().get();
+          return row ? Response.json(row) : error(404, "Test not found");
+        } catch (err) {
+          if (isUniqueViolation(err)) return invalid({ code: "Already in the catalog" });
+          throw err;
+        }
+      }),
+      // Only a test no result uses; results keep their history.
+      DELETE: authed<"/api/analytes/:id">((req) => {
+        const id = idParam(req.params.id);
+        if (!id) return error(404, "Test not found");
+        const used = db.select({ id: labResults.id }).from(labResults).where(eq(labResults.analyteId, id)).get();
+        if (used) return error(409, "Lab results use this test, so it can't be removed");
+        const row = db.delete(analytes).where(eq(analytes.id, id)).returning().get();
+        return row ? new Response(null, { status: 204 }) : error(404, "Test not found");
+      }),
     },
 
     "/api/pets/:id/labs": {
