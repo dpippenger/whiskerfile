@@ -10,4 +10,6 @@ export const config = {
   authMode: env.AUTH_MODE === "dev" ? ("dev" as const) : ("access" as const),
   accessTeamDomain: env.CF_ACCESS_TEAM_DOMAIN ?? "",
   accessAud: env.CF_ACCESS_AUD ?? "",
+  // Prints PDF reports; without it, reports answer 503.
+  chromiumPath: env.CHROMIUM_PATH ?? "",
 };

@@ -16,6 +16,8 @@ export const SPECIES_LABEL: Record<(typeof SPECIES)[number], string> = {
   other: "Other",
 };
 
+export const SEX_LABEL = { female: "Female", male: "Male", unknown: "Unknown" } as const;
+
 export function reproductiveLabel(status: (typeof REPRODUCTIVE)[number], sex: (typeof SEXES)[number]): string {
   if (status === "intact") return "Intact";
   if (status === "unknown") return "Unknown";

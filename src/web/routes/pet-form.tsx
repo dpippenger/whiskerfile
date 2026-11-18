@@ -9,6 +9,7 @@ import {
   petInput,
   REPRODUCTIVE,
   reproductiveLabel,
+  SEX_LABEL,
   SEXES,
   SPECIES,
   SPECIES_LABEL,
@@ -30,8 +31,6 @@ type FormState = Omit<PetInput, "chipRegistryId" | "photoFileId" | "chartColor">
   photoFileId: number | null;
   chartColor: string;
 };
-
-const SEX_LABEL = { female: "Female", male: "Male", unknown: "Unknown" } as const;
 
 function initialState(pet?: Pet): FormState {
   return {

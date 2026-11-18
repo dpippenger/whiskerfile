@@ -3,7 +3,7 @@ import { CATEGORY_LABEL, type AnalyteCategory } from "../../shared/labs";
 import { fromGrams } from "../../shared/records";
 import { compareSeries, type CompareAxis, type LeftOut } from "../../shared/series";
 import { EChart } from "../components/charts/echart";
-import { compareOption } from "../components/charts/trend-options";
+import { compareOption } from "../../shared/trend-options";
 import { Page } from "../components/page";
 import { Card } from "../components/ui/card";
 import { Field, Select } from "../components/ui/field";
