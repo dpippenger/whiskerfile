@@ -24,19 +24,22 @@ import { Card } from "../components/ui/card";
 import { Field, Input, Select, Textarea } from "../components/ui/field";
 import { api, ApiError } from "../lib/api";
 import { useAnalytes, useLabs, usePet, useRecords } from "../lib/queries";
+import {
+  filledRows,
+  limitErrors,
+  limitText,
+  parseLimit,
+  resultsBody,
+  rowErrors,
+  type Errors,
+  type Row,
+} from "../lib/lab-rows";
 import { cn } from "../lib/utils";
-
-type Row = { key: number; analyteId: number; valueText: string; unit: string; refLow: string; refHigh: string };
-type Errors = Record<string, string>;
 
 const COLUMNS = ["valueText", "unit", "refLow", "refHigh"] as const;
 type Column = (typeof COLUMNS)[number];
 
 let nextKey = 1;
-
-/** A typed range limit: "" is none, anything unparseable is NaN, which validation rejects. */
-const parseLimit = (text: string) => (text.trim() === "" ? null : Number(text.trim().replace(",", ".")));
-const limitText = (n: number | null) => (n == null ? "" : String(n));
 
 function FlagPreview({ row }: { row: Row }) {
   const refLow = parseLimit(row.refLow);
@@ -133,8 +136,10 @@ function LabForm({
     target?.select();
   };
 
-  const done = (saved?: { id: number }) => {
-    void queryClient.invalidateQueries({ queryKey: ["pets", petId] });
+  // Waits for the pet's data to refetch before leaving, so the next page never shows the
+  // report as missing or with its old values; the button stays in its saving state meanwhile.
+  const done = async (saved?: { id: number }) => {
+    await queryClient.invalidateQueries({ queryKey: ["pets", petId] });
     navigate(saved ? `/pets/${petId}/labs/${saved.id}` : `/pets/${petId}/labs`);
   };
   const save = useMutation({
@@ -143,24 +148,12 @@ function LabForm({
         ? api<LabReport>(`/labs/${report.id}`, { method: "PUT", body })
         : api<LabReport>(`/pets/${petId}/labs`, { method: "POST", body }),
     onSuccess: (saved) => done(saved),
-    onError: (err) => err instanceof ApiError && setErrors(remapErrors(err.fields)),
+    onError: (err) => err instanceof ApiError && setErrors(rowErrors(err.fields, rows)),
   });
   const remove = useMutation({
     mutationFn: () => api(`/labs/${report!.id}`, { method: "DELETE" }),
     onSuccess: () => done(),
   });
-
-  // Rows left blank aren't saved; errors from the server name positions among the saved rows.
-  const filled = rows.filter((r) => r.valueText.trim() !== "");
-  function remapErrors(fields: Errors): Errors {
-    const out: Errors = {};
-    for (const [path, message] of Object.entries(fields)) {
-      const m = /^results\.(\d+)\.(\w+)$/.exec(path);
-      const row = m ? filled[Number(m[1])] : undefined;
-      out[row ? `row.${row.key}.${m![2]}` : path] ??= message;
-    }
-    return out;
-  }
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -169,23 +162,13 @@ function LabForm({
       ...meta,
       entryId: meta.entryId ? Number(meta.entryId) : null,
       fileIds: files.map((f) => f.fileId),
-      results: filled.map((r) => ({
-        analyteId: r.analyteId,
-        valueText: r.valueText,
-        unit: r.unit,
-        refLow: parseLimit(r.refLow),
-        refHigh: parseLimit(r.refHigh),
-      })),
+      results: resultsBody(rows),
     };
-    const found: Errors = {};
+    const found: Errors = limitErrors(body.results);
     for (const issue of labReportInput.safeParse(body).error?.issues ?? [])
       found[issue.path.join(".")] ??= issue.message;
-    body.results.forEach((r, i) => {
-      if (Number.isNaN(r.refLow)) found[`results.${i}.refLow`] = "Enter a number";
-      if (Number.isNaN(r.refHigh)) found[`results.${i}.refHigh`] = "Enter a number";
-    });
     if (meta.date > localToday()) found.date ??= "Can't be in the future";
-    const mapped = remapErrors(found);
+    const mapped = rowErrors(found, rows);
     setErrors(mapped);
     if (Object.keys(mapped).length === 0) save.mutate(body);
   };
@@ -327,11 +310,10 @@ function LabForm({
             {rows.map((row, index) => {
               const analyte = byId.get(row.analyteId);
               const error = rowError(row);
-              // Out of the Tab order, so tabbing goes from one result straight to the next row.
+              // Last in the row's Tab order, so a row added by mistake can be removed by keyboard.
               const removeButton = (
                 <button
                   type="button"
-                  tabIndex={-1}
                   onClick={() => setRows((current) => current.filter((r) => r.key !== row.key))}
                   aria-label={`Remove ${analyte?.name ?? "test"}`}
                   className="flex size-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-white/5 hover:text-foreground md:size-9"
