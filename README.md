@@ -4,7 +4,7 @@ Self-hosted medical records for your pets: cats first, dogs and other animals we
 
 Status: in place are the foundation (server, sign-in, scheduled backups), pet profiles (photo, identity, microchip and registry), records (vet visits, home exams, vitals, weigh-ins and attached files, with a timeline, weight history and file gallery), lab reports (entered by hand from the printed report, with ranges, flags and history), trend charts per pet, comparisons across pets, and vaccinations, medications and conditions. The dashboard shows each pet's vaccines due and out-of-range lab results, each pet's health report downloads as a PDF to share with a vet, and lab results can be read from a PDF or photo of the report with Claude.
 
-See [CHANGELOG.md](CHANGELOG.md) for what each phase added.
+See [CHANGELOG.md](CHANGELOG.md) for what each phase added. Each feature's requirements, as built, are in [docs/specs/](docs/specs/): [platform](docs/specs/platform-foundation/spec.md), [pet profiles](docs/specs/pet-profiles/spec.md), [visits and files](docs/specs/visits-and-files/spec.md), [lab results](docs/specs/lab-results/spec.md), [trends and compare](docs/specs/trends-and-compare/spec.md), [health records](docs/specs/health-records/spec.md), [PDF reports](docs/specs/pdf-health-reports/spec.md) and [lab document import](docs/specs/lab-document-import/spec.md).
 
 ## Run it at home
 
