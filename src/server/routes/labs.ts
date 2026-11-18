@@ -106,60 +106,60 @@ function saveReport(db: Db, petId: number, userId: number, input: Input, existin
   });
 }
 
+/** A pet's reports, newest first, with results in catalog order and their documents. */
+export function petLabReports(db: Db, petId: number): LabReportWithResults[] {
+  const rows = db
+    .select({ report: labReports, author: users.name })
+    .from(labReports)
+    .innerJoin(users, eq(users.id, labReports.createdBy))
+    .where(eq(labReports.petId, petId))
+    .orderBy(desc(labReports.date), desc(labReports.id))
+    .all();
+  const results = db
+    .select({
+      result: labResults,
+      code: analytes.code,
+      name: analytes.name,
+      category: analytes.category,
+      sortOrder: analytes.sortOrder,
+    })
+    .from(labResults)
+    .innerJoin(labReports, eq(labReports.id, labResults.reportId))
+    .innerJoin(analytes, eq(analytes.id, labResults.analyteId))
+    .where(eq(labReports.petId, petId))
+    .orderBy(asc(analytes.sortOrder), asc(analytes.id))
+    .all();
+  const docs = db
+    .select({
+      a: attachments,
+      author: users.name,
+      file: {
+        mime: files.mime,
+        sizeBytes: files.sizeBytes,
+        originalName: files.originalName,
+        previewId: files.previewId,
+      },
+    })
+    .from(attachments)
+    .innerJoin(users, eq(users.id, attachments.createdBy))
+    .innerJoin(files, eq(files.id, attachments.fileId))
+    .where(and(eq(attachments.petId, petId), isNotNull(attachments.labReportId)))
+    .orderBy(asc(attachments.id))
+    .all();
+  return rows.map(({ report, author }) => ({
+    ...report,
+    author,
+    results: results
+      .filter((r) => r.result.reportId === report.id)
+      .map(({ result, ...analyte }) => ({ ...result, ...analyte })),
+    attachments: docs
+      .filter((d) => d.a.labReportId === report.id)
+      .map(({ a, author, file }) => ({ ...a, author, file })),
+  }));
+}
+
 export function labRoutes({ db }: AppContext, authed: Authed) {
   const petExists = (id: number) => !!db.select({ id: pets.id }).from(pets).where(eq(pets.id, id)).get();
-
-  /** A pet's reports, newest first, with results in catalog order and their documents. */
-  function reports(petId: number): LabReportWithResults[] {
-    const rows = db
-      .select({ report: labReports, author: users.name })
-      .from(labReports)
-      .innerJoin(users, eq(users.id, labReports.createdBy))
-      .where(eq(labReports.petId, petId))
-      .orderBy(desc(labReports.date), desc(labReports.id))
-      .all();
-    const results = db
-      .select({
-        result: labResults,
-        code: analytes.code,
-        name: analytes.name,
-        category: analytes.category,
-        sortOrder: analytes.sortOrder,
-      })
-      .from(labResults)
-      .innerJoin(labReports, eq(labReports.id, labResults.reportId))
-      .innerJoin(analytes, eq(analytes.id, labResults.analyteId))
-      .where(eq(labReports.petId, petId))
-      .orderBy(asc(analytes.sortOrder), asc(analytes.id))
-      .all();
-    const docs = db
-      .select({
-        a: attachments,
-        author: users.name,
-        file: {
-          mime: files.mime,
-          sizeBytes: files.sizeBytes,
-          originalName: files.originalName,
-          previewId: files.previewId,
-        },
-      })
-      .from(attachments)
-      .innerJoin(users, eq(users.id, attachments.createdBy))
-      .innerJoin(files, eq(files.id, attachments.fileId))
-      .where(and(eq(attachments.petId, petId), isNotNull(attachments.labReportId)))
-      .orderBy(asc(attachments.id))
-      .all();
-    return rows.map(({ report, author }) => ({
-      ...report,
-      author,
-      results: results
-        .filter((r) => r.result.reportId === report.id)
-        .map(({ result, ...analyte }) => ({ ...result, ...analyte })),
-      attachments: docs
-        .filter((d) => d.a.labReportId === report.id)
-        .map(({ a, author, file }) => ({ ...a, author, file })),
-    }));
-  }
 
   return {
     "/api/analytes": {
@@ -217,7 +217,7 @@ export function labRoutes({ db }: AppContext, authed: Authed) {
       GET: authed<"/api/pets/:id/labs">((req) => {
         const petId = idParam(req.params.id);
         if (!petId || !petExists(petId)) return error(404, "Pet not found");
-        return Response.json(reports(petId));
+        return Response.json(petLabReports(db, petId));
       }),
       POST: authed<"/api/pets/:id/labs">(async (req, user) => {
         const petId = idParam(req.params.id);

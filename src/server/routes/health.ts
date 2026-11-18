@@ -22,43 +22,44 @@ export type PetHealth = {
 
 const petExists = (db: Db, id: number) => !!db.select({ id: pets.id }).from(pets).where(eq(pets.id, id)).get();
 
-export function healthRoutes({ db }: AppContext, authed: Authed) {
-  function health(petId: number): PetHealth {
-    return {
-      vaccinations: db
-        .select({ row: vaccinations, author: users.name })
-        .from(vaccinations)
-        .innerJoin(users, eq(users.id, vaccinations.createdBy))
-        .where(eq(vaccinations.petId, petId))
-        .orderBy(desc(vaccinations.dateGiven), desc(vaccinations.id))
-        .all()
-        .map(({ row, author }) => ({ ...row, author })),
-      medications: db
-        .select({ row: medications, author: users.name })
-        .from(medications)
-        .innerJoin(users, eq(users.id, medications.createdBy))
-        .where(eq(medications.petId, petId))
-        .orderBy(desc(medications.startDate), desc(medications.id))
-        .all()
-        .map(({ row, author }) => ({ ...row, author })),
-      conditions: db
-        .select({ row: conditions, author: users.name })
-        .from(conditions)
-        .innerJoin(users, eq(users.id, conditions.createdBy))
-        .where(eq(conditions.petId, petId))
-        .orderBy(desc(conditions.date), desc(conditions.id))
-        .all()
-        .map(({ row, author }) => ({ ...row, author })),
-    };
-  }
+/** A pet's vaccinations, medications and conditions, newest first, with who added each. */
+export function petHealth(db: Db, petId: number): PetHealth {
+  return {
+    vaccinations: db
+      .select({ row: vaccinations, author: users.name })
+      .from(vaccinations)
+      .innerJoin(users, eq(users.id, vaccinations.createdBy))
+      .where(eq(vaccinations.petId, petId))
+      .orderBy(desc(vaccinations.dateGiven), desc(vaccinations.id))
+      .all()
+      .map(({ row, author }) => ({ ...row, author })),
+    medications: db
+      .select({ row: medications, author: users.name })
+      .from(medications)
+      .innerJoin(users, eq(users.id, medications.createdBy))
+      .where(eq(medications.petId, petId))
+      .orderBy(desc(medications.startDate), desc(medications.id))
+      .all()
+      .map(({ row, author }) => ({ ...row, author })),
+    conditions: db
+      .select({ row: conditions, author: users.name })
+      .from(conditions)
+      .innerJoin(users, eq(users.id, conditions.createdBy))
+      .where(eq(conditions.petId, petId))
+      .orderBy(desc(conditions.date), desc(conditions.id))
+      .all()
+      .map(({ row, author }) => ({ ...row, author })),
+  };
+}
 
+export function healthRoutes({ db }: AppContext, authed: Authed) {
   return {
     // A pet's vaccinations, medications and conditions, newest first.
     "/api/pets/:id/health": {
       GET: authed<"/api/pets/:id/health">((req) => {
         const petId = idParam(req.params.id);
         if (!petId || !petExists(db, petId)) return error(404, "Pet not found");
-        return Response.json(health(petId));
+        return Response.json(petHealth(db, petId));
       }),
     },
 
