@@ -29,7 +29,13 @@ const base = (zoom: boolean) => ({
     type: "time",
     axisLine: { lineStyle: { color: CHART_THEME.grid } },
     axisTick: { show: false },
-    axisLabel: { color: CHART_THEME.text, fontSize: 11, hideOverlap: true },
+    axisLabel: {
+      color: CHART_THEME.text,
+      fontSize: 11,
+      hideOverlap: true,
+      // Name the month on day ticks, so a short span doesn't read as bare numbers.
+      formatter: { year: "{yyyy}", month: "{MMM}", day: "{MMM} {d}", hour: "{MMM} {d}", minute: "{MMM} {d}" },
+    },
     splitLine: { show: false },
   },
   yAxis: {

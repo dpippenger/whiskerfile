@@ -299,4 +299,36 @@ for (const lab of labs) {
     results: results(lab.rows),
   });
 }
+// An older report for Miso from another lab with a different creatinine
+// range, and two for Reggie, the older one with creatinine in µmol/L, so
+// charts show a stepping range band and a result left out for its unit.
+await call(`/pets/${misoId}/labs`, "POST", {
+  date: daysAgo(400),
+  source: "in_house",
+  lab: "Clinic analyzer",
+  accession: null,
+  notes: null,
+  entryId: null,
+  results: results([
+    ["CREA", "1.6", "mg/dL", 0.8, 2.2],
+    ["BUN", "27", "mg/dL", 14, 36],
+    ["TT4", "3.9", "µg/dL", 0.8, 4.7],
+  ]),
+});
+const reggieId = idOf("Sir Reginald Fluffington the Third");
+for (const [days, crea, unit, low, high] of [
+  [300, "141", "µmol/L", 71, 212],
+  [60, "1.8", "mg/dL", 0.6, 2.4],
+  [5, "<0.5", "mg/dL", 0.6, 2.4],
+] as const) {
+  await call(`/pets/${reggieId}/labs`, "POST", {
+    date: daysAgo(days),
+    source: "reference_lab",
+    lab: "Sample Lab",
+    accession: null,
+    notes: null,
+    entryId: null,
+    results: results([["CREA", crea, unit, low, high]]),
+  });
+}
 console.log("Added lab reports");
