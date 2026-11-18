@@ -73,11 +73,15 @@ export function FilePicker({
   busy,
   multiple = false,
   label = "Add files",
+  busyLabel = "Uploading…",
+  icon: Icon = Upload,
 }: {
   onPick: (files: File[]) => void;
   busy: boolean;
   multiple?: boolean;
   label?: string;
+  busyLabel?: string;
+  icon?: typeof Upload;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -103,8 +107,8 @@ export function FilePicker({
       )}
     >
       <Button onClick={() => input.current?.click()} disabled={busy}>
-        <Upload className="size-4" aria-hidden />
-        {busy ? "Uploading…" : label}
+        <Icon className="size-4" aria-hidden />
+        {busy ? busyLabel : label}
       </Button>
       <span className="hidden text-xs text-muted-foreground md:inline">
         or drop {multiple ? "files" : "a file"} here

@@ -1,10 +1,11 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Copy, Plus, X } from "lucide-react";
+import { ArrowLeft, Copy, Plus, ScanText, X } from "lucide-react";
 import { useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { Link, useLocation } from "wouter";
 import type { Analyte, LabReport } from "../../server/db/schema";
 import type { LabReportWithResults } from "../../server/routes/labs";
 import { formatDate, localToday } from "../../shared/dates";
+import type { LabDraft, Unmatched } from "../../shared/lab-import";
 import {
   ANALYTE_CATEGORIES,
   CATEGORY_LABEL,
@@ -23,8 +24,10 @@ import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 import { Field, Input, Select, Textarea } from "../components/ui/field";
 import { api, ApiError } from "../lib/api";
+import { downsizeImage } from "../lib/image";
 import { useAnalytes, useLabs, usePet, useRecords } from "../lib/queries";
 import {
+  applyDraftResults,
   filledRows,
   limitErrors,
   limitText,
@@ -32,6 +35,7 @@ import {
   resultsBody,
   rowErrors,
   type Errors,
+  type KeptValue,
   type Row,
 } from "../lib/lab-rows";
 import { cn } from "../lib/utils";
@@ -41,6 +45,19 @@ type Column = (typeof COLUMNS)[number];
 
 let nextKey = 1;
 
+/** The API reads images up to this many pixels on the long edge; more only costs more. */
+const READ_IMAGE_EDGE = 2576;
+
+/** Sends a document to be read: a PDF as it is, a photo scaled down (which also drops its metadata). */
+async function readDocument(file: File): Promise<LabDraft> {
+  const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+  const form = new FormData();
+  form.append("file", isPdf ? file : await downsizeImage(file, READ_IMAGE_EDGE));
+  return api<LabDraft>("/labs/import", { method: "POST", body: form });
+}
+
+type Imported = { name: string; count: number; unmatched: Unmatched[]; kept: KeptValue[] };
+
 function FlagPreview({ row }: { row: Row }) {
   const refLow = parseLimit(row.refLow);
   const refHigh = parseLimit(row.refHigh);
@@ -49,6 +66,69 @@ function FlagPreview({ row }: { row: Row }) {
   if (flag === "high") return <Badge tone="danger">High</Badge>;
   if (flag === "low") return <Badge tone="warning">Low</Badge>;
   return null;
+}
+
+/** What a document's reading filled in, and what it couldn't. */
+function ImportNotice({
+  imported,
+  byId,
+  onClose,
+}: {
+  imported: Imported;
+  byId: Map<number, Analyte>;
+  onClose: () => void;
+}) {
+  return (
+    <div role="status" className="space-y-2 rounded-lg border border-info/30 bg-info/5 p-3 text-sm">
+      <div className="flex items-start gap-2">
+        <p className="flex-1">
+          Read {imported.count} {imported.count === 1 ? "result" : "results"} from{" "}
+          <span className="font-medium break-all">{imported.name}</span>.{" "}
+          <strong>Check every value and range against the document before saving.</strong>
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Dismiss"
+          className="flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-white/5 md:size-7"
+        >
+          <X className="size-4" aria-hidden />
+        </button>
+      </div>
+      {imported.kept.length > 0 && (
+        <div>
+          <p className="text-xs font-medium text-foreground-secondary">Kept as you typed them:</p>
+          <ul className="text-xs text-muted-foreground">
+            {imported.kept.map((k) => (
+              <li key={k.analyteId}>
+                {byId.get(k.analyteId)?.code}: you typed <span className="font-mono">{k.typed}</span>, the document says{" "}
+                <span className="font-mono">{k.read}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {imported.unmatched.length > 0 && (
+        <div>
+          <p className="text-xs font-medium text-foreground-secondary">
+            Not filled in; add these by hand if you need them:
+          </p>
+          <ul className="text-xs text-muted-foreground">
+            {imported.unmatched.map((u, i) => (
+              <li key={i}>
+                {u.printedName}{" "}
+                <span className="font-mono">
+                  {u.valueText}
+                  {u.unit && ` ${u.unit}`}
+                </span>{" "}
+                · {u.reason}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function LabForm({
@@ -87,6 +167,9 @@ function LabForm({
     })),
   );
   const [files, setFiles] = useState<FileRef[]>(() => (report?.attachments ?? []).map(fileRef));
+  // Report details the reader has changed, which a document's reading never replaces.
+  const touched = useRef(new Set<string>());
+  const [imported, setImported] = useState<Imported | null>(null);
   const others = reports.filter((r) => r.id !== report?.id);
   const byId = new Map(analytes.map((a) => [a.id, a]));
 
@@ -96,6 +179,33 @@ function LabForm({
         const stored = await uploadOriginal(file);
         setFiles((list) => (list.some((f) => f.fileId === stored.id) ? list : [...list, storedRef(stored)]));
       }
+    },
+  });
+
+  /**
+   * Attaches a document as the report's original and fills the form from
+   * Claude's reading of it. Only details left as they were are filled in, and
+   * nothing is saved until the reader checks it and saves.
+   */
+  const read = useMutation({
+    mutationFn: async (file: File) => {
+      const stored = await uploadOriginal(file);
+      setFiles((list) => (list.some((f) => f.fileId === stored.id) ? list : [...list, storedRef(stored)]));
+      return readDocument(file);
+    },
+    onSuccess: (draft, file) => {
+      const fill = <K extends "date" | "source" | "lab" | "accession">(name: K, value: string | null) =>
+        value && !touched.current.has(name) && (!report || !meta[name]) ? { [name]: value } : {};
+      setMeta((m) => ({
+        ...m,
+        ...fill("date", draft.date && draft.date <= localToday() ? draft.date : null),
+        ...fill("source", draft.source),
+        ...fill("lab", draft.lab),
+        ...fill("accession", draft.accession),
+      }));
+      const { rows: next, kept } = applyDraftResults(rows, draft.results, () => nextKey++);
+      setRows(next);
+      setImported({ name: file.name, count: draft.results.length, unmatched: draft.unmatched, kept });
     },
   });
 
@@ -184,7 +294,10 @@ function LabForm({
     id: `${id}-${name}`,
     value: meta[name],
     invalid: !!errors[name],
-    onChange: (e: { target: { value: string } }) => setMeta((m) => ({ ...m, [name]: e.target.value })),
+    onChange: (e: { target: { value: string } }) => {
+      touched.current.add(name);
+      setMeta((m) => ({ ...m, [name]: e.target.value }));
+    },
   });
   const rowError = (row: Row) =>
     COLUMNS.map((c) => errors[`row.${row.key}.${c}`]).find(Boolean) ?? errors[`row.${row.key}.analyteId`];
@@ -247,10 +360,22 @@ function LabForm({
           {(upload.error || errors.fileIds) && (
             <p className="text-xs text-danger">{upload.error?.message ?? errors.fileIds}</p>
           )}
+          <FilePicker
+            onPick={([file]) => file && read.mutate(file)}
+            busy={read.isPending || upload.isPending}
+            label="Read results from a document"
+            busyLabel="Reading…"
+            icon={ScanText}
+          />
+          <p className="text-xs text-muted-foreground">
+            A PDF or photo of the report is sent to Anthropic's API, which fills in the results for you to check.
+          </p>
+          {read.error && <p className="text-xs text-danger">{read.error.message}</p>}
         </div>
       </Card>
 
       <Card className="space-y-4">
+        {imported && <ImportNotice imported={imported} byId={byId} onClose={() => setImported(null)} />}
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="mr-auto text-sm font-semibold text-foreground-secondary">Results</h2>
           {latest && (
