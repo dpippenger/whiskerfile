@@ -19,7 +19,20 @@ export function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }
 
-const base = (zoom: boolean) => ({
+const DAY = 86_400_000;
+
+/**
+ * A time axis that spans at least a few weeks: with every point on one day,
+ * ECharts would zoom to hours and repeat that day's date across the axis.
+ */
+export function timePadding(xs: number[]): { min?: number; max?: number } {
+  if (xs.length === 0) return {};
+  const lo = Math.min(...xs);
+  const hi = Math.max(...xs);
+  return hi - lo < DAY ? { min: lo - 30 * DAY, max: hi + 30 * DAY } : {};
+}
+
+const base = (zoom: boolean, xs: number[]) => ({
   // Dates are midnight UTC; showing them in UTC keeps each point on its own day.
   useUTC: true,
   animation: true,
@@ -27,6 +40,7 @@ const base = (zoom: boolean) => ({
   grid: { top: 12, right: 12, bottom: zoom ? 56 : 24, left: 8, containLabel: true },
   xAxis: {
     type: "time",
+    ...timePadding(xs),
     axisLine: { lineStyle: { color: CHART_THEME.grid } },
     axisTick: { show: false },
     axisLabel: {
@@ -67,12 +81,17 @@ export function labTrendOption(points: LabPoint[], opts: { color: string; unit: 
   const band = rangeBand(points);
   const unit = opts.unit ? ` ${escapeHtml(opts.unit)}` : "";
   return {
-    ...base(points.length >= ZOOM_FROM),
+    ...base(
+      points.length >= ZOOM_FROM,
+      points.map((p) => dateToUtc(p.date)),
+    ),
     series: [
       {
         id: "range-low",
         type: "line",
         stack: "range",
+        // Stack whatever the signs: a range like -2 to 2 has a negative base.
+        stackStrategy: "all",
         step: "end",
         silent: true,
         symbol: "none",
@@ -84,6 +103,8 @@ export function labTrendOption(points: LabPoint[], opts: { color: string; unit: 
         id: "range",
         type: "line",
         stack: "range",
+        // Stack whatever the signs: a range like -2 to 2 has a negative base.
+        stackStrategy: "all",
         step: "end",
         silent: true,
         symbol: "none",
@@ -125,7 +146,10 @@ export function weightTrendOption(
   opts: { color: string; unit: string; format: (value: number) => string },
 ) {
   return {
-    ...base(points.length >= ZOOM_FROM),
+    ...base(
+      points.length >= ZOOM_FROM,
+      points.map((p) => dateToUtc(p.date)),
+    ),
     series: [
       {
         id: "weight",

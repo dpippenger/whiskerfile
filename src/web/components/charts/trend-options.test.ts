@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { formatDate } from "../../../shared/dates";
 import { parseLabValue } from "../../../shared/labs";
 import { dateToUtc, labSeries } from "../../../shared/series";
-import { CHART_THEME, escapeHtml, labTrendOption, weightTrendOption } from "./trend-options";
+import { CHART_THEME, escapeHtml, labTrendOption, timePadding, weightTrendOption } from "./trend-options";
 
 type Item = {
   value: [number, number];
@@ -83,4 +83,34 @@ test("weight charts use the reader's unit", () => {
   expect(item.value).toEqual([dateToUtc("2026-01-01"), 8.81]);
   expect(item.tooltip.formatter()).toContain("<b>8.81</b> lb");
   expect(weights.dataZoom).toEqual([]);
+});
+
+test("a range with a negative lower limit is stacked from that limit, not from zero", () => {
+  const negative = labSeries([
+    {
+      date: "2026-01-01",
+      order: 1,
+      valueText: "-1",
+      value: -1,
+      comparator: null,
+      unit: "mmol/L",
+      refLow: -2,
+      refHigh: 2,
+    },
+  ]);
+  const opt = labTrendOption(negative.points, { color: "#a855f7", unit: "mmol/L", name: "Base excess" });
+  const band = (opt.series as (Series & { stackStrategy?: string })[]).filter((s) => s.stack === "range");
+  expect(band.map((s) => s.stackStrategy)).toEqual(["all", "all"]);
+  // Lower limit, then the height that sits on it: -2 + 4 = 2.
+  expect(band.map((s) => (s.data[0] as [number, number])[1])).toEqual([-2, 4]);
+});
+
+test("a chart whose points share one day still spans weeks", () => {
+  const day = dateToUtc("2026-06-01");
+  expect(timePadding([day])).toEqual({ min: day - 30 * 86_400_000, max: day + 30 * 86_400_000 });
+  expect(timePadding([day, day])).toEqual({ min: day - 30 * 86_400_000, max: day + 30 * 86_400_000 });
+  expect(timePadding([day, dateToUtc("2026-06-02")])).toEqual({});
+  expect(timePadding([])).toEqual({});
+  const single = weightTrendOption([{ date: "2026-06-01", value: 9 }], { color: "#fff", unit: "lb", format: String });
+  expect(single.xAxis).toMatchObject({ min: day - 30 * 86_400_000, max: day + 30 * 86_400_000 });
 });
