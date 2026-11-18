@@ -9,11 +9,53 @@ import { openDb } from "./db";
 export const ISSUER = "https://team.cloudflareaccess.com";
 export const AUDIENCE = "aud-tag";
 
+type Handler = (req: Request, server: unknown) => Response | Promise<Response>;
+type Route = Response | Handler | Partial<Record<string, Handler>>;
+
+const match = (pattern: string, path: string): Record<string, string> | null => {
+  if (pattern.endsWith("/*")) return path.startsWith(pattern.slice(0, -1)) ? {} : null;
+  const want = pattern.split("/");
+  const got = path.split("/");
+  if (want.length !== got.length) return null;
+  const params: Record<string, string> = {};
+  for (const [i, part] of want.entries()) {
+    if (part.startsWith(":")) params[part.slice(1)] = decodeURIComponent(got[i]!);
+    else if (part !== got[i]) return null;
+  }
+  return params;
+};
+
+// Bun prefers exact paths, then paths with parameters, then wildcards.
+const rank = (pattern: string) => (pattern.endsWith("/*") ? 2 : pattern.includes("/:") ? 1 : 0);
+
+/** The only part of Bun's server object a handler uses. */
+const fakeServer = { timeout: () => {} };
+
 /**
- * Serves the API on a loopback port with an in-memory database and a local
- * Access signing key. Tests go through Bun's route table on purpose so that
- * method dispatch, path parameters and the /api/* fallback are covered too.
- * Dispose the returned server (`using`) at the end of each test.
+ * Dispatches a request through a Bun `routes` table in process, the way
+ * Bun.serve would, without opening a listener: method dispatch, path
+ * parameters and wildcard fallbacks behave as in the server.
+ */
+export async function dispatch(routes: object, req: Request): Promise<Response> {
+  // Handlers are typed for Bun's request; the one built here carries the same params.
+  const table = routes as unknown as Record<string, Route>;
+  const path = new URL(req.url).pathname;
+  const patterns = Object.keys(table).sort((a, b) => rank(a) - rank(b));
+  for (const pattern of patterns) {
+    const params = match(pattern, path);
+    if (!params) continue;
+    const route = table[pattern]!;
+    const handler =
+      route instanceof Response ? () => route.clone() : typeof route === "function" ? route : route[req.method];
+    if (!handler) return new Response("Method not allowed", { status: 405 });
+    return handler(Object.assign(req, { params }), fakeServer);
+  }
+  return new Response("Not found", { status: 404 });
+}
+
+/**
+ * The API with an in-memory database and a local Access signing key, called
+ * in process through its route table (see dispatch).
  */
 export async function startApi() {
   const { publicKey, privateKey } = await generateKeyPair("RS256");
@@ -27,10 +69,7 @@ export async function startApi() {
   });
   const root = await mkdtemp(join(tmpdir(), "whiskerfile-api-"));
   const dataDir = join(root, "data");
-  const server = Bun.serve({
-    port: 0,
-    routes: apiRoutes({ sqlite, db, dataDir, backupDir: join(root, "backups") }, authenticate),
-  });
+  const routes = apiRoutes({ sqlite, db, dataDir, backupDir: join(root, "backups") }, authenticate);
 
   const token = (
     claims: Record<string, unknown>,
@@ -62,8 +101,11 @@ export async function startApi() {
       headers["Content-Type"] = "application/json";
       body = JSON.stringify(init.body);
     }
-    return fetch(new URL(path, server.url), { method: init.method ?? "GET", headers, body });
+    return dispatch(
+      routes,
+      new Request(new URL(path, "http://whiskerfile.test"), { method: init.method ?? "GET", headers, body }),
+    );
   };
 
-  return { db, server, dataDir, token, call, otherKey: other.privateKey };
+  return { db, dataDir, token, call, otherKey: other.privateKey };
 }

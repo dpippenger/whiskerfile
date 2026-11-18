@@ -33,8 +33,7 @@ async function upload(
 }
 
 test("a pet can be created, read, updated and deleted", async () => {
-  const { server, call } = await startApi();
-  using _ = server;
+  const { call } = await startApi();
 
   const created = await call("/api/pets", { method: "POST", body: pet() });
   expect(created.status).toBe(201);
@@ -54,8 +53,7 @@ test("a pet can be created, read, updated and deleted", async () => {
 });
 
 test("each new pet gets its own chart colour unless one is chosen", async () => {
-  const { server, call } = await startApi();
-  using _ = server;
+  const { call } = await startApi();
   const colors = [];
   for (const name of ["A", "B"]) {
     colors.push(
@@ -69,8 +67,7 @@ test("each new pet gets its own chart colour unless one is chosen", async () => 
 });
 
 test("invalid pets get a 400 naming each bad field", async () => {
-  const { server, call } = await startApi();
-  using _ = server;
+  const { call } = await startApi();
   const res = await call("/api/pets", { method: "POST", body: pet({ name: "", dob: "2019-02-30" }) });
   expect(res.status).toBe(400);
   expect(((await res.json()) as { fields: object }).fields).toEqual({
@@ -88,8 +85,7 @@ test("invalid pets get a 400 naming each bad field", async () => {
 });
 
 test("a pet may only refer to an existing registry and an image file", async () => {
-  const { server, call } = await startApi();
-  using _ = server;
+  const { call } = await startApi();
   const registries = (await (await call("/api/chip-registries")).json()) as { id: number; name: string }[];
   const homeAgain = registries.find((r) => r.name === "HomeAgain")!;
   const photo = (await (await upload(call, PNG)).json()) as { id: number };
@@ -109,8 +105,7 @@ test("a pet may only refer to an existing registry and an image file", async () 
 });
 
 test("ids that are not positive integers, or not found, give 404", async () => {
-  const { server, call } = await startApi();
-  using _ = server;
+  const { call } = await startApi();
   for (const path of [
     "/api/pets/0",
     "/api/pets/abc",
@@ -127,8 +122,7 @@ test("ids that are not positive integers, or not found, give 404", async () => {
 });
 
 test("registries come seeded, can be edited, and cannot be removed while in use", async () => {
-  const { server, call } = await startApi();
-  using _ = server;
+  const { call } = await startApi();
   const seeded = (await (await call("/api/chip-registries")).json()) as { id: number; name: string }[];
   expect(seeded.map((r) => r.name)).toContain("AKC Reunite");
 
