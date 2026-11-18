@@ -1,4 +1,4 @@
-import { index, integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, real, sqliteTable, text, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 import { CHART_COLORS, REPRODUCTIVE, SEXES, SPECIES } from "../../shared/pets";
 import { ENTRY_KINDS, TEMPERATURE_UNITS, VITALS, WEIGHT_UNITS } from "../../shared/records";
 
@@ -41,6 +41,8 @@ export const files = sqliteTable("files", {
   mime: text().notNull(),
   sizeBytes: integer().notNull(),
   originalName: text().notNull(),
+  // A small image shown in its place in lists, so they don't load the original.
+  previewId: integer().references((): AnySQLiteColumn => files.id),
   uploadedBy: integer()
     .notNull()
     .references(() => users.id),

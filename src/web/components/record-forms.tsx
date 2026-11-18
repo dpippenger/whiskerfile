@@ -17,7 +17,7 @@ import {
   type Vital,
 } from "../../shared/records";
 import { api, ApiError } from "../lib/api";
-import { FileChip, FilePicker, fileRef, uploadOriginal, type FileRef } from "./attachments";
+import { FileChip, FilePicker, fileRef, storedRef, uploadOriginal, type FileRef } from "./attachments";
 import { useRecords } from "../lib/queries";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
@@ -124,14 +124,7 @@ export function EntryForm({
     mutationFn: async (picked: File[]) => {
       for (const file of picked) {
         const stored = await uploadOriginal(file);
-        setAttached((list) =>
-          list.some((f) => f.fileId === stored.id)
-            ? list
-            : [
-                ...list,
-                { fileId: stored.id, name: stored.originalName, mime: stored.mime, sizeBytes: stored.sizeBytes },
-              ],
-        );
+        setAttached((list) => (list.some((f) => f.fileId === stored.id) ? list : [...list, storedRef(stored)]));
       }
     },
   });

@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { MAX_UPLOAD_BYTES, sniffMime } from "../files";
+import { MAX_UPLOAD_BYTES, PREVIEW_MAX_BYTES, sniffMime } from "../files";
 import { startApi } from "../test-support";
 
 const bytes = (text: string) => new TextEncoder().encode(text);
@@ -83,4 +83,31 @@ test("uploading the same bytes again restores a stored copy that went missing", 
   const again = (await (await upload(PNG, "a.png")).json()) as { id: number };
   expect(again.id).toBe(first.id);
   expect(new Uint8Array(await (await call(`/api/files/${first.id}`)).arrayBuffer())).toEqual(PNG);
+});
+
+test("a large image can be given a small preview; nothing else can", async () => {
+  const { server, call, upload } = await setup();
+  using _ = server;
+  const big = new Uint8Array(PREVIEW_MAX_BYTES + 10);
+  big.set(JPEG);
+  const photo = (await (await upload(big, "receipt.jpg")).json()) as { id: number; previewId: number | null };
+  expect(photo.previewId).toBeNull();
+  const lab = (await (await upload(bytes("%PDF-1.7 lab"), "lab.pdf")).json()) as { id: number };
+
+  const preview = (data: Uint8Array<ArrayBuffer>, id: number) => {
+    const form = new FormData();
+    form.append("file", new File([data], "preview.webp"));
+    return call(`/api/files/${id}/preview`, { method: "PUT", body: form });
+  };
+  const small = new Uint8Array([...bytes("RIFF\0\0\0\0WEBPVP8 "), 1, 2, 3]);
+  const set = await preview(small, photo.id);
+  expect(set.status).toBe(200);
+  const updated = (await set.json()) as { id: number; previewId: number };
+  expect(updated.id).toBe(photo.id);
+  expect((await call(`/api/files/${updated.previewId}`)).headers.get("content-type")).toBe("image/webp");
+
+  expect((await preview(small, lab.id)).status).toBe(400);
+  expect((await preview(bytes("%PDF-1.7 not an image"), photo.id)).status).toBe(400);
+  expect((await preview(big, photo.id)).status).toBe(400);
+  expect((await preview(small, 9999)).status).toBe(404);
 });

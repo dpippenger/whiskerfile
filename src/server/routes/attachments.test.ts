@@ -61,9 +61,11 @@ test("files attached to a visit are stored byte for byte and follow its date", a
     call(`/api/pets/${petId}/entries`, { method: "POST", body: visit({ fileIds: [lab.id, receipt.id] }) }),
   );
   let { entries } = await records();
-  expect(entries[0]!.attachments.map((a) => [a.file.originalName, a.file.mime, a.date, a.author])).toEqual([
-    ["receipt.jpg", "image/jpeg", "2026-10-01", "a"],
-    ["Chem 17.pdf", "application/pdf", "2026-10-01", "a"],
+  expect(
+    entries[0]!.attachments.map((a) => [a.file.originalName, a.file.mime, a.file.previewId, a.date, a.author]),
+  ).toEqual([
+    ["receipt.jpg", "image/jpeg", null, "2026-10-01", "a"],
+    ["Chem 17.pdf", "application/pdf", null, "2026-10-01", "a"],
   ]);
 
   // Moving the visit moves its files; leaving fileIds out keeps them.
@@ -124,14 +126,12 @@ test("files can be filed on their own, relabelled and removed", async () => {
   expect(own.map((a) => [a.label, a.file.originalName])).toEqual([["Adoption contract", "adoption.pdf"]]);
   expect(entries).toEqual([]);
 
-  expect(
-    (
-      await call(`/api/pets/${petId}/attachments`, {
-        method: "POST",
-        body: { fileId: 9999, label: "", date: "2019-05-01" },
-      })
-    ).status,
-  ).toBe(400);
+  const unknown = await call(`/api/pets/${petId}/attachments`, {
+    method: "POST",
+    body: { fileId: 9999, label: "", date: "2019-05-01" },
+  });
+  expect(unknown.status).toBe(400);
+  expect((await json<{ fields: object }>(unknown)).fields).toEqual({ fileId: "Unknown file" });
   expect(
     (
       await call("/api/pets/999/attachments", {

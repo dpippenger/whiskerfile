@@ -6,22 +6,40 @@ import type { AttachmentWithFile, PetRecords } from "../../server/routes/records
 import { formatDate, localToday } from "../../shared/dates";
 import { attachmentInput } from "../../shared/records";
 import { api, ApiError } from "../lib/api";
+import { downsizeImage } from "../lib/image";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Field, Input } from "./ui/field";
 
 /** A file as shown in a list: enough to link to it and show what it is. */
-export type FileRef = { fileId: number; name: string; mime: string; sizeBytes: number };
+export type FileRef = { fileId: number; name: string; mime: string; sizeBytes: number; previewId: number | null };
 
 export const fileRef = (a: AttachmentWithFile): FileRef => ({
   fileId: a.fileId,
   name: a.label ?? a.file.originalName,
   mime: a.file.mime,
   sizeBytes: a.file.sizeBytes,
+  previewId: a.file.previewId,
+});
+
+export const storedRef = (f: StoredFile): FileRef => ({
+  fileId: f.id,
+  name: f.originalName,
+  mime: f.mime,
+  sizeBytes: f.sizeBytes,
+  previewId: f.previewId,
 });
 
 const IMAGE = /^image\/(jpeg|png|webp|gif)$/;
+/** Matches the server's PREVIEW_MAX_BYTES: smaller images serve as their own preview. */
+const PREVIEW_MAX_BYTES = 512 * 1024;
+
+/** The image to show in a list for a file, or null to show an icon. Never the original of a large image. */
+function previewSrc(file: Pick<FileRef, "fileId" | "mime" | "sizeBytes" | "previewId">): string | null {
+  if (file.previewId) return `/api/files/${file.previewId}`;
+  return IMAGE.test(file.mime) && file.sizeBytes <= PREVIEW_MAX_BYTES ? `/api/files/${file.fileId}` : null;
+}
 
 export function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -29,11 +47,23 @@ export function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-/** Uploads a file exactly as picked: records keep the original document. */
-export function uploadOriginal(file: File): Promise<StoredFile> {
+/**
+ * Uploads a file exactly as picked: records keep the original document. For a
+ * large image it also uploads a small preview for lists to show; if that
+ * fails, lists show an icon instead.
+ */
+export async function uploadOriginal(file: File): Promise<StoredFile> {
   const form = new FormData();
   form.append("file", file);
-  return api<StoredFile>("/files", { method: "POST", body: form });
+  const stored = await api<StoredFile>("/files", { method: "POST", body: form });
+  if (!IMAGE.test(stored.mime) || stored.sizeBytes <= PREVIEW_MAX_BYTES || stored.previewId) return stored;
+  try {
+    const preview = new FormData();
+    preview.append("file", await downsizeImage(file, 640));
+    return await api<StoredFile>(`/files/${stored.id}/preview`, { method: "PUT", body: preview });
+  } catch {
+    return stored;
+  }
 }
 
 /** A button and drop zone that hands picked files to `onPick`; ignores picks while `busy`. */
@@ -102,13 +132,8 @@ export function FileChip({ file, onRemove }: { file: FileRef; onRemove?: () => v
         rel="noreferrer"
         className="flex min-w-0 items-center gap-2 hover:text-primary"
       >
-        {IMAGE.test(file.mime) ? (
-          <img
-            src={`/api/files/${file.fileId}`}
-            alt=""
-            loading="lazy"
-            className="size-7 shrink-0 rounded object-cover"
-          />
+        {previewSrc(file) ? (
+          <img src={previewSrc(file)!} alt="" loading="lazy" className="size-7 shrink-0 rounded object-cover" />
         ) : (
           <FileText className="size-4 shrink-0 text-muted-foreground" aria-hidden />
         )}
@@ -154,10 +179,11 @@ export function FilesTab({ records, onEdit }: { records: PetRecords; onEdit: (a:
               href={`/api/files/${a.fileId}`}
               target="_blank"
               rel="noreferrer"
+              aria-label={`Open ${a.label ?? a.file.originalName}`}
               className="flex aspect-[4/3] items-center justify-center bg-background-secondary"
             >
-              {IMAGE.test(a.file.mime) ? (
-                <img src={`/api/files/${a.fileId}`} alt="" loading="lazy" className="size-full object-cover" />
+              {previewSrc(fileRef(a)) ? (
+                <img src={previewSrc(fileRef(a))!} alt="" loading="lazy" className="size-full object-cover" />
               ) : (
                 <FileText className="size-10 text-muted-foreground" aria-hidden />
               )}
@@ -211,7 +237,7 @@ export function FileForm({
   const upload = useMutation({
     mutationFn: uploadOriginal,
     onSuccess: (stored) => {
-      setFile({ fileId: stored.id, name: stored.originalName, mime: stored.mime, sizeBytes: stored.sizeBytes });
+      setFile(storedRef(stored));
       setLabel((l) => l || stored.originalName.replace(/\.[^.]*$/, ""));
     },
   });

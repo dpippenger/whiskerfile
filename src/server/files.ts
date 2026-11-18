@@ -6,6 +6,9 @@ import { files, type StoredFile } from "./db/schema";
 
 export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
+/** Images up to this size are shown as their own preview; larger ones need a separate one. */
+export const PREVIEW_MAX_BYTES = 512 * 1024;
+
 /** Types that are shown in the browser. Everything else is served as a download. */
 export const INLINE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf"] as const;
 export const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];

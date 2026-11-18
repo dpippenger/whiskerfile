@@ -18,7 +18,7 @@ import type { z } from "zod";
 
 export type AttachmentWithFile = Attachment & {
   author: string;
-  file: Pick<StoredFile, "mime" | "sizeBytes" | "originalName">;
+  file: Pick<StoredFile, "mime" | "sizeBytes" | "originalName" | "previewId">;
 };
 export type EntryWithVitals = Entry & {
   author: string;
@@ -49,7 +49,8 @@ function unknownFiles(db: Db, ids: number[]): number[] {
   return ids.filter((id) => !found.has(id));
 }
 
-const unknownFileError = () => error(400, "Some fields are invalid", { fileIds: "Unknown file" });
+const unknownFileError = (field: "fileId" | "fileIds") =>
+  error(400, "Some fields are invalid", { [field]: "Unknown file" });
 
 /**
  * Saves a visit with its vitals and attached files in one transaction, so they
@@ -151,7 +152,12 @@ export function recordRoutes({ db }: AppContext, authed: Authed) {
       .select({
         a: attachments,
         author: authorName,
-        file: { mime: files.mime, sizeBytes: files.sizeBytes, originalName: files.originalName },
+        file: {
+          mime: files.mime,
+          sizeBytes: files.sizeBytes,
+          originalName: files.originalName,
+          previewId: files.previewId,
+        },
       })
       .from(attachments)
       .innerJoin(users, eq(users.id, attachments.createdBy))
@@ -233,7 +239,7 @@ export function recordRoutes({ db }: AppContext, authed: Authed) {
         if (!petId || !petExists(db, petId)) return error(404, "Pet not found");
         const parsed = await parseJson(req, entryInput);
         if ("response" in parsed) return parsed.response;
-        if (unknownFiles(db, parsed.data.fileIds ?? []).length) return unknownFileError();
+        if (unknownFiles(db, parsed.data.fileIds ?? []).length) return unknownFileError("fileIds");
         return Response.json(saveEntry(db, petId, user.id, parsed.data), { status: 201 });
       }),
     },
@@ -245,7 +251,7 @@ export function recordRoutes({ db }: AppContext, authed: Authed) {
         if (!existing) return error(404, "Entry not found");
         const parsed = await parseJson(req, entryInput);
         if ("response" in parsed) return parsed.response;
-        if (unknownFiles(db, parsed.data.fileIds ?? []).length) return unknownFileError();
+        if (unknownFiles(db, parsed.data.fileIds ?? []).length) return unknownFileError("fileIds");
         return Response.json(saveEntry(db, existing.petId, user.id, parsed.data, existing.id));
       }),
       DELETE: authed<"/api/entries/:id">((req) => {
@@ -262,7 +268,7 @@ export function recordRoutes({ db }: AppContext, authed: Authed) {
         if (!petId || !petExists(db, petId)) return error(404, "Pet not found");
         const parsed = await parseJson(req, attachmentInput);
         if ("response" in parsed) return parsed.response;
-        if (unknownFiles(db, [parsed.data.fileId]).length) return unknownFileError();
+        if (unknownFiles(db, [parsed.data.fileId]).length) return unknownFileError("fileId");
         const row = db
           .insert(attachments)
           .values({ ...parsed.data, petId, entryId: null, createdBy: user.id, createdAt: Date.now() })
