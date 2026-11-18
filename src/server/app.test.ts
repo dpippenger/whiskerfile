@@ -1,43 +1,13 @@
 import { expect, test } from "bun:test";
-import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from "jose";
-import { mkdtemp } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { apiRoutes } from "./app";
 import { createAuthenticator } from "./auth";
 import { openDb } from "./db";
 import { backupRuns, users } from "./db/schema";
-
-const ISSUER = "https://team.cloudflareaccess.com";
-const AUDIENCE = "aud-tag";
+import { startApi } from "./test-support";
 
 async function setup() {
-  const { publicKey, privateKey } = await generateKeyPair("RS256");
-  const other = await generateKeyPair("RS256");
-  const { sqlite, db } = openDb(":memory:");
-  const authenticate = createAuthenticator(db, {
-    mode: "access",
-    issuer: ISSUER,
-    audience: AUDIENCE,
-    keys: createLocalJWKSet({ keys: [await exportJWK(publicKey)] }),
-  });
-  const root = await mkdtemp(join(tmpdir(), "whiskerfile-app-"));
-  const server = Bun.serve({
-    port: 0,
-    routes: apiRoutes({ sqlite, db, dataDir: join(root, "data"), backupDir: join(root, "backups") }, authenticate),
-  });
-
-  const token = (claims: Record<string, unknown>, opts: { aud?: string; iss?: string; exp?: string; key?: CryptoKey } = {}) =>
-    new SignJWT(claims)
-      .setProtectedHeader({ alg: "RS256" })
-      .setIssuer(opts.iss ?? ISSUER)
-      .setAudience(opts.aud ?? AUDIENCE)
-      .setExpirationTime(opts.exp ?? "5m")
-      .sign(opts.key ?? privateKey);
-  const get = (path: string, jwt?: string) =>
-    fetch(new URL(path, server.url), { headers: jwt ? { "Cf-Access-Jwt-Assertion": jwt } : {} });
-
-  return { db, server, token, get, otherKey: other.privateKey };
+  const api = await startApi();
+  const get = (path: string, jwt?: string) => api.call(path, { jwt: jwt ?? null });
+  return { ...api, get };
 }
 
 test("requests without a valid Access token are rejected", async () => {
@@ -53,7 +23,16 @@ test("requests without a valid Access token are rejected", async () => {
     await token({ sub: "service-token" }),
   ];
   for (const jwt of rejected) {
-    for (const path of ["/api/me", "/api/backups", "/api/backups/1/download", "/api/unknown"]) {
+    for (const path of [
+      "/api/me",
+      "/api/backups",
+      "/api/backups/1/download",
+      "/api/pets",
+      "/api/pets/1",
+      "/api/files/1",
+      "/api/chip-registries",
+      "/api/unknown",
+    ]) {
       expect((await get(path, jwt)).status).toBe(401);
     }
   }
@@ -107,4 +86,21 @@ test("a backup can be run, listed and downloaded", async () => {
   expect(download.headers.get("content-disposition")).toContain(run.file);
   expect(new TextDecoder().decode((await download.arrayBuffer()).slice(0, 15))).toBe("SQLite format 3");
   expect((await call("/api/backups/999/download")).status).toBe(404);
+});
+
+test("writes are rejected without a valid Access token", async () => {
+  const { server, call } = await setup();
+  using _ = server;
+  const writes: [string, string][] = [
+    ["POST", "/api/pets"],
+    ["PUT", "/api/pets/1"],
+    ["DELETE", "/api/pets/1"],
+    ["POST", "/api/files"],
+    ["POST", "/api/chip-registries"],
+    ["PUT", "/api/chip-registries/1"],
+    ["DELETE", "/api/chip-registries/1"],
+  ];
+  for (const [method, path] of writes) {
+    expect((await call(path, { method, body: {}, jwt: null })).status).toBe(401);
+  }
 });

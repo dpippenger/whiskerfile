@@ -1,0 +1,57 @@
+import { X } from "lucide-react";
+import { useEffect, useRef, type ReactNode } from "react";
+
+/**
+ * A modal built on the native <dialog>: focus trapping, Escape and the
+ * backdrop come from the browser. Full-screen on phones, centred on wider
+ * screens.
+ */
+export function Dialog({
+  open,
+  onClose,
+  title,
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    const dialog = ref.current;
+    if (!dialog) return;
+    if (open && !dialog.open) dialog.showModal();
+    if (!open && dialog.open) dialog.close();
+  }, [open]);
+
+  return (
+    <dialog
+      ref={ref}
+      onClose={onClose}
+      onClick={(e) => e.target === ref.current && onClose()}
+      aria-labelledby="dialog-title"
+      className="m-auto h-fit max-h-[85dvh] w-full max-w-lg rounded-xl border border-border-strong bg-elevated p-0 text-foreground backdrop:bg-black/70 max-md:m-0 max-md:h-dvh max-md:max-h-none max-md:max-w-none max-md:rounded-none max-md:border-0"
+    >
+      {open && (
+        <div className="flex max-h-[inherit] flex-col max-md:h-full">
+          <header className="flex items-center justify-between gap-2 border-b border-border px-4 py-2 md:px-6">
+            <h2 id="dialog-title" className="text-base font-semibold">
+              {title}
+            </h2>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="flex size-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-white/5 hover:text-foreground md:size-9"
+            >
+              <X className="size-4" aria-hidden />
+            </button>
+          </header>
+          <div className="flex-1 overflow-y-auto p-4 md:p-6">{children}</div>
+        </div>
+      )}
+    </dialog>
+  );
+}
