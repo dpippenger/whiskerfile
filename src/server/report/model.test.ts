@@ -28,11 +28,16 @@ const result = (id: number, code: string, valueText: string, unit = "mg/dL", sor
 const report = (id: number, date: string, results: ReturnType<typeof result>[]) =>
   ({ id, date, results }) as unknown as LabReportWithResults;
 
-// Newest first, as the API returns them.
+// Newest first, as the API returns them. ALB comes first in the catalog but
+// only on the older reports, so the order the tests are met in isn't catalog order.
 const labs = [
   report(3, "2026-11-06", [result(31, "CREA", "2.9"), result(32, "GLU", "120", "mg/dL", 10)]),
-  report(2, "2026-05-02", [result(21, "CREA", "1.9"), result(22, "GLU", "8.1", "mmol/L", 10)]),
-  report(1, "2025-10-14", [result(11, "CREA", "1.6")]),
+  report(2, "2026-05-02", [
+    result(23, "ALB", "3.1", "g/dL", 5),
+    result(21, "CREA", "1.9"),
+    result(22, "GLU", "8.1", "mmol/L", 10),
+  ]),
+  report(1, "2025-10-14", [result(13, "ALB", "3.4", "g/dL", 5), result(11, "CREA", "1.6")]),
 ];
 
 const health = {
@@ -88,10 +93,13 @@ test("everything is included by default, with statuses as of the reader's date",
   ]);
 });
 
-test("a trend is drawn for each test with two or more results in one unit", () => {
+test("a trend is drawn for each test with two or more results in one unit, in catalog order", () => {
   const m = reportModel({ pet, weights, labs, health }, options());
   // GLU has two results, but in different units: only one can be drawn, so no trend.
-  expect(m.trends.map((t) => [t.code, t.series.points.map((p) => p.value)])).toEqual([["CREA", [1.6, 1.9, 2.9]]]);
+  expect(m.trends.map((t) => [t.code, t.series.points.map((p) => p.value)])).toEqual([
+    ["ALB", [3.4, 3.1]],
+    ["CREA", [1.6, 1.9, 2.9]],
+  ]);
 });
 
 test("a period keeps records dated inside it, and courses and conditions that overlap it", () => {

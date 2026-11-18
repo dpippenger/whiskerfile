@@ -51,6 +51,29 @@ test("a pet's report comes back as a PDF download named after the pet", async ()
     method: "POST",
     body: { date: "2026-11-01", kind: "weight", value: 4100 },
   });
+  const health = {
+    vaccinations: {
+      vaccine: "FVRCP",
+      dateGiven: "2026-10-01",
+      dueDate: null,
+      lot: null,
+      clinic: null,
+      notes: "Sleepy for a day",
+    },
+    medications: {
+      drug: "Methimazole",
+      dose: "2.5 mg",
+      frequency: null,
+      startDate: "2026-11-06",
+      endDate: null,
+      reason: null,
+      notes: "Give with food",
+    },
+    conditions: { kind: "allergy", title: "Chicken", date: "2022-10-10", resolvedOn: null, notes: "Itchy skin" },
+  };
+  for (const [path, body] of Object.entries(health)) {
+    expect((await call(`/api/pets/${petId}/${path}`, { method: "POST", body })).status).toBe(201);
+  }
 
   const res = await call(`/api/pets/${petId}/report.pdf?${QUERY}`);
   expect(res.status).toBe(200);
@@ -70,6 +93,8 @@ test("a pet's report comes back as a PDF download named after the pet", async ()
   expect(html).toContain("9.04</span> lb");
   expect(html).toContain("<svg");
   expect(html).toContain("12 yr 8 mo");
+  // Each health record's notes travel with it.
+  for (const note of ["Sleepy for a day", "Give with food", "Itchy skin"]) expect(html).toContain(note);
 });
 
 test("the reader's date and unit are required, and the period must make sense", async () => {

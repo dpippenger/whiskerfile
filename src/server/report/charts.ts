@@ -3,7 +3,7 @@ import { GridComponent, TooltipComponent } from "echarts/components";
 import * as echarts from "echarts/core";
 import { LegacyGridContainLabel } from "echarts/features";
 import { SVGRenderer } from "echarts/renderers";
-import { PRINT_THEME, labTrendOption, weightTrendOption } from "../../web/components/charts/trend-options";
+import { PRINT_THEME, labTrendOption, weightTrendOption } from "../../shared/trend-options";
 import type { Trend } from "./model";
 
 // The options keep `grid.containLabel`, which ECharts 6 honours only with this feature.

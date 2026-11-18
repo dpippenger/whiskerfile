@@ -5,7 +5,7 @@ import { ENTRY_KIND_LABEL, fromGrams, type Units } from "../../shared/records";
 import { cn } from "../lib/utils";
 import { useMemo } from "react";
 import { EChart } from "./charts/echart";
-import { weightTrendOption } from "./charts/trend-options";
+import { weightTrendOption } from "../../shared/trend-options";
 import { Card } from "./ui/card";
 
 /** Signed change in display units, e.g. "+0.12" or "−0.30"; null for the first weight. */

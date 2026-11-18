@@ -25,6 +25,7 @@ export function chromiumPdf(binary: string): RenderPdf {
     try {
       const page = join(dir, "report.html");
       const out = join(dir, "report.pdf");
+      const log = join(dir, "chromium.log");
       await Bun.write(page, html);
       const proc = Bun.spawn(
         [
@@ -44,17 +45,27 @@ export function chromiumPdf(binary: string): RenderPdf {
           env: { ...process.env, HOME: dir, XDG_CONFIG_HOME: join(dir, "config"), XDG_CACHE_HOME: join(dir, "cache") },
           stdin: "ignore",
           stdout: "ignore",
-          stderr: "pipe",
+          // A file, not a pipe: a helper process that outlives a killed Chromium could
+          // hold a pipe open and keep this wait (and the cleanup below) from finishing.
+          stderr: Bun.file(log),
           timeout: PDF_TIMEOUT_SECONDS * 1000,
           killSignal: "SIGKILL",
         },
       );
-      // Read stderr while it runs, so a chatty Chromium can't fill the pipe and stall.
-      const [log, code] = await Promise.all([new Response(proc.stderr).text(), proc.exited]);
+      const code = await proc.exited;
       const pdf = Bun.file(out);
       if (code !== 0 || !(await pdf.exists())) {
         const reason = proc.signalCode ? `was stopped (${proc.signalCode})` : `exited with ${code}`;
-        throw new Error(`Chromium ${reason}: ${log.trim().split("\n").slice(-3).join(" / ")}`);
+        const tail = (
+          await Bun.file(log)
+            .text()
+            .catch(() => "")
+        )
+          .trim()
+          .split("\n")
+          .slice(-3)
+          .join(" / ");
+        throw new Error(`Chromium ${reason}: ${tail}`);
       }
       return new Uint8Array(await pdf.arrayBuffer());
     } finally {

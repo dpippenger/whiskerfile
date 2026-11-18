@@ -25,6 +25,7 @@ h2 { margin: 18pt 0 6pt; font-size: 12pt; border-bottom: 1px solid #d1d5db; padd
 h3 { margin: 10pt 0 4pt; font-size: 10pt; break-after: avoid; }
 p { margin: 0; }
 .muted { color: #6b7280; }
+.note { margin-top: 1pt; color: #4b5563; font-size: 8.5pt; white-space: pre-wrap; }
 .mono { font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; }
 header { display: flex; gap: 14pt; align-items: flex-start; }
 header img { width: 80pt; height: 80pt; object-fit: cover; border-radius: 8pt; }
@@ -69,6 +70,9 @@ const Cols = ({ widths }: { widths: number[] }) => (
     ))}
   </colgroup>
 );
+
+/** A record's notes, as typed, under its name. */
+const Note = ({ text }: { text: string | null }) => (text ? <p className="note">{text}</p> : null);
 
 const Flag = ({ flag }: { flag: string | null }) =>
   flag === "high" ? <span className="high">High</span> : flag === "low" ? <span className="low">Low</span> : null;
@@ -240,7 +244,10 @@ function Report({ m, assets }: { m: ReportModel; assets: ReportAssets }) {
             <tbody>
               {m.vaccinations.map((v) => (
                 <tr key={v.id}>
-                  <td>{v.vaccine}</td>
+                  <td>
+                    {v.vaccine}
+                    <Note text={v.notes} />
+                  </td>
                   <td>{formatDate(v.dateGiven)}</td>
                   <td>
                     {v.dueDate && v.latest ? (
@@ -281,6 +288,7 @@ function Report({ m, assets }: { m: ReportModel; assets: ReportAssets }) {
                     {med.drug}
                     {med.state === "current" && <span className="muted"> · current</span>}
                     {med.state === "upcoming" && <span className="muted"> · not started</span>}
+                    <Note text={med.notes} />
                   </td>
                   <td>{[med.dose, med.frequency].filter(Boolean).join(", ")}</td>
                   <td>

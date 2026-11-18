@@ -6,7 +6,7 @@ import { fromGrams, type Units } from "../../shared/records";
 import { labSeries, type LabSeries } from "../../shared/series";
 import { cn } from "../lib/utils";
 import { EChart } from "./charts/echart";
-import { labTrendOption, weightTrendOption } from "./charts/trend-options";
+import { labTrendOption, weightTrendOption } from "../../shared/trend-options";
 import { Card } from "./ui/card";
 
 type Metric = { key: string; label: string; code?: string; category?: AnalyteCategory };

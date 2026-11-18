@@ -1,6 +1,6 @@
-import { formatDate } from "../../../shared/dates";
-import { formatRange, type Flag } from "../../../shared/labs";
-import { dateToUtc, rangeBand, type LabPoint } from "../../../shared/series";
+import { formatDate } from "./dates";
+import { formatRange, type Flag } from "./labs";
+import { dateToUtc, rangeBand, type LabPoint } from "./series";
 
 // Chart options are built here as plain data, so they can be tested without a
 // browser. On screen they follow the app's dark theme (see src/web/index.css);

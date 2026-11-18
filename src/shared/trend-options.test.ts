@@ -1,12 +1,13 @@
 import { expect, test } from "bun:test";
-import { formatDate } from "../../../shared/dates";
-import { parseLabValue } from "../../../shared/labs";
-import { dateToUtc, labSeries } from "../../../shared/series";
+import { formatDate } from "./dates";
+import { parseLabValue } from "./labs";
+import { dateToUtc, labSeries } from "./series";
 import {
   CHART_THEME,
   compareOption,
   escapeHtml,
   labTrendOption,
+  PRINT_THEME,
   timePadding,
   weightTrendOption,
 } from "./trend-options";
@@ -151,4 +152,22 @@ test("comparisons draw a line per pet in its colour, with names escaped", () => 
   expect(lines.map((l) => (l.data[0] as unknown as { symbol: string }).symbol)).toEqual(["circle", "emptyCircle"]);
   expect(lines[1]!.data[0]!.tooltip.formatter()).toContain("<b>&lt;0.5</b>");
   expect(compareOption(pets, { axis: "date", unit: null }).xAxis).toMatchObject({ type: "time" });
+});
+
+test("printed charts have nothing to hover, animate or drag, and paper colours", () => {
+  const many = Array.from({ length: 10 }, (_, i) => ({ date: `2026-0${(i % 9) + 1}-01`, value: 4000 + i }));
+  const screen = weightTrendOption(many, { color: "#60a5fa", unit: "kg", format: String });
+  expect(screen.dataZoom).toHaveLength(1);
+
+  const print = weightTrendOption(many, { color: "#60a5fa", unit: "kg", format: String }, PRINT_THEME);
+  // Left out entirely: the server draws without the zoom component.
+  expect("dataZoom" in print).toBe(false);
+  expect(print.animation).toBe(false);
+  expect(print.tooltip.show).toBe(false);
+  expect(print.grid.bottom).toBe(24);
+
+  const lab = labTrendOption(series.points, { color: "#a855f7", unit: "mg/dL", name: "Creatinine" }, PRINT_THEME);
+  const values = (lab.series as unknown as { id: string; data: Item[] }[]).find((s) => s.id === "values")!;
+  expect(values.data.at(-1)!.itemStyle.color).toBe(PRINT_THEME.flag.high);
+  expect(lab.yAxis.axisLabel.color).toBe(PRINT_THEME.text);
 });
