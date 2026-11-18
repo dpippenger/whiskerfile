@@ -152,7 +152,7 @@ This spec covers the three record types, their validation and API, the Health ta
 #### Acceptance Criteria
 
 1. THE `GET /api/pets` response SHALL give each Pet_Summary a `vaccinations` array of every dose's `id`, `vaccine`, `dateGiven` and `dueDate`, newest first by date given then id, empty for a pet with none. (`src/server/routes/health.test.ts`)
-2. THE health and pet-list APIs SHALL return vaccine doses without a Due_Status, and the server SHALL NOT use its own clock to compute one; the browser computes it, and the PDF report computes it from the `today` the browser sends. (`src/server/routes/health.test.ts`)
+2. THE health and pet-list APIs SHALL return vaccine doses without a Due_Status (pet list: `src/server/routes/health.test.ts`; health API: manual), and the server SHALL NOT use its own clock to compute one (manual); the browser computes it, and the PDF report computes it from the `today` the browser sends (`src/server/report/model.test.ts`).
 3. THE Pet_Summary SHALL carry `latestLab` as the pet's report with the latest sample date, ties broken by the higher id (the one added last), or null when the pet has no reports. (`src/server/routes/labs.test.ts`)
 4. THE `latestLab.flagged` list SHALL hold only results `flagResult()` marks `high` or `low`, each as code, name, value text, unit and flag, in analyte catalog order; in-range, unranged and undecidable results SHALL be left out. (`src/server/routes/labs.test.ts`)
 
