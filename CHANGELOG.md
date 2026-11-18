@@ -4,6 +4,8 @@
 
 ### Added
 
+- Compare: one metric (weight or a test) for several pets on one chart, by date or by age, each pet in its own colour. Only results in one unit are plotted, and pets left out (another unit, no results, or no birth date when comparing by age) are named.
+
 - Trends tab: a chart per chosen metric (weight, and each test with numeric results) on a real time axis, over the reference range printed on each report, with flagged points coloured and limit results (such as <0.5) drawn hollow. Results in another unit, or without a number, are counted and named rather than drawn.
 - The weight tab's trend line is now a chart with dates on its axis and a zoom slider for long histories.
 
