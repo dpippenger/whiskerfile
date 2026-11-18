@@ -3,7 +3,8 @@ import { formatRange, type Flag } from "../../../shared/labs";
 import { dateToUtc, rangeBand, type LabPoint } from "../../../shared/series";
 
 // Chart options are built here as plain data, so they can be tested without a
-// browser. Styling follows the app's dark theme (see src/web/index.css).
+// browser. On screen they follow the app's dark theme (see src/web/index.css);
+// in a printed report they are drawn for paper.
 
 export const CHART_THEME = {
   text: "#8a8f98",
@@ -12,7 +13,22 @@ export const CHART_THEME = {
   tooltipBorder: "rgba(255, 255, 255, 0.11)",
   band: "rgba(74, 222, 128, 0.12)",
   flag: { high: "#fb7185", low: "#fbbf24", normal: "#4ade80" } as Record<Flag, string>,
+  /** Tooltips, animation and a zoom slider for long histories. */
+  interactive: true,
 };
+
+/** For paper: darker text and flags, a visible grid and band, and nothing to hover or drag. */
+export const PRINT_THEME: typeof CHART_THEME = {
+  text: "#4b5563",
+  grid: "rgba(0, 0, 0, 0.12)",
+  tooltipBg: "#ffffff",
+  tooltipBorder: "rgba(0, 0, 0, 0.12)",
+  band: "rgba(22, 163, 74, 0.12)",
+  flag: { high: "#dc2626", low: "#d97706", normal: "#16a34a" },
+  interactive: false,
+};
+
+export type ChartTheme = typeof CHART_THEME;
 
 /** Escapes text for the tooltip, which ECharts renders as HTML. */
 export function escapeHtml(text: string): string {
@@ -32,42 +48,49 @@ export function timePadding(xs: number[]): { min?: number; max?: number } {
   return hi - lo < DAY ? { min: lo - 30 * DAY, max: hi + 30 * DAY } : {};
 }
 
-const base = (zoom: boolean, xs: number[]) => ({
-  // Dates are midnight UTC; showing them in UTC keeps each point on its own day.
-  useUTC: true,
-  animation: true,
-  textStyle: { fontFamily: "Inter Variable, system-ui, sans-serif", color: CHART_THEME.text },
-  grid: { top: 12, right: 12, bottom: zoom ? 56 : 24, left: 8, containLabel: true },
-  xAxis: {
-    type: "time",
-    ...timePadding(xs),
-    axisLine: { lineStyle: { color: CHART_THEME.grid } },
-    axisTick: { show: false },
-    axisLabel: {
-      color: CHART_THEME.text,
-      fontSize: 11,
-      hideOverlap: true,
-      // Name the month on day ticks, so a short span doesn't read as bare numbers.
-      formatter: { year: "{yyyy}", month: "{MMM}", day: "{MMM} {d}", hour: "{MMM} {d}", minute: "{MMM} {d}" },
+const base = (manyPoints: boolean, xs: number[], theme: ChartTheme) => {
+  const zoom = manyPoints && theme.interactive;
+  return {
+    // Dates are midnight UTC; showing them in UTC keeps each point on its own day.
+    useUTC: true,
+    animation: theme.interactive,
+    textStyle: { fontFamily: "Inter Variable, system-ui, sans-serif", color: theme.text },
+    grid: { top: 12, right: 12, bottom: zoom ? 56 : 24, left: 8, containLabel: true },
+    xAxis: {
+      type: "time",
+      ...timePadding(xs),
+      axisLine: { lineStyle: { color: theme.grid } },
+      axisTick: { show: false },
+      axisLabel: {
+        color: theme.text,
+        fontSize: 11,
+        hideOverlap: true,
+        // Name the month on day ticks, so a short span doesn't read as bare numbers.
+        formatter: { year: "{yyyy}", month: "{MMM}", day: "{MMM} {d}", hour: "{MMM} {d}", minute: "{MMM} {d}" },
+      },
+      splitLine: { show: false },
     },
-    splitLine: { show: false },
-  },
-  yAxis: {
-    type: "value",
-    scale: true,
-    axisLabel: { color: CHART_THEME.text, fontSize: 11 },
-    splitLine: { lineStyle: { color: CHART_THEME.grid, type: "dashed" } },
-  },
-  tooltip: {
-    trigger: "item",
-    backgroundColor: CHART_THEME.tooltipBg,
-    borderColor: CHART_THEME.tooltipBorder,
-    textStyle: { color: "#f7f8f8", fontSize: 12 },
-    confine: true,
-  },
-  // A slider rather than drag-to-zoom, so a swipe over the chart still scrolls the page on a phone.
-  dataZoom: zoom ? [{ type: "slider", height: 20, bottom: 8, borderColor: "transparent", filterMode: "none" }] : [],
-});
+    yAxis: {
+      type: "value",
+      scale: true,
+      axisLabel: { color: theme.text, fontSize: 11 },
+      splitLine: { lineStyle: { color: theme.grid, type: "dashed" } },
+    },
+    tooltip: {
+      show: theme.interactive,
+      trigger: "item",
+      backgroundColor: theme.tooltipBg,
+      borderColor: theme.tooltipBorder,
+      textStyle: { color: "#f7f8f8", fontSize: 12 },
+      confine: true,
+    },
+    // A slider rather than drag-to-zoom, so a swipe over the chart still scrolls the page on a phone.
+    // Printed charts leave it out entirely, so the server needn't load the zoom component.
+    ...(theme.interactive && {
+      dataZoom: zoom ? [{ type: "slider", height: 20, bottom: 8, borderColor: "transparent", filterMode: "none" }] : [],
+    }),
+  };
+};
 
 /** Enough points that zooming helps. */
 const ZOOM_FROM = 8;
@@ -77,13 +100,18 @@ const ZOOM_FROM = 8;
  * coloured by its flag, hollow for a "<" or ">" result, over a band of each
  * result's own printed range.
  */
-export function labTrendOption(points: LabPoint[], opts: { color: string; unit: string | null; name: string }) {
+export function labTrendOption(
+  points: LabPoint[],
+  opts: { color: string; unit: string | null; name: string },
+  theme: ChartTheme = CHART_THEME,
+) {
   const band = rangeBand(points);
   const unit = opts.unit ? ` ${escapeHtml(opts.unit)}` : "";
   return {
     ...base(
       points.length >= ZOOM_FROM,
       points.map((p) => dateToUtc(p.date)),
+      theme,
     ),
     series: [
       {
@@ -109,7 +137,7 @@ export function labTrendOption(points: LabPoint[], opts: { color: string; unit: 
         silent: true,
         symbol: "none",
         lineStyle: { opacity: 0 },
-        areaStyle: { color: CHART_THEME.band },
+        areaStyle: { color: theme.band },
         connectNulls: false,
         data: band.map((b) => [b.x, b.height]),
       },
@@ -122,15 +150,15 @@ export function labTrendOption(points: LabPoint[], opts: { color: string; unit: 
         data: points.map((p) => ({
           value: [dateToUtc(p.date), p.value],
           symbol: p.comparator ? "emptyCircle" : "circle",
-          itemStyle: { color: p.flag && p.flag !== "normal" ? CHART_THEME.flag[p.flag] : opts.color },
+          itemStyle: { color: p.flag && p.flag !== "normal" ? theme.flag[p.flag] : opts.color },
           tooltip: {
             formatter: () => {
               const range = formatRange(p.refLow, p.refHigh);
               const flag = p.flag === "high" ? " · High" : p.flag === "low" ? " · Low" : "";
               return [
-                `<div style="color:${CHART_THEME.text}">${escapeHtml(formatDate(p.date))}</div>`,
+                `<div style="color:${theme.text}">${escapeHtml(formatDate(p.date))}</div>`,
                 `<b>${escapeHtml(p.valueText)}</b>${unit}${flag}`,
-                range ? `<div style="color:${CHART_THEME.text}">Range ${escapeHtml(range)}</div>` : "",
+                range ? `<div style="color:${theme.text}">Range ${escapeHtml(range)}</div>` : "",
               ].join("");
             },
           },
@@ -144,11 +172,13 @@ export function labTrendOption(points: LabPoint[], opts: { color: string; unit: 
 export function weightTrendOption(
   points: { date: string; value: number }[],
   opts: { color: string; unit: string; format: (value: number) => string },
+  theme: ChartTheme = CHART_THEME,
 ) {
   return {
     ...base(
       points.length >= ZOOM_FROM,
       points.map((p) => dateToUtc(p.date)),
+      theme,
     ),
     series: [
       {
@@ -161,7 +191,7 @@ export function weightTrendOption(
           value: [dateToUtc(p.date), p.value],
           tooltip: {
             formatter: () =>
-              `<div style="color:${CHART_THEME.text}">${escapeHtml(formatDate(p.date))}</div><b>${escapeHtml(opts.format(p.value))}</b> ${escapeHtml(opts.unit)}`,
+              `<div style="color:${theme.text}">${escapeHtml(formatDate(p.date))}</div><b>${escapeHtml(opts.format(p.value))}</b> ${escapeHtml(opts.unit)}`,
           },
         })),
       },
@@ -180,10 +210,11 @@ export function compareOption(
     points: { x: number; value: number; label: string; date: string; limit: boolean }[];
   }[],
   opts: { axis: "date" | "age"; unit: string | null },
+  theme: ChartTheme = CHART_THEME,
 ) {
   const xs = pets.flatMap((p) => p.points.map((pt) => pt.x));
   const many = pets.some((p) => p.points.length >= ZOOM_FROM);
-  const chart = base(many, opts.axis === "date" ? xs : []);
+  const chart = base(many, opts.axis === "date" ? xs : [], theme);
   const unit = opts.unit ? ` ${escapeHtml(opts.unit)}` : "";
   return {
     ...chart,
@@ -195,10 +226,10 @@ export function compareOption(
             name: "Age (years)",
             nameLocation: "middle",
             nameGap: 26,
-            nameTextStyle: { color: CHART_THEME.text, fontSize: 11 },
+            nameTextStyle: { color: theme.text, fontSize: 11 },
             scale: true,
-            axisLine: { lineStyle: { color: CHART_THEME.grid } },
-            axisLabel: { color: CHART_THEME.text, fontSize: 11 },
+            axisLine: { lineStyle: { color: theme.grid } },
+            axisLabel: { color: theme.text, fontSize: 11 },
             splitLine: { show: false },
           },
     series: pets.map((p) => ({
@@ -214,7 +245,7 @@ export function compareOption(
         tooltip: {
           formatter: () =>
             [
-              `<div style="color:${CHART_THEME.text}">${escapeHtml(p.name)} · ${escapeHtml(formatDate(pt.date))}</div>`,
+              `<div style="color:${theme.text}">${escapeHtml(p.name)} · ${escapeHtml(formatDate(pt.date))}</div>`,
               `<b>${escapeHtml(pt.label)}</b>${unit}`,
             ].join(""),
         },
