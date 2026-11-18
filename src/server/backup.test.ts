@@ -58,7 +58,13 @@ test("a backup snapshots the database, copies new uploads and prunes old snapsho
 
   expect(await readdir(join(backupDir, "db"))).toEqual([later.file!]);
   expect(await readdir(join(backupDir, "uploads"))).toEqual(["abc123"]);
-  expect(db.select().from(backupRuns).all().map((r) => r.file)).toEqual([null, later.file]);
+  expect(
+    db
+      .select()
+      .from(backupRuns)
+      .all()
+      .map((r) => r.file),
+  ).toEqual([null, later.file]);
 
   const snapshot = new Database(join(backupDir, "db", later.file!), { readonly: true });
   expect(snapshot.query("SELECT email FROM users").all()).toEqual([{ email: "a@example.com" }]);

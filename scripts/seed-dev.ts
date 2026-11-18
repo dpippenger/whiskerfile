@@ -16,7 +16,11 @@ async function call<T>(path: string, method: string, body: unknown): Promise<T> 
 }
 
 /** A small PNG with a diagonal gradient between two colours, encoded by hand. */
-function gradientPng(size: number, from: [number, number, number], to: [number, number, number]): Uint8Array<ArrayBuffer> {
+function gradientPng(
+  size: number,
+  from: [number, number, number],
+  to: [number, number, number],
+): Uint8Array<ArrayBuffer> {
   const raw = new Uint8Array(size * (size * 3 + 1));
   for (let y = 0; y < size; y++) {
     raw[y * (size * 3 + 1)] = 0; // no filter
@@ -59,7 +63,10 @@ async function photo(name: string, from: [number, number, number], to: [number, 
   return (await call<{ id: number }>("/files", "POST", form)).id;
 }
 
-const registries = (await (await fetch(new URL("/api/chip-registries", base))).json()) as { id: number; name: string }[];
+const registries = (await (await fetch(new URL("/api/chip-registries", base))).json()) as {
+  id: number;
+  name: string;
+}[];
 const registry = (name: string) => registries.find((r) => r.name === name)?.id ?? null;
 
 const blank = {

@@ -131,12 +131,10 @@ export const entryInput = z.object({
 export type EntryInput = z.input<typeof entryInput>;
 
 /** A measurement taken on its own, such as a weigh-in at home. */
-export const measurementInput = z
-  .object({ date, kind: z.enum(VITALS), value: z.number() })
-  .superRefine((m, ctx) => {
-    const result = vitalValue(m.kind).safeParse(m.value);
-    if (!result.success) ctx.addIssue({ code: "custom", path: ["value"], message: result.error.issues[0]!.message });
-  });
+export const measurementInput = z.object({ date, kind: z.enum(VITALS), value: z.number() }).superRefine((m, ctx) => {
+  const result = vitalValue(m.kind).safeParse(m.value);
+  if (!result.success) ctx.addIssue({ code: "custom", path: ["value"], message: result.error.issues[0]!.message });
+});
 
 /** A file filed under a pet on its own, outside any visit. */
 export const attachmentInput = z.object({

@@ -64,7 +64,10 @@ test("the backup list keeps every downloadable snapshot beyond recent history", 
   using _ = server;
   db.insert(backupRuns).values({ startedAt: 1, status: "ok", file: "old-kept.sqlite" }).run();
   db.insert(backupRuns).values({ startedAt: 2, status: "ok" }).run();
-  for (let i = 0; i < 25; i++) db.insert(backupRuns).values({ startedAt: 10 + i, status: "failed" }).run();
+  for (let i = 0; i < 25; i++)
+    db.insert(backupRuns)
+      .values({ startedAt: 10 + i, status: "failed" })
+      .run();
 
   const res = await fetch(new URL("/api/backups", server.url), {
     headers: { "Cf-Access-Jwt-Assertion": await token({ email: "a@example.com" }) },

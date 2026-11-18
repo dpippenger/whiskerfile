@@ -22,7 +22,11 @@ const pet = (fields: Record<string, unknown> = {}) => ({
   ...fields,
 });
 
-async function upload(call: Awaited<ReturnType<typeof startApi>>["call"], bytes: Uint8Array<ArrayBuffer>, name = "photo.png") {
+async function upload(
+  call: Awaited<ReturnType<typeof startApi>>["call"],
+  bytes: Uint8Array<ArrayBuffer>,
+  name = "photo.png",
+) {
   const form = new FormData();
   form.append("file", new File([bytes], name));
   return call("/api/files", { method: "POST", body: form });
@@ -54,7 +58,10 @@ test("each new pet gets its own chart colour unless one is chosen", async () => 
   using _ = server;
   const colors = [];
   for (const name of ["A", "B"]) {
-    colors.push(((await (await call("/api/pets", { method: "POST", body: pet({ name }) })).json()) as { chartColor: string }).chartColor);
+    colors.push(
+      ((await (await call("/api/pets", { method: "POST", body: pet({ name }) })).json()) as { chartColor: string })
+        .chartColor,
+    );
   }
   const chosen = await call("/api/pets", { method: "POST", body: pet({ name: "C", chartColor: CHART_COLORS[5] }) });
   expect(colors).toEqual([CHART_COLORS[0], CHART_COLORS[1]]);
@@ -88,7 +95,10 @@ test("a pet may only refer to an existing registry and an image file", async () 
   const photo = (await (await upload(call, PNG)).json()) as { id: number };
   const pdf = (await (await upload(call, new TextEncoder().encode("%PDF-1.7 x"), "lab.pdf")).json()) as { id: number };
 
-  const ok = await call("/api/pets", { method: "POST", body: pet({ chipRegistryId: homeAgain.id, photoFileId: photo.id }) });
+  const ok = await call("/api/pets", {
+    method: "POST",
+    body: pet({ chipRegistryId: homeAgain.id, photoFileId: photo.id }),
+  });
   expect(ok.status).toBe(201);
 
   const badRegistry = await call("/api/pets", { method: "POST", body: pet({ chipRegistryId: 9999 }) });
@@ -101,7 +111,14 @@ test("a pet may only refer to an existing registry and an image file", async () 
 test("ids that are not positive integers, or not found, give 404", async () => {
   const { server, call } = await startApi();
   using _ = server;
-  for (const path of ["/api/pets/0", "/api/pets/abc", "/api/pets/1.5", "/api/pets/99", "/api/files/x", "/api/files/7"]) {
+  for (const path of [
+    "/api/pets/0",
+    "/api/pets/abc",
+    "/api/pets/1.5",
+    "/api/pets/99",
+    "/api/files/x",
+    "/api/files/7",
+  ]) {
     expect((await call(path)).status).toBe(404);
   }
   expect((await call("/api/pets/99", { method: "PUT", body: pet() })).status).toBe(404);
@@ -121,7 +138,10 @@ test("registries come seeded, can be edited, and cannot be removed while in use"
   });
   const shelter = (await added.json()) as { id: number };
   expect(added.status).toBe(201);
-  expect((await call("/api/chip-registries", { method: "POST", body: { name: "Local shelter", website: "", phone: "" } })).status).toBe(409);
+  expect(
+    (await call("/api/chip-registries", { method: "POST", body: { name: "Local shelter", website: "", phone: "" } }))
+      .status,
+  ).toBe(409);
 
   const edited = await call(`/api/chip-registries/${shelter.id}`, {
     method: "PUT",
@@ -129,7 +149,9 @@ test("registries come seeded, can be edited, and cannot be removed while in use"
   });
   expect(await edited.json()).toEqual({ id: shelter.id, name: "Shelter", website: null, phone: null });
 
-  const cat = (await (await call("/api/pets", { method: "POST", body: pet({ chipRegistryId: shelter.id }) })).json()) as { id: number };
+  const cat = (await (
+    await call("/api/pets", { method: "POST", body: pet({ chipRegistryId: shelter.id }) })
+  ).json()) as { id: number };
   const blocked = await call(`/api/chip-registries/${shelter.id}`, { method: "DELETE" });
   expect(blocked.status).toBe(409);
   expect(((await blocked.json()) as { error: string }).error).toContain("Miso");

@@ -42,7 +42,8 @@ test("vitals are shown in the reader's units", () => {
 
 test("implausible readings are refused", () => {
   const entry = (vitals: object) =>
-    entryInput.safeParse({ kind: "home", date: "2026-11-01", clinic: "", vet: "", reason: "", notes: "", vitals })
+    entryInput
+      .safeParse({ kind: "home", date: "2026-11-01", clinic: "", vet: "", reason: "", notes: "", vitals })
       .error?.issues.map((i) => i.path.join("."));
   expect(entry({ weight: 4649, temperature: 38.6 })).toBeUndefined();
   expect(entry({ temperature: 101.5 })).toEqual(["vitals.temperature"]);
