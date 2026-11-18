@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { filledRows, limitErrors, parseLimit, resultsBody, rowErrors, type Row } from "./lab-rows";
+import { filledRows, limitErrors, limitText, parseLimit, resultsBody, rowErrors, type Row } from "./lab-rows";
 
 const row = (key: number, valueText: string, refLow = "", refHigh = ""): Row => ({
   key,
@@ -16,7 +16,13 @@ test("range limits are read like results, and ambiguous ones are refused", () =>
   expect(parseLimit("0,8")).toBe(0.8);
   expect(parseLimit("1,500,000")).toBe(1500000);
   expect(parseLimit("150000")).toBe(150000);
-  for (const bad of ["150,000", "<14", "abc", "1.2.3", "-1"]) expect(parseLimit(bad)).toBeNaN();
+  expect(parseLimit("-4")).toBe(-4);
+  expect(parseLimit("-0,5")).toBe(-0.5);
+  for (const bad of ["150,000", "-150,000", "<14", "abc", "1.2.3", "--1", "1e"]) expect(parseLimit(bad)).toBeNaN();
+});
+
+test("every stored limit survives being shown and read back", () => {
+  for (const n of [-4, -0.25, 0, 1e-7, 2.4, 1.035, 150000, 1500000, 1e21]) expect(parseLimit(limitText(n))).toBe(n);
 });
 
 test("blank rows are not sent, and limits are parsed", () => {

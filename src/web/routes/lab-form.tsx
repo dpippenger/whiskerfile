@@ -138,9 +138,9 @@ function LabForm({
 
   // Waits for the pet's data to refetch before leaving, so the next page never shows the
   // report as missing or with its old values; the button stays in its saving state meanwhile.
-  const done = async (saved?: { id: number }) => {
+  const done = async (saved: { id: number }) => {
     await queryClient.invalidateQueries({ queryKey: ["pets", petId] });
-    navigate(saved ? `/pets/${petId}/labs/${saved.id}` : `/pets/${petId}/labs`);
+    navigate(`/pets/${petId}/labs/${saved.id}`);
   };
   const save = useMutation({
     mutationFn: (body: object) =>
@@ -152,7 +152,11 @@ function LabForm({
   });
   const remove = useMutation({
     mutationFn: () => api(`/labs/${report!.id}`, { method: "DELETE" }),
-    onSuccess: () => done(),
+    // Leave first: the form's report is gone, so waiting here would show it as missing.
+    onSuccess: () => {
+      navigate(`/pets/${petId}/labs`);
+      void queryClient.invalidateQueries({ queryKey: ["pets", petId] });
+    },
   });
 
   const submit = (e: FormEvent) => {

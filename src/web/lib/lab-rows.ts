@@ -4,16 +4,24 @@ import { parseLabValue } from "../../shared/labs";
 export type Row = { key: number; analyteId: number; valueText: string; unit: string; refLow: string; refHigh: string };
 export type Errors = Record<string, string>;
 
+const SIGNED = /^[-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?$/i;
+
 /**
- * A typed range limit: "" is no limit; a plain number, read the same way as
- * results ("1.035", "0,5", "1,500,000"), is that number; anything else,
- * including the ambiguous "150,000" or a "<" limit, is NaN, which the form
- * reports as an error rather than guess a magnitude.
+ * A typed range limit: "" is no limit. A plain number is that number,
+ * including a negative one or the exponent form a stored limit can print as
+ * ("-4", "1e-7"). Commas are read the same way as results ("0,5",
+ * "1,500,000"). Anything else, including the ambiguous "150,000" or a "<"
+ * limit, is NaN, which the form reports as an error rather than guess.
  */
 export function parseLimit(text: string): number | null {
-  if (text.trim() === "") return null;
-  const { value, comparator } = parseLabValue(text);
-  return value != null && !comparator ? value : Number.NaN;
+  const s = text.trim().replace(/\s+/g, "");
+  if (s === "") return null;
+  if (SIGNED.test(s)) return Number(s);
+  if (!s.includes(",")) return Number.NaN;
+  const negative = s.startsWith("-");
+  const { value, comparator } = parseLabValue(negative ? s.slice(1) : s);
+  if (value == null || comparator) return Number.NaN;
+  return negative ? -value : value;
 }
 
 export const limitText = (n: number | null) => (n == null ? "" : String(n));
