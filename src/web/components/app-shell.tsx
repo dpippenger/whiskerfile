@@ -1,4 +1,4 @@
-import { Cat, PanelLeftClose, PanelLeftOpen, PawPrint, Settings } from "lucide-react";
+import { Cat, ChartLine, PanelLeftClose, PanelLeftOpen, PawPrint, Settings } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { useMe } from "../lib/queries";
@@ -6,6 +6,7 @@ import { cn } from "../lib/utils";
 
 const NAV = [
   { href: "/", label: "Pets", icon: PawPrint, section: /^\/(pets(\/|$)|$)/ },
+  { href: "/compare", label: "Compare", icon: ChartLine, section: /^\/compare(\/|$)/ },
   { href: "/settings", label: "Settings", icon: Settings, section: /^\/settings(\/|$)/ },
 ];
 

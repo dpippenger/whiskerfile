@@ -168,3 +168,51 @@ export function weightTrendOption(
     ],
   };
 }
+
+/**
+ * One line per pet in its own colour, against dates or ages; the page shows
+ * which colour is which. No range band: ranges differ per pet.
+ */
+export function compareOption(
+  pets: { name: string; color: string; points: { x: number; value: number; label: string; date: string }[] }[],
+  opts: { axis: "date" | "age"; unit: string | null },
+) {
+  const xs = pets.flatMap((p) => p.points.map((pt) => pt.x));
+  const many = pets.some((p) => p.points.length >= ZOOM_FROM);
+  const chart = base(many, opts.axis === "date" ? xs : []);
+  const unit = opts.unit ? ` ${escapeHtml(opts.unit)}` : "";
+  return {
+    ...chart,
+    xAxis:
+      opts.axis === "date"
+        ? chart.xAxis
+        : {
+            type: "value",
+            name: "Age (years)",
+            nameLocation: "middle",
+            nameGap: 26,
+            nameTextStyle: { color: CHART_THEME.text, fontSize: 11 },
+            scale: true,
+            axisLine: { lineStyle: { color: CHART_THEME.grid } },
+            axisLabel: { color: CHART_THEME.text, fontSize: 11 },
+            splitLine: { show: false },
+          },
+    series: pets.map((p) => ({
+      type: "line",
+      name: p.name,
+      lineStyle: { color: p.color, width: 2 },
+      itemStyle: { color: p.color },
+      symbolSize: 7,
+      data: p.points.map((pt) => ({
+        value: [pt.x, pt.value],
+        tooltip: {
+          formatter: () =>
+            [
+              `<div style="color:${CHART_THEME.text}">${escapeHtml(p.name)} · ${escapeHtml(formatDate(pt.date))}</div>`,
+              `<b>${escapeHtml(pt.label)}</b>${unit}`,
+            ].join(""),
+        },
+      })),
+    })),
+  };
+}
