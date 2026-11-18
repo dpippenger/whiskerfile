@@ -4,6 +4,8 @@ Self-hosted medical records for your pets: cats first, dogs and other animals we
 
 Status: the foundation (server, sign-in, scheduled backups), pet profiles (photo, identity, microchip and registry) and records (vet visits, home exams, vitals, weigh-ins and attached files, with a timeline, weight history and file gallery) are in place. Lab results, trends and PDF reports are being added in phases.
 
+See [CHANGELOG.md](CHANGELOG.md) for what each phase added.
+
 ## Run it at home
 
 You need Docker, a domain on Cloudflare, and a Cloudflare Zero Trust team (the free plan is enough).
