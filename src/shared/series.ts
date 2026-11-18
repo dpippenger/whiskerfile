@@ -123,31 +123,33 @@ export function compareSeries(pets: ComparePet[], axis: CompareAxis) {
   const leftOut: LeftOut[] = [];
   const leave = (pet: ComparePet, reason: LeftOut["reason"]) =>
     leftOut.push({ petId: pet.petId, name: pet.name, reason });
+  const xOf = (pet: ComparePet, date: string) => (axis === "date" ? dateToUtc(date) : ageInYears(pet.dob!, date));
 
-  // Pets that could be drawn at all on this axis; only they choose the unit.
-  const eligible: ComparePet[] = [];
+  // Each pet's results that can be placed on this axis; only those choose the unit.
+  const placeable: { pet: ComparePet; results: LabResultInput[] }[] = [];
   for (const pet of pets) {
-    if (!pet.results.some((r) => r.value != null)) leave(pet, "no-data");
+    const numeric = pet.results.filter((r) => r.value != null);
+    if (numeric.length === 0) leave(pet, "no-data");
     else if (axis === "age" && !pet.dob) leave(pet, "no-birth-date");
-    else eligible.push(pet);
+    else {
+      // Against age, results dated before the birth date can't be placed.
+      const results = numeric.filter((r) => xOf(pet, r.date) != null);
+      if (results.length === 0) leave(pet, "before-birth");
+      else placeable.push({ pet, results });
+    }
   }
-  const latest = eligible
-    .flatMap((p) => p.results.filter((r) => r.value != null))
+  const latest = placeable
+    .flatMap((p) => p.results)
     .sort((a, b) => (a.date === b.date ? a.order - b.order : a.date < b.date ? -1 : 1))
     .at(-1);
   const unit = latest?.unit ?? null;
 
-  for (const pet of eligible) {
-    const inUnit = labSeries(pet.results.filter((r) => r.value != null && (r.unit ?? "") === (unit ?? ""))).points;
-    if (inUnit.length === 0) {
-      leave(pet, "other-unit");
-      continue;
-    }
-    const points = inUnit
-      .map((p) => ({ ...p, x: axis === "date" ? dateToUtc(p.date) : ageInYears(pet.dob!, p.date) }))
-      .filter((p): p is LabPoint & { x: number } => p.x != null);
-    // Against age, results dated before the birth date can't be placed.
-    if (points.length === 0) leave(pet, "before-birth");
+  for (const { pet, results } of placeable) {
+    const points = labSeries(results.filter((r) => (r.unit ?? "") === (unit ?? ""))).points.map((p) => ({
+      ...p,
+      x: xOf(pet, p.date)!,
+    }));
+    if (points.length === 0) leave(pet, "other-unit");
     else plotted.push({ petId: pet.petId, name: pet.name, points });
   }
   leftOut.sort((a, b) => a.name.localeCompare(b.name));

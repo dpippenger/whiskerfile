@@ -118,3 +118,15 @@ test("the unit comes from pets that can be drawn, and pets with nothing placeabl
   // By date the latest unit across everyone wins.
   expect(compareSeries(pets, "date").unit).toBe("µmol/L");
 });
+
+test("against age, a result before the birth date can't choose the unit", () => {
+  const pets = [
+    pet(1, "Miso", "2014-03-15", [result("2025-01-01", "1.6")]),
+    // Newest result, in another unit, but dated before this pet's recorded birth.
+    pet(2, "Biscuit", "2026-12-01", [result("2026-11-01", "141", "µmol/L", 71, 212)]),
+  ];
+  const byAge = compareSeries(pets, "age");
+  expect(byAge.unit).toBe("mg/dL");
+  expect(byAge.plotted.map((p) => p.name)).toEqual(["Miso"]);
+  expect(byAge.leftOut.map((l) => [l.name, l.reason])).toEqual([["Biscuit", "before-birth"]]);
+});
