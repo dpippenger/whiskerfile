@@ -1,5 +1,6 @@
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { CHART_COLORS, REPRODUCTIVE, SEXES, SPECIES } from "../../shared/pets";
+import { ENTRY_KINDS, TEMPERATURE_UNITS, VITALS, WEIGHT_UNITS } from "../../shared/records";
 
 // Timestamps are epoch milliseconds so rows serialise to JSON unchanged.
 // Calendar dates are "YYYY-MM-DD" text (see src/shared/dates.ts).
@@ -8,6 +9,9 @@ export const users = sqliteTable("users", {
   id: integer().primaryKey({ autoIncrement: true }),
   email: text().notNull().unique(),
   name: text().notNull(),
+  // Null means "follow the browser's locale".
+  weightUnit: text({ enum: WEIGHT_UNITS }),
+  temperatureUnit: text({ enum: TEMPERATURE_UNITS }),
   createdAt: integer().notNull(),
 });
 
@@ -67,8 +71,56 @@ export const pets = sqliteTable("pets", {
   updatedAt: integer().notNull(),
 });
 
+/** A vet visit or a home exam. Deleting the pet deletes these, and their vitals. */
+export const entries = sqliteTable(
+  "entries",
+  {
+    id: integer().primaryKey({ autoIncrement: true }),
+    petId: integer()
+      .notNull()
+      .references(() => pets.id, { onDelete: "cascade" }),
+    kind: text({ enum: ENTRY_KINDS }).notNull(),
+    date: text().notNull(),
+    clinic: text(),
+    vet: text(),
+    reason: text(),
+    notes: text(),
+    createdBy: integer()
+      .notNull()
+      .references(() => users.id),
+    createdAt: integer().notNull(),
+    updatedAt: integer().notNull(),
+  },
+  (t) => [index("entries_pet_date").on(t.petId, t.date)],
+);
+
+/**
+ * One reading in its stored unit (grams, °C, per minute, 1-9 score). Readings
+ * taken at a visit carry its entryId and always share its date.
+ */
+export const measurements = sqliteTable(
+  "measurements",
+  {
+    id: integer().primaryKey({ autoIncrement: true }),
+    petId: integer()
+      .notNull()
+      .references(() => pets.id, { onDelete: "cascade" }),
+    entryId: integer().references(() => entries.id, { onDelete: "cascade" }),
+    kind: text({ enum: VITALS }).notNull(),
+    date: text().notNull(),
+    value: real().notNull(),
+    createdBy: integer()
+      .notNull()
+      .references(() => users.id),
+    createdAt: integer().notNull(),
+  },
+  (t) => [index("measurements_pet_kind_date").on(t.petId, t.kind, t.date), index("measurements_entry").on(t.entryId)],
+);
+
 export type User = typeof users.$inferSelect;
 export type ChipRegistry = typeof chipRegistries.$inferSelect;
 export type StoredFile = typeof files.$inferSelect;
 export type Pet = typeof pets.$inferSelect;
+export type Entry = typeof entries.$inferSelect;
+export type Measurement = typeof measurements.$inferSelect;
 export type BackupRun = typeof backupRuns.$inferSelect;

@@ -4,17 +4,20 @@ import { useEffect, useRef, type ReactNode } from "react";
 /**
  * A modal built on the native <dialog>: focus trapping, Escape and the
  * backdrop come from the browser. Full-screen on phones, centred on wider
- * screens.
+ * screens. A click on the backdrop closes it only when `dismissible`, so a
+ * stray click never throws away a half-filled form.
  */
 export function Dialog({
   open,
   onClose,
   title,
+  dismissible = false,
   children,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
+  dismissible?: boolean;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -30,7 +33,7 @@ export function Dialog({
     <dialog
       ref={ref}
       onClose={onClose}
-      onClick={(e) => e.target === ref.current && onClose()}
+      onClick={(e) => dismissible && e.target === ref.current && onClose()}
       aria-labelledby="dialog-title"
       className="m-auto h-fit max-h-[85dvh] w-full max-w-lg rounded-xl border border-border-strong bg-elevated p-0 text-foreground backdrop:bg-black/70 max-md:m-0 max-md:h-dvh max-md:max-h-none max-md:max-w-none max-md:rounded-none max-md:border-0"
     >

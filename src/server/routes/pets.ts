@@ -1,11 +1,37 @@
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import { nextChartColor, petInput } from "../../shared/pets";
-import { chipRegistries, files, pets } from "../db/schema";
+import { chipRegistries, files, pets, type Pet } from "../db/schema";
 import { IMAGE_TYPES } from "../files";
 import { error, idParam, parseJson, type AppContext, type Authed } from "../http";
 import type { z } from "zod";
 
+/** A pet with what the dashboard shows: its last 12 weights (oldest first) and last vet visit. */
+export type PetSummary = Pet & { weights: { date: string; value: number }[]; lastVetVisit: string | null };
+
+const RECENT_WEIGHTS = 12;
+
 export function petRoutes({ db }: AppContext, authed: Authed) {
+  function summaries(): PetSummary[] {
+    const weights = db.all<{ petId: number; date: string; value: number }>(sql`
+      select pet_id as petId, date, value from (
+        select pet_id, date, value, row_number() over (partition by pet_id order by date desc, id desc) as n
+        from measurements where kind = 'weight'
+      ) where n <= ${RECENT_WEIGHTS} order by date, n desc`);
+    const visits = db.all<{ petId: number; date: string }>(
+      sql`select pet_id as petId, max(date) as date from entries where kind = 'vet' group by pet_id`,
+    );
+    return db
+      .select()
+      .from(pets)
+      .orderBy(asc(pets.name))
+      .all()
+      .map((pet) => ({
+        ...pet,
+        weights: weights.filter((w) => w.petId === pet.id).map(({ date, value }) => ({ date, value })),
+        lastVetVisit: visits.find((v) => v.petId === pet.id)?.date ?? null,
+      }));
+  }
+
   /** Checks the ids a pet refers to; returns a 400 response when one is wrong. */
   function checkReferences(input: z.output<typeof petInput>): Response | null {
     if (input.chipRegistryId) {
@@ -23,7 +49,7 @@ export function petRoutes({ db }: AppContext, authed: Authed) {
 
   return {
     "/api/pets": {
-      GET: authed(() => Response.json(db.select().from(pets).orderBy(asc(pets.name)).all())),
+      GET: authed(() => Response.json(summaries())),
       POST: authed(async (req, user) => {
         const parsed = await parseJson(req, petInput);
         if ("response" in parsed) return parsed.response;

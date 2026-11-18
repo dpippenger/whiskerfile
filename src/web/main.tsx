@@ -18,6 +18,7 @@ createRoot(document.getElementById("root")!).render(
         <Route path="/pets/new" component={NewPet} />
         <Route path="/pets/:id/edit">{({ id }) => <EditPet key={id} id={Number(id)} />}</Route>
         <Route path="/pets/:id">{({ id }) => <PetProfile id={Number(id)} />}</Route>
+        <Route path="/pets/:id/weight">{({ id }) => <PetProfile id={Number(id)} tab="weight" />}</Route>
         <Route path="/settings" component={Settings} />
         <Route>
           <Page title="Page not found">

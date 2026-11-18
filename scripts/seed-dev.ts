@@ -134,3 +134,60 @@ for (const pet of pets) {
   const created = await call<{ id: number; name: string }>("/pets", "POST", pet);
   console.log(`Added ${created.name} (#${created.id})`);
 }
+
+// A year of history for the first two pets: monthly weigh-ins, a few vet
+// visits and home exams. Dates are relative to today.
+const daysAgo = (n: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+const ids = (await (await fetch(new URL("/api/pets", base))).json()) as { id: number; name: string }[];
+const idOf = (name: string) => ids.find((p) => p.name === name)!.id;
+
+const history: [string, number, number][] = [
+  // name, starting grams, grams per month (Miso is slowly losing weight)
+  ["Miso", 4300, -25],
+  ["Sir Reginald Fluffington the Third", 7600, 15],
+];
+for (const [name, start, perMonth] of history) {
+  const petId = idOf(name);
+  for (let month = 12; month >= 1; month--) {
+    const value = start + perMonth * (12 - month) + Math.round(Math.sin(month) * 40);
+    await call(`/pets/${petId}/measurements`, "POST", { date: daysAgo(month * 30 + 3), kind: "weight", value });
+  }
+}
+
+const misoId = idOf("Miso");
+const visits = [
+  {
+    kind: "vet",
+    date: daysAgo(200),
+    clinic: "Northside Animal Hospital",
+    vet: "Dr. Okafor",
+    reason: "Senior wellness exam",
+    notes: "Mild dental tartar. T4 at top of range; recheck in 6 months.\nBlood pressure 150 systolic.",
+    vitals: { weight: 4120, temperature: 38.6, heart_rate: 196, respiratory_rate: 28, body_condition: 5 },
+  },
+  {
+    kind: "home",
+    date: daysAgo(45),
+    clinic: "",
+    vet: "",
+    reason: "Weekly check",
+    notes: "Eating well, drinking a little more than usual.",
+    vitals: { weight: 4050, respiratory_rate: 24 },
+  },
+  {
+    kind: "vet",
+    date: daysAgo(12),
+    clinic: "Northside Animal Hospital",
+    vet: "Dr. Okafor",
+    reason: "Thyroid recheck",
+    notes: "Weight down 70 g since spring. Started methimazole 2.5 mg twice daily.",
+    vitals: { weight: 3980, temperature: 38.9, heart_rate: 210, body_condition: 4 },
+  },
+];
+for (const visit of visits) await call(`/pets/${misoId}/entries`, "POST", visit);
+await call(`/pets/${misoId}/measurements`, "POST", { date: daysAgo(2), kind: "weight", value: 3995 });
+console.log("Added a year of weights and visits");
