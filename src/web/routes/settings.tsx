@@ -3,6 +3,7 @@ import { Download } from "lucide-react";
 import type { BackupRun } from "../../server/db/schema";
 import { Page } from "../components/page";
 import { RegistriesSettings } from "../components/registries-settings";
+import { UnitsSettings } from "../components/units-settings";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
@@ -76,7 +77,10 @@ export function Settings() {
             </ul>
           )}
         </Card>
-        <RegistriesSettings />
+        <div className="space-y-4">
+          <UnitsSettings />
+          <RegistriesSettings />
+        </div>
       </div>
     </Page>
   );
