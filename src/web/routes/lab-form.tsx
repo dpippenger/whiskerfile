@@ -294,94 +294,97 @@ function LabForm({
         {rows.length === 0 ? (
           <p className="py-6 text-center text-muted-foreground">Add the tests on the report to enter their results.</p>
         ) : (
-          <div ref={grid} role="table" aria-label="Results" className="space-y-2 md:space-y-0">
-            <div
-              role="row"
-              className="hidden gap-2 px-1 pb-1 text-xs text-muted-foreground md:grid md:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_4rem_2.25rem]"
-            >
-              <span role="columnheader">Test</span>
-              <span role="columnheader">Result as printed</span>
-              <span role="columnheader">Unit</span>
-              <span role="columnheader">Ref. low</span>
-              <span role="columnheader">Ref. high</span>
-              <span role="columnheader">
-                <span className="sr-only">Flag</span>
-              </span>
-              <span role="columnheader">
-                <span className="sr-only">Remove</span>
-              </span>
-            </div>
-            {rows.map((row, index) => {
-              const analyte = byId.get(row.analyteId);
-              const error = rowError(row);
-              // Last in the row's Tab order, so a row added by mistake can be removed by keyboard.
-              const removeButton = (
-                <button
-                  type="button"
-                  onClick={() => setRows((current) => current.filter((r) => r.key !== row.key))}
-                  aria-label={`Remove ${analyte?.name ?? "test"}`}
-                  className="flex size-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-white/5 hover:text-foreground md:size-9"
-                >
-                  <X className="size-4" aria-hidden />
-                </button>
-              );
-              const cell = (column: Column, label: string, extra: string) => (
-                <label className="flex flex-col gap-1">
-                  <span className="text-xs text-muted-foreground md:sr-only">{label}</span>
-                  <Input
-                    data-row={index}
-                    data-col={column}
-                    aria-label={`${analyte?.name ?? "Test"} ${label.toLowerCase()}`}
-                    value={row[column]}
-                    invalid={!!errors[`row.${row.key}.${column}`]}
-                    onChange={(e) => setCell(row.key, column, e.target.value)}
-                    onKeyDown={(e) => onCellKey(e, index, column)}
-                    enterKeyHint="next"
-                    autoComplete="off"
-                    className={extra}
-                  />
-                </label>
-              );
-              return (
-                <div
-                  key={row.key}
-                  role="row"
-                  className="rounded-lg border border-border p-3 md:rounded-none md:border-0 md:border-t md:px-1 md:py-1.5"
-                >
-                  <div className="grid grid-cols-2 items-end gap-2 md:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_4rem_2.25rem] md:items-center">
-                    <div
-                      role="cell"
-                      className="col-span-2 flex min-w-0 items-center justify-between gap-2 md:col-span-1"
-                    >
-                      <span className="min-w-0">
-                        <span className="block truncate">{analyte?.name ?? "Unknown test"}</span>
-                        <span className="block font-mono text-xs text-muted-foreground">{analyte?.code}</span>
-                      </span>
-                      {/* Phones: flag and remove sit beside the test name. */}
-                      <span className="flex items-center gap-1 md:hidden">
+          // Laid out by the grid's own width, so a narrow main area beside the sidebar gets cards.
+          <div className="@container/results">
+            <div ref={grid} role="table" aria-label="Results" className="space-y-2 @2xl/results:space-y-0">
+              <div
+                role="row"
+                className="hidden gap-2 px-1 pb-1 text-xs text-muted-foreground @2xl/results:grid @2xl/results:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_4rem_2.25rem]"
+              >
+                <span role="columnheader">Test</span>
+                <span role="columnheader">Result as printed</span>
+                <span role="columnheader">Unit</span>
+                <span role="columnheader">Ref. low</span>
+                <span role="columnheader">Ref. high</span>
+                <span role="columnheader">
+                  <span className="sr-only">Flag</span>
+                </span>
+                <span role="columnheader">
+                  <span className="sr-only">Remove</span>
+                </span>
+              </div>
+              {rows.map((row, index) => {
+                const analyte = byId.get(row.analyteId);
+                const error = rowError(row);
+                // Last in the row's Tab order, so a row added by mistake can be removed by keyboard.
+                const removeButton = (
+                  <button
+                    type="button"
+                    onClick={() => setRows((current) => current.filter((r) => r.key !== row.key))}
+                    aria-label={`Remove ${analyte?.name ?? "test"}`}
+                    className="flex size-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-white/5 hover:text-foreground @2xl/results:size-9"
+                  >
+                    <X className="size-4" aria-hidden />
+                  </button>
+                );
+                const cell = (column: Column, label: string, extra: string) => (
+                  <label className="flex flex-col gap-1">
+                    <span className="text-xs text-muted-foreground @2xl/results:sr-only">{label}</span>
+                    <Input
+                      data-row={index}
+                      data-col={column}
+                      aria-label={`${analyte?.name ?? "Test"} ${label.toLowerCase()}`}
+                      value={row[column]}
+                      invalid={!!errors[`row.${row.key}.${column}`]}
+                      onChange={(e) => setCell(row.key, column, e.target.value)}
+                      onKeyDown={(e) => onCellKey(e, index, column)}
+                      enterKeyHint="next"
+                      autoComplete="off"
+                      className={extra}
+                    />
+                  </label>
+                );
+                return (
+                  <div
+                    key={row.key}
+                    role="row"
+                    className="rounded-lg border border-border p-3 @2xl/results:rounded-none @2xl/results:border-0 @2xl/results:border-t @2xl/results:px-1 @2xl/results:py-1.5"
+                  >
+                    <div className="grid grid-cols-2 items-end gap-2 @2xl/results:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_4rem_2.25rem] @2xl/results:items-center">
+                      <div
+                        role="cell"
+                        className="col-span-2 flex min-w-0 items-center justify-between gap-2 @2xl/results:col-span-1"
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate">{analyte?.name ?? "Unknown test"}</span>
+                          <span className="block font-mono text-xs text-muted-foreground">{analyte?.code}</span>
+                        </span>
+                        {/* Phones: flag and remove sit beside the test name. */}
+                        <span className="flex items-center gap-1 @2xl/results:hidden">
+                          <FlagPreview row={row} />
+                          {removeButton}
+                        </span>
+                      </div>
+                      <div role="cell" className="col-span-2 @2xl/results:col-span-1">
+                        {cell("valueText", "Result", "font-mono tabular-nums")}
+                      </div>
+                      <div role="cell" className="col-span-2 @2xl/results:col-span-1">
+                        {cell("unit", "Unit", "")}
+                      </div>
+                      <div role="cell">{cell("refLow", "Ref. low", "font-mono tabular-nums")}</div>
+                      <div role="cell">{cell("refHigh", "Ref. high", "font-mono tabular-nums")}</div>
+                      <div role="cell" className="hidden @2xl/results:block">
                         <FlagPreview row={row} />
+                      </div>
+                      <div role="cell" className="hidden justify-end @2xl/results:flex">
                         {removeButton}
-                      </span>
+                      </div>
                     </div>
-                    <div role="cell" className="col-span-2 md:col-span-1">
-                      {cell("valueText", "Result", "font-mono tabular-nums")}
-                    </div>
-                    <div role="cell" className="col-span-2 md:col-span-1">
-                      {cell("unit", "Unit", "")}
-                    </div>
-                    <div role="cell">{cell("refLow", "Ref. low", "font-mono tabular-nums")}</div>
-                    <div role="cell">{cell("refHigh", "Ref. high", "font-mono tabular-nums")}</div>
-                    <div role="cell" className="hidden md:block">
-                      <FlagPreview row={row} />
-                    </div>
-                    <div role="cell" className="hidden justify-end md:flex">
-                      {removeButton}
-                    </div>
+                    {error && <p className="mt-1 text-xs text-danger">{error}</p>}
                   </div>
-                  {error && <p className="mt-1 text-xs text-danger">{error}</p>}
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         )}
         <p className="text-xs text-muted-foreground">
