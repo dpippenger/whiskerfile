@@ -6,7 +6,7 @@ import { formatDate, localToday } from "../../shared/dates";
 import {
   CONDITION_KIND_LABEL,
   isActiveCondition,
-  isCurrentMedication,
+  medicationState,
   vaccineKey,
   vaccineStatus,
   type DueStatus,
@@ -67,6 +67,16 @@ function Section({ title, empty, children }: { title: string; empty: string; chi
 
 const sub = "text-xs text-muted-foreground";
 
+/** A record's notes, kept as typed, and who added it. */
+function Footnote({ notes, author }: { notes: string | null; author: string }) {
+  return (
+    <>
+      {notes && <p className="mt-1 whitespace-pre-wrap text-sm text-foreground-secondary">{notes}</p>}
+      <p className={sub}>Added by {author}</p>
+    </>
+  );
+}
+
 /** A pet's vaccinations (latest dose of each first), medications and conditions. */
 export function HealthTab({
   health,
@@ -80,8 +90,10 @@ export function HealthTab({
   const today = localToday();
   const latest = vaccineStatus(health.vaccinations, today, deceasedOn);
   const latestIds = new Set(latest.map((l) => l.dose.id));
-  const current = health.medications.filter((m) => isCurrentMedication(m, today, deceasedOn));
-  const past = health.medications.filter((m) => !isCurrentMedication(m, today, deceasedOn));
+  const stateOf = (m: Medication) => medicationState(m, today, deceasedOn);
+  // Courses not yet started are listed with the current ones, marked with their start date.
+  const current = health.medications.filter((m) => stateOf(m) !== "past");
+  const past = health.medications.filter((m) => stateOf(m) === "past");
   const active = health.conditions.filter((c) => isActiveCondition(c, today));
   const resolved = health.conditions.filter((c) => !isActiveCondition(c, today));
 
@@ -103,6 +115,7 @@ export function HealthTab({
               {dose.clinic && ` · ${dose.clinic}`}
               {dose.lot && ` · lot ${dose.lot}`}
             </p>
+            <Footnote notes={dose.notes} author={dose.author} />
           </Row>,
           // Earlier doses of the same vaccine, quietly beneath it.
           ...health.vaccinations
@@ -124,11 +137,12 @@ export function HealthTab({
       </Section>
 
       <div className="space-y-4">
-        <Section title="Current medications" empty="None.">
+        <Section title="Medications" empty="None current.">
           {current.map((m) => (
             <Row key={m.id} label={m.drug} onEdit={() => onEdit({ type: "medication", record: m })}>
-              <p>
+              <p className="flex flex-wrap items-center gap-x-2">
                 <span className="font-medium">{m.drug}</span>
+                {stateOf(m) === "upcoming" && <Badge tone="info">Starts {formatDate(m.startDate)}</Badge>}
                 {(m.dose || m.frequency) && (
                   <span className="text-foreground-secondary">
                     {" "}
@@ -137,10 +151,11 @@ export function HealthTab({
                 )}
               </p>
               <p className={sub}>
-                Since {formatDate(m.startDate)}
+                {stateOf(m) === "upcoming" ? "From" : "Since"} {formatDate(m.startDate)}
                 {m.endDate && ` until ${formatDate(m.endDate)}`}
                 {m.reason && ` · ${m.reason}`}
               </p>
+              <Footnote notes={m.notes} author={m.author} />
             </Row>
           ))}
         </Section>
@@ -153,6 +168,7 @@ export function HealthTab({
                 <Badge>{CONDITION_KIND_LABEL[c.kind]}</Badge>
               </div>
               <p className={sub}>Since {formatDate(c.date)}</p>
+              <Footnote notes={c.notes} author={c.author} />
             </Row>
           ))}
         </Section>

@@ -29,6 +29,8 @@ function useHealthForm<F extends Record<string, string>>(
   initial: F,
   existingId: number | undefined,
   onDone: () => void,
+  /** Fields for something that has already happened, so they can't be in the future. */
+  pastOnly: (keyof F & string)[] = [],
 ) {
   const id = useId();
   const queryClient = useQueryClient();
@@ -55,6 +57,7 @@ function useHealthForm<F extends Record<string, string>>(
   const submit = (e: FormEvent) => {
     e.preventDefault();
     const found = issuesToErrors(schema.safeParse(form).error?.issues);
+    for (const name of pastOnly) if (form[name] && form[name]! > localToday()) found[name] ??= "Can't be in the future";
     setErrors(found);
     if (Object.keys(found).length === 0) save.mutate();
   };
@@ -63,6 +66,7 @@ function useHealthForm<F extends Record<string, string>>(
     value: form[name],
     invalid: !!errors[name],
     onChange: (e: { target: { value: string } }) => setForm((f) => ({ ...f, [name]: e.target.value })),
+    ...(pastOnly.includes(name) && { max: localToday() }),
   });
   const actions = (
     <FormActions
@@ -101,6 +105,7 @@ export function VaccinationForm({
     },
     record?.id,
     onDone,
+    ["dateGiven"],
   );
   return (
     <form onSubmit={submit} noValidate className="space-y-5">
@@ -200,6 +205,7 @@ export function ConditionForm({ petId, record, onDone }: { petId: number; record
     },
     record?.id,
     onDone,
+    ["date", "resolvedOn"],
   );
   return (
     <form onSubmit={submit} noValidate className="space-y-5">

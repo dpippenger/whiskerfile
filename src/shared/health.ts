@@ -82,8 +82,15 @@ export const VACCINE_SUGGESTIONS = [
   "Canine influenza",
 ];
 
-/** How a vaccine's name is matched across doses: case, spaces and punctuation ignored. */
-export const vaccineKey = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, "");
+/**
+ * How a vaccine's name is matched across doses: case, spaces and punctuation
+ * ignored, letters and digits of any script kept. A name with no letters or
+ * digits at all is matched as typed.
+ */
+export function vaccineKey(name: string): string {
+  const key = name.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+  return key || name.trim().toLowerCase();
+}
 
 /** How close a due date counts as "due soon". */
 export const DUE_SOON_DAYS = 30;
@@ -118,15 +125,27 @@ export function vaccineStatus<D extends Dose>(doses: D[], today: string, decease
     .sort((a, b) => a.dose.vaccine.localeCompare(b.dose.vaccine));
 }
 
-/** Whether a medication is being given today; none are once the pet has died. */
-export function isCurrentMedication(
+export type MedicationState = "current" | "upcoming" | "past";
+
+/**
+ * Where a medication course stands today: past once it has ended (or the pet
+ * has died), upcoming before it starts, otherwise current.
+ */
+export function medicationState(
   m: { startDate: string; endDate: string | null },
   today: string,
   deceasedOn: string | null = null,
-): boolean {
-  if (deceasedOn && deceasedOn <= today) return false;
-  return m.startDate <= today && (m.endDate == null || m.endDate >= today);
+): MedicationState {
+  if ((deceasedOn && deceasedOn <= today) || (m.endDate != null && m.endDate < today)) return "past";
+  return m.startDate > today ? "upcoming" : "current";
 }
+
+/** Whether a medication is being given today; none are once the pet has died. */
+export const isCurrentMedication = (
+  m: { startDate: string; endDate: string | null },
+  today: string,
+  deceasedOn: string | null = null,
+) => medicationState(m, today, deceasedOn) === "current";
 
 /** Whether a condition is still active: not yet resolved as of today. */
 export const isActiveCondition = (c: { resolvedOn: string | null }, today: string) =>

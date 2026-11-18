@@ -5,6 +5,7 @@ import {
   isActiveCondition,
   isCurrentMedication,
   medicationInput,
+  medicationState,
   vaccinationInput,
   vaccineKey,
   vaccineStatus,
@@ -24,9 +25,22 @@ test("dates move by calendar days across months and years", () => {
   expect(addDays("2024-03-01", -1)).toBe("2024-02-29");
 });
 
-test("vaccine names match across doses whatever the case or spacing", () => {
+test("vaccine names match across doses whatever the case or spacing, in any script", () => {
   expect(vaccineKey("FVRCP")).toBe(vaccineKey("fvr-cp"));
   expect(vaccineKey("Canine Influenza")).toBe(vaccineKey("canine influenza "));
+  expect(vaccineKey("Бешенство")).toBe(vaccineKey("бешенство"));
+  expect(vaccineKey("狂犬病")).not.toBe(vaccineKey("猫白血病"));
+  expect(vaccineKey("Leucofeligen")).not.toBe(vaccineKey("Leucofeligén"));
+  expect(vaccineKey("???")).not.toBe(vaccineKey("!!!"));
+  // Two different vaccines in another script each keep their own alert.
+  const statuses = vaccineStatus(
+    [dose(1, "狂犬病", "2025-01-01", "2026-01-01"), dose(2, "猫白血病", "2026-06-01", "2027-06-01")],
+    today,
+  );
+  expect(statuses.map((s) => [s.dose.id, s.status])).toEqual([
+    [1, "overdue"],
+    [2, null],
+  ]);
 });
 
 test("only each vaccine's latest dose can be due, overdue or fine", () => {
@@ -62,6 +76,13 @@ test("the same day's doses are ordered by entry; the boundaries are inclusive", 
 test("a pet that has died has nothing due and no current medications", () => {
   expect(vaccineStatus([dose(1, "Rabies", "2020-01-01", "2021-01-01")], today, "2022-01-12")[0]!.status).toBeNull();
   expect(isCurrentMedication({ startDate: "2021-06-01", endDate: null }, today, "2022-01-12")).toBe(false);
+});
+
+test("a course is upcoming before it starts and past once it ends", () => {
+  expect(medicationState({ startDate: "2026-11-25", endDate: null }, today)).toBe("upcoming");
+  expect(medicationState({ startDate: "2026-11-01", endDate: "2026-11-10" }, today)).toBe("past");
+  expect(medicationState({ startDate: "2026-11-01", endDate: null }, today)).toBe("current");
+  expect(medicationState({ startDate: "2026-11-25", endDate: null }, today, "2026-11-01")).toBe("past");
 });
 
 test("medications are current between their start and end dates", () => {
@@ -105,4 +126,27 @@ test("inputs reject end dates before their start", () => {
   expect(
     paths(conditionInput, { kind: "diagnosis", title: " ", date: "2026-01-01", resolvedOn: "", notes: "" }),
   ).toEqual(["title"]);
+  expect(
+    paths(conditionInput, {
+      kind: "dental",
+      title: "Extraction",
+      date: "2026-01-10",
+      resolvedOn: "2026-01-01",
+      notes: "",
+    }),
+  ).toEqual(["resolvedOn"]);
+  expect(
+    paths(vaccinationInput, { vaccine: " ", dateGiven: "2026-01-01", dueDate: "", lot: "", clinic: "", notes: "" }),
+  ).toEqual(["vaccine"]);
+  expect(
+    paths(medicationInput, {
+      drug: "",
+      dose: "",
+      frequency: "",
+      startDate: "2026-01-01",
+      endDate: "",
+      reason: "",
+      notes: "",
+    }),
+  ).toEqual(["drug"]);
 });
