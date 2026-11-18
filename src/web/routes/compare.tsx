@@ -15,6 +15,7 @@ const REASON: Record<LeftOut["reason"], string> = {
   "no-data": "no results",
   "other-unit": "results in another unit",
   "no-birth-date": "no birth date",
+  "before-birth": "results before its birth date",
 };
 
 /** One metric for several pets on one chart, by date or by age. */
@@ -33,7 +34,8 @@ export function Compare() {
 
   const result = useMemo(() => {
     if (!series.data) return null;
-    const shown = series.data.filter((p) => option?.petIds.includes(p.petId) && !hidden.includes(p.petId));
+    // Every pet not switched off, so pets without usable results are named rather than vanish.
+    const shown = series.data.filter((p) => !hidden.includes(p.petId));
     return compareSeries(shown, axis);
   }, [series.data, option, hidden, axis]);
 
@@ -46,7 +48,13 @@ export function Compare() {
         color: colorOf.get(p.petId) ?? "#a855f7",
         points: p.points.map((pt) => {
           const value = isWeight ? fromGrams(pt.value, units.weight) : pt.value;
-          return { x: pt.x, value, label: isWeight ? value.toFixed(2) : pt.valueText, date: pt.date };
+          return {
+            x: pt.x,
+            value,
+            label: isWeight ? value.toFixed(2) : pt.valueText,
+            date: pt.date,
+            limit: pt.comparator != null,
+          };
         }),
       })),
       { axis, unit: isWeight ? units.weight : result.unit },
@@ -146,8 +154,11 @@ export function Compare() {
             </h2>
             {chart && result && result.plotted.length > 0 ? (
               <EChart option={chart} label={`${option?.label ?? "Metric"} by pet`} className="h-72 w-full md:h-96" />
-            ) : (
+            ) : series.data && result ? (
               <p className="py-12 text-center text-muted-foreground">No pet has results to show here.</p>
+            ) : (
+              // Loading or failed: hold the chart's space rather than claim there's nothing.
+              <div className="h-72 md:h-96" aria-hidden />
             )}
             {result && result.leftOut.length > 0 && (
               <p className="text-xs text-muted-foreground">

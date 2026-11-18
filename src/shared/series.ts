@@ -105,7 +105,11 @@ export type ComparePet = { petId: number; name: string; dob: string | null; resu
 export type CompareAxis = "date" | "age";
 
 /** Why a pet is missing from a comparison. */
-export type LeftOut = { petId: number; name: string; reason: "no-data" | "other-unit" | "no-birth-date" };
+export type LeftOut = {
+  petId: number;
+  name: string;
+  reason: "no-data" | "other-unit" | "no-birth-date" | "before-birth";
+};
 
 /**
  * Several pets' results for one test on one chart. Only one unit is plotted:
@@ -115,32 +119,37 @@ export type LeftOut = { petId: number; name: string; reason: "no-data" | "other-
  * age in years.
  */
 export function compareSeries(pets: ComparePet[], axis: CompareAxis) {
-  const latest = pets
+  const plotted: { petId: number; name: string; points: (LabPoint & { x: number })[] }[] = [];
+  const leftOut: LeftOut[] = [];
+  const leave = (pet: ComparePet, reason: LeftOut["reason"]) =>
+    leftOut.push({ petId: pet.petId, name: pet.name, reason });
+
+  // Pets that could be drawn at all on this axis; only they choose the unit.
+  const eligible: ComparePet[] = [];
+  for (const pet of pets) {
+    if (!pet.results.some((r) => r.value != null)) leave(pet, "no-data");
+    else if (axis === "age" && !pet.dob) leave(pet, "no-birth-date");
+    else eligible.push(pet);
+  }
+  const latest = eligible
     .flatMap((p) => p.results.filter((r) => r.value != null))
     .sort((a, b) => (a.date === b.date ? a.order - b.order : a.date < b.date ? -1 : 1))
     .at(-1);
   const unit = latest?.unit ?? null;
-  const plotted: { petId: number; name: string; points: (LabPoint & { x: number })[] }[] = [];
-  const leftOut: LeftOut[] = [];
-  for (const pet of pets) {
-    const numeric = pet.results.filter((r) => r.value != null);
-    if (numeric.length === 0) {
-      leftOut.push({ petId: pet.petId, name: pet.name, reason: "no-data" });
-      continue;
-    }
-    if (axis === "age" && !pet.dob) {
-      leftOut.push({ petId: pet.petId, name: pet.name, reason: "no-birth-date" });
-      continue;
-    }
-    const inUnit = labSeries(numeric.filter((r) => (r.unit ?? "") === (unit ?? ""))).points;
+
+  for (const pet of eligible) {
+    const inUnit = labSeries(pet.results.filter((r) => r.value != null && (r.unit ?? "") === (unit ?? ""))).points;
     if (inUnit.length === 0) {
-      leftOut.push({ petId: pet.petId, name: pet.name, reason: "other-unit" });
+      leave(pet, "other-unit");
       continue;
     }
     const points = inUnit
       .map((p) => ({ ...p, x: axis === "date" ? dateToUtc(p.date) : ageInYears(pet.dob!, p.date) }))
       .filter((p): p is LabPoint & { x: number } => p.x != null);
-    plotted.push({ petId: pet.petId, name: pet.name, points });
+    // Against age, results dated before the birth date can't be placed.
+    if (points.length === 0) leave(pet, "before-birth");
+    else plotted.push({ petId: pet.petId, name: pet.name, points });
   }
+  leftOut.sort((a, b) => a.name.localeCompare(b.name));
   return { unit, plotted, leftOut };
 }

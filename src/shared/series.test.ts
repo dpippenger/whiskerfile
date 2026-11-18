@@ -86,16 +86,35 @@ test("comparing pets plots the latest unit and names every pet left out", () => 
     ["Biscuit", [dateToUtc("2026-10-01")]],
   ]);
   expect(byDate.leftOut).toEqual([
-    { petId: 2, name: "Reggie", reason: "other-unit" },
     { petId: 4, name: "Pepper", reason: "no-data" },
+    { petId: 2, name: "Reggie", reason: "other-unit" },
   ]);
 
   const byAge = compareSeries(pets, "age");
   expect(byAge.plotted.map((p) => p.name)).toEqual(["Miso"]);
   expect(byAge.plotted[0]!.points[0]!.x).toBeCloseTo(ageInYears("2014-03-15", "2025-01-01")!);
   expect(byAge.leftOut.map((l) => [l.name, l.reason])).toEqual([
-    ["Reggie", "other-unit"],
     ["Biscuit", "no-birth-date"],
     ["Pepper", "no-data"],
+    ["Reggie", "other-unit"],
   ]);
+});
+
+test("the unit comes from pets that can be drawn, and pets with nothing placeable are named", () => {
+  const pets = [
+    pet(1, "Miso", "2014-03-15", [result("2025-01-01", "1.6")]),
+    // Latest result overall, but no birth date: it must not decide the unit by age.
+    pet(2, "Reggie", null, [result("2026-11-01", "141", "µmol/L", 71, 212)]),
+    // Every result predates the recorded birth date.
+    pet(3, "Biscuit", "2025-09-20", [result("2025-01-01", "1.1")]),
+  ];
+  const byAge = compareSeries(pets, "age");
+  expect(byAge.unit).toBe("mg/dL");
+  expect(byAge.plotted.map((p) => p.name)).toEqual(["Miso"]);
+  expect(byAge.leftOut.map((l) => [l.name, l.reason])).toEqual([
+    ["Biscuit", "before-birth"],
+    ["Reggie", "no-birth-date"],
+  ]);
+  // By date the latest unit across everyone wins.
+  expect(compareSeries(pets, "date").unit).toBe("µmol/L");
 });

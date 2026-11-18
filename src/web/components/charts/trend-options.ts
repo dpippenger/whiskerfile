@@ -174,7 +174,11 @@ export function weightTrendOption(
  * which colour is which. No range band: ranges differ per pet.
  */
 export function compareOption(
-  pets: { name: string; color: string; points: { x: number; value: number; label: string; date: string }[] }[],
+  pets: {
+    name: string;
+    color: string;
+    points: { x: number; value: number; label: string; date: string; limit: boolean }[];
+  }[],
   opts: { axis: "date" | "age"; unit: string | null },
 ) {
   const xs = pets.flatMap((p) => p.points.map((pt) => pt.x));
@@ -205,6 +209,8 @@ export function compareOption(
       symbolSize: 7,
       data: p.points.map((pt) => ({
         value: [pt.x, pt.value],
+        // Hollow for a result given as a limit, such as <0.5, as on a pet's own charts.
+        symbol: pt.limit ? "emptyCircle" : "circle",
         tooltip: {
           formatter: () =>
             [
