@@ -36,6 +36,7 @@ test("requests without a valid Access token are rejected", async () => {
       "/api/pets/1/labs",
       "/api/series/metrics",
       "/api/series?metric=weight",
+      "/api/pets/1/health",
       "/api/unknown",
     ]) {
       expect((await get(path, jwt)).status).toBe(401);
@@ -120,6 +121,15 @@ test("writes are rejected without a valid Access token", async () => {
     ["POST", "/api/analytes"],
     ["PUT", "/api/analytes/1"],
     ["DELETE", "/api/analytes/1"],
+    ["POST", "/api/pets/1/vaccinations"],
+    ["PUT", "/api/vaccinations/1"],
+    ["DELETE", "/api/vaccinations/1"],
+    ["POST", "/api/pets/1/medications"],
+    ["PUT", "/api/medications/1"],
+    ["DELETE", "/api/medications/1"],
+    ["POST", "/api/pets/1/conditions"],
+    ["PUT", "/api/conditions/1"],
+    ["DELETE", "/api/conditions/1"],
   ];
   for (const [method, path] of writes) {
     expect((await call(path, { method, body: {}, jwt: null })).status).toBe(401);

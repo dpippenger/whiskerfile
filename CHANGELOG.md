@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Added
+
+- Health tab: vaccinations (each vaccine's latest dose, flagged overdue or due within 30 days, with earlier doses beneath), current medications, conditions (diagnoses, allergies, surgery, dental) and a history of past medications and resolved conditions. Due dates come from the certificate or reminder; the app never works out a schedule. Nothing is flagged for a pet that has passed away.
+- Add record offers vaccinations, medications and conditions.
+
 ### Fixed
 
 - Lab results printed as negative numbers (such as a base excess of -1, including with a typographic minus sign) are read as numbers, so they are flagged and charted. Results saved earlier are re-read when the app starts.

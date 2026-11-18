@@ -23,6 +23,7 @@ createRoot(document.getElementById("root")!).render(
         <Route path="/pets/:id/weight">{({ id }) => <PetProfile id={Number(id)} tab="weight" />}</Route>
         <Route path="/pets/:id/files">{({ id }) => <PetProfile id={Number(id)} tab="files" />}</Route>
         <Route path="/pets/:id/trends">{({ id }) => <PetProfile id={Number(id)} tab="trends" />}</Route>
+        <Route path="/pets/:id/health">{({ id }) => <PetProfile id={Number(id)} tab="health" />}</Route>
         <Route path="/pets/:id/labs/new">{({ id }) => <LabEntry petId={Number(id)} />}</Route>
         <Route path="/pets/:id/labs/:reportId/edit">
           {({ id, reportId }) => <LabEntry key={reportId} petId={Number(id)} reportId={Number(reportId)} />}

@@ -75,3 +75,11 @@ export function formatDate(date: string): string {
     day: "numeric",
   });
 }
+
+/** The calendar date `days` after `date` (negative for before). */
+export function addDays(date: string, days: number): string {
+  const [y, m, d] = date.split("-").map(Number) as [number, number, number];
+  const next = new Date(Date.UTC(y, m - 1, d + days));
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${next.getUTCFullYear()}-${pad(next.getUTCMonth() + 1)}-${pad(next.getUTCDate())}`;
+}

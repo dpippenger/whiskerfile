@@ -2,7 +2,7 @@
 
 Self-hosted medical records for your pets: cats first, dogs and other animals welcome. It runs at home in Docker and is reached through a Cloudflare tunnel, with Cloudflare Access handling sign-in.
 
-Status: the foundation (server, sign-in, scheduled backups), pet profiles (photo, identity, microchip and registry) and records (vet visits, home exams, vitals, weigh-ins and attached files, with a timeline, weight history and file gallery) are in place, and lab reports (entered by hand from the printed report, with ranges, flags and history). trend charts per pet, and comparisons across pets. PDF reports and vaccinations, medications and conditions are being added in phases.
+Status: the foundation (server, sign-in, scheduled backups), pet profiles (photo, identity, microchip and registry) and records (vet visits, home exams, vitals, weigh-ins and attached files, with a timeline, weight history and file gallery) are in place, and lab reports (entered by hand from the printed report, with ranges, flags and history). trend charts per pet, and comparisons across pets. and vaccinations, medications and conditions. PDF reports are being added next.
 
 See [CHANGELOG.md](CHANGELOG.md) for what each phase added.
 

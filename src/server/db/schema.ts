@@ -1,4 +1,5 @@
 import { index, integer, real, sqliteTable, text, uniqueIndex, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
+import { CONDITION_KINDS } from "../../shared/health";
 import { ANALYTE_CATEGORIES, COMPARATORS, LAB_SOURCES } from "../../shared/labs";
 import { CHART_COLORS, REPRODUCTIVE, SEXES, SPECIES } from "../../shared/pets";
 import { ENTRY_KINDS, TEMPERATURE_UNITS, VITALS, WEIGHT_UNITS } from "../../shared/records";
@@ -212,6 +213,72 @@ export const attachments = sqliteTable(
   ],
 );
 
+/** A vaccine dose. The due date is the one on the certificate or reminder. */
+export const vaccinations = sqliteTable(
+  "vaccinations",
+  {
+    id: integer().primaryKey({ autoIncrement: true }),
+    petId: integer()
+      .notNull()
+      .references(() => pets.id, { onDelete: "cascade" }),
+    vaccine: text().notNull(),
+    dateGiven: text().notNull(),
+    dueDate: text(),
+    lot: text(),
+    clinic: text(),
+    notes: text(),
+    createdBy: integer()
+      .notNull()
+      .references(() => users.id),
+    createdAt: integer().notNull(),
+  },
+  (t) => [index("vaccinations_pet").on(t.petId)],
+);
+
+/** A medication course, current until its end date (if any). */
+export const medications = sqliteTable(
+  "medications",
+  {
+    id: integer().primaryKey({ autoIncrement: true }),
+    petId: integer()
+      .notNull()
+      .references(() => pets.id, { onDelete: "cascade" }),
+    drug: text().notNull(),
+    dose: text(),
+    frequency: text(),
+    startDate: text().notNull(),
+    endDate: text(),
+    reason: text(),
+    notes: text(),
+    createdBy: integer()
+      .notNull()
+      .references(() => users.id),
+    createdAt: integer().notNull(),
+  },
+  (t) => [index("medications_pet").on(t.petId)],
+);
+
+/** A diagnosis, allergy, surgery or dental procedure, active until resolved. */
+export const conditions = sqliteTable(
+  "conditions",
+  {
+    id: integer().primaryKey({ autoIncrement: true }),
+    petId: integer()
+      .notNull()
+      .references(() => pets.id, { onDelete: "cascade" }),
+    kind: text({ enum: CONDITION_KINDS }).notNull(),
+    title: text().notNull(),
+    date: text().notNull(),
+    resolvedOn: text(),
+    notes: text(),
+    createdBy: integer()
+      .notNull()
+      .references(() => users.id),
+    createdAt: integer().notNull(),
+  },
+  (t) => [index("conditions_pet").on(t.petId)],
+);
+
 export type User = typeof users.$inferSelect;
 export type ChipRegistry = typeof chipRegistries.$inferSelect;
 export type StoredFile = typeof files.$inferSelect;
@@ -222,4 +289,7 @@ export type Attachment = typeof attachments.$inferSelect;
 export type Analyte = typeof analytes.$inferSelect;
 export type LabReport = typeof labReports.$inferSelect;
 export type LabResult = typeof labResults.$inferSelect;
+export type Vaccination = typeof vaccinations.$inferSelect;
+export type Medication = typeof medications.$inferSelect;
+export type Condition = typeof conditions.$inferSelect;
 export type BackupRun = typeof backupRuns.$inferSelect;

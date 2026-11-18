@@ -23,9 +23,9 @@ import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { Field, Input, Select, Textarea } from "./ui/field";
 
-type Errors = Record<string, string>;
+export type Errors = Record<string, string>;
 
-function issuesToErrors(issues: { path: PropertyKey[]; message: string }[] = []): Errors {
+export function issuesToErrors(issues: { path: PropertyKey[]; message: string }[] = []): Errors {
   const errors: Errors = {};
   for (const issue of issues) errors[issue.path.join(".")] ??= issue.message;
   return errors;
@@ -56,7 +56,7 @@ export function DeleteButton({ onConfirm, pending }: { onConfirm: () => void; pe
   );
 }
 
-function FormActions({
+export function FormActions({
   onCancel,
   saving,
   onDelete,
