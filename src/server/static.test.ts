@@ -14,6 +14,8 @@ test("every icon the web app manifest names is served", async () => {
   for (const icon of manifest.icons) {
     const served = await dispatch(staticRoutes, new Request(new URL(icon.src, "http://whiskerfile.test")));
     expect(served.status).toBe(200);
+    // Reading the body is what opens the file, so a missing icon fails here.
+    expect((await served.arrayBuffer()).byteLength).toBeGreaterThan(0);
     expect(served.headers.get("content-type")).toBe(icon.type);
   }
 });

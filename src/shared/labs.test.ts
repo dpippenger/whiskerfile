@@ -6,12 +6,17 @@ test("results are read as printed", () => {
   expect(parseLabValue(" 245 ")).toEqual({ value: 245, comparator: null });
   expect(parseLabValue(".5")).toEqual({ value: 0.5, comparator: null });
   expect(parseLabValue("<0.5")).toEqual({ value: 0.5, comparator: "<" });
-  expect(parseLabValue("≤ 0.5")).toEqual({ value: 0.5, comparator: "<" });
-  expect(parseLabValue("<=0.5")).toEqual({ value: 0.5, comparator: "<" });
-  expect(parseLabValue(">2,000")).toEqual({ value: 2000, comparator: ">" });
+  expect(parseLabValue("≤ 0.5")).toEqual({ value: 0.5, comparator: "<=" });
+  expect(parseLabValue("<=0.5")).toEqual({ value: 0.5, comparator: "<=" });
+  expect(parseLabValue("≥1.035")).toEqual({ value: 1.035, comparator: ">=" });
+  expect(parseLabValue(">2,000,000")).toEqual({ value: 2000000, comparator: ">" });
   expect(parseLabValue("1,234.5")).toEqual({ value: 1234.5, comparator: null });
   expect(parseLabValue("4,5")).toEqual({ value: 4.5, comparator: null });
-  for (const qualitative of ["Negative", "2+", "Trace", "1.2.3", "", "-1", "1e3"]) {
+  expect(parseLabValue("0,500")).toEqual({ value: 0.5, comparator: null });
+  expect(parseLabValue("0,125")).toEqual({ value: 0.125, comparator: null });
+  expect(parseLabValue("12,25")).toEqual({ value: 12.25, comparator: null });
+  // One three-digit group after a non-zero lead could be 1035 or 1.035: not guessed.
+  for (const qualitative of ["Negative", "2+", "Trace", "1.2.3", "", "-1", "1e3", "1,035", ">2,000", "0,5,0"]) {
     expect(parseLabValue(qualitative)).toEqual({ value: null, comparator: null });
   }
 });
@@ -40,6 +45,13 @@ test("a result beyond a limit is flagged only when every value it allows is", ()
   expect(flag(">2000", 100, 1500)).toBe("high");
   expect(flag(">1000", 100, 1500)).toBeNull();
   expect(flag(">1.050", 1.035, null)).toBe("normal");
+  // Inclusive limits allow the printed number itself.
+  expect(flag("≤0.8", 0.8, 2.4)).toBeNull();
+  expect(flag("≤0.7", 0.8, 2.4)).toBe("low");
+  expect(flag(">=2.4", 0.8, 2.4)).toBeNull();
+  expect(flag(">=2.5", 0.8, 2.4)).toBe("high");
+  expect(flag("<0.8", 0.8, 2.4)).toBe("low");
+  expect(flag(">2.4", 0.8, 2.4)).toBe("high");
 });
 
 test("ranges and bar positions", () => {

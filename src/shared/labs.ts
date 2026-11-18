@@ -24,26 +24,44 @@ export const LAB_SOURCE_LABEL = {
   other: "Other",
 } as const;
 
-export type Comparator = "<" | ">";
+/** "<" and ">" exclude the printed number; "<=" and ">=" include it. */
+export const COMPARATORS = ["<", "<=", ">", ">="] as const;
+export type Comparator = (typeof COMPARATORS)[number];
 export type ParsedValue = { value: number | null; comparator: Comparator | null };
 
 const NUMBER = /^(\d+(?:\.\d+)?|\.\d+)$/;
-const THOUSANDS = /^\d{1,3}(?:,\d{3})+(?:\.\d+)?$/;
+// "2,000,000" or "1,234.5": unambiguously grouped thousands.
+const THOUSANDS = /^[1-9]\d{0,2}(?:(?:,\d{3}){2,}(?:\.\d+)?|,\d{3}\.\d+)$/;
+// "4,5", "0,500", "12,25": a decimal comma. A single group of exactly three
+// digits after a non-zero lead ("1,035") could be either and is not read.
+const DECIMAL_COMMA = /^(?:0,\d+|\d+,(?:\d{1,2}|\d{4,}))$/;
+
+const PREFIXES: [string, Comparator][] = [
+  ["<=", "<="],
+  ["≤", "<="],
+  ["<", "<"],
+  [">=", ">="],
+  ["≥", ">="],
+  [">", ">"],
+];
 
 /**
- * Reads a result as printed. "1.20" → 1.2; "<0.5" or "≤0.5" → < 0.5;
- * ">2,000" → > 2000; "4,5" → 4.5. Anything else (e.g. "Negative", "2+")
- * has no number.
+ * Reads a result as printed. "1.20" → 1.2; "<0.5" → < 0.5; "≤0.5" → <= 0.5;
+ * ">2,000,000" → > 2000000; "4,5" → 4.5. Anything else (e.g. "Negative",
+ * "2+", or the ambiguous "1,035") has no number, and so no flag.
  */
 export function parseLabValue(text: string): ParsedValue {
   let s = text.trim().replace(/\s+/g, "");
   let comparator: Comparator | null = null;
-  const first = s[0];
-  if (first === "<" || first === "≤") comparator = "<";
-  else if (first === ">" || first === "≥") comparator = ">";
-  if (comparator) s = s.slice(1).replace(/^=/, "");
+  for (const [prefix, c] of PREFIXES) {
+    if (s.startsWith(prefix)) {
+      comparator = c;
+      s = s.slice(prefix.length);
+      break;
+    }
+  }
   if (THOUSANDS.test(s)) s = s.replace(/,/g, "");
-  else if (/^\d+,\d+$/.test(s)) s = s.replace(",", ".");
+  else if (DECIMAL_COMMA.test(s)) s = s.replace(",", ".");
   if (!NUMBER.test(s)) return { value: null, comparator: null };
   return { value: Number(s), comparator };
 }
@@ -52,7 +70,8 @@ export type Flag = "high" | "low" | "normal";
 
 /**
  * Where a result sits against its printed range, or null when that can't be
- * told: no range, no number, or a "<"/">" result that straddles a limit.
+ * told: no range, no number, or a "<"/">" result whose possible values fall
+ * on both sides of a limit (including "≤0.8" against a low limit of 0.8).
  */
 export function flagResult(r: {
   value: number | null;
@@ -62,15 +81,17 @@ export function flagResult(r: {
 }): Flag | null {
   const { value, comparator, refLow, refHigh } = r;
   if (value == null || (refLow == null && refHigh == null)) return null;
-  if (comparator === "<") {
-    // Somewhere below `value`.
-    if (refLow != null && value <= refLow) return "low";
+  if (comparator === "<" || comparator === "<=") {
+    // Somewhere below `value`, or at it when inclusive.
+    const allBelowLow = comparator === "<" ? value <= refLow! : value < refLow!;
+    if (refLow != null && allBelowLow) return "low";
     if (refLow == null && refHigh != null && value <= refHigh) return "normal";
     return null;
   }
-  if (comparator === ">") {
-    // Somewhere above `value`.
-    if (refHigh != null && value >= refHigh) return "high";
+  if (comparator === ">" || comparator === ">=") {
+    // Somewhere above `value`, or at it when inclusive.
+    const allAboveHigh = comparator === ">" ? value >= refHigh! : value > refHigh!;
+    if (refHigh != null && allAboveHigh) return "high";
     if (refHigh == null && refLow != null && value >= refLow) return "normal";
     return null;
   }

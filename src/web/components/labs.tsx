@@ -27,10 +27,17 @@ function FlagBadge({ flag }: { flag: Flag | null }) {
   return null;
 }
 
-/** Counts of high and low results on a report. */
+/**
+ * Counts of high and low results on a report, and whether every result was
+ * checked and found in range (a result without a range or a number can't be).
+ */
 function flagCounts(report: LabReportWithResults) {
   const flags = report.results.map(flagOf);
-  return { high: flags.filter((f) => f === "high").length, low: flags.filter((f) => f === "low").length };
+  return {
+    high: flags.filter((f) => f === "high").length,
+    low: flags.filter((f) => f === "low").length,
+    allNormal: flags.length > 0 && flags.every((f) => f === "normal"),
+  };
 }
 
 /**
@@ -48,7 +55,13 @@ export function RangeBar({ result }: { result: LabResultRow }) {
       <div
         className={cn(
           "absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-card",
-          flag === "high" ? "bg-danger" : flag === "low" ? "bg-warning" : "bg-success",
+          flag === "high"
+            ? "bg-danger"
+            : flag === "low"
+              ? "bg-warning"
+              : flag === "normal"
+                ? "bg-success"
+                : "bg-foreground-secondary",
           result.comparator && "opacity-60",
         )}
         style={{ left: `${position * 100}%` }}
@@ -65,6 +78,17 @@ function PreviousCell({ previous }: { previous: Previous<LabResultRow> | undefin
     <span className="flex flex-col">
       <span className="font-mono tabular-nums">
         {previous.result.valueText}
+        {previous.result.unit && (
+          <span
+            className={cn(
+              "ml-1 font-sans text-xs text-muted-foreground",
+              // A different unit is the reason there is no change: make it stand out.
+              previous.change == null && "text-warning",
+            )}
+          >
+            {previous.result.unit}
+          </span>
+        )}
         {previous.change != null && (
           <span className="ml-2 text-xs text-muted-foreground">{formatChange(previous.change)}</span>
         )}
@@ -219,7 +243,7 @@ export function LabsTab({ petId, reports }: { petId: number; reports: LabReportW
   return (
     <ul className="space-y-3">
       {reports.map((report) => {
-        const { high, low } = flagCounts(report);
+        const { high, low, allNormal } = flagCounts(report);
         return (
           <li key={report.id}>
             <Link
@@ -243,7 +267,7 @@ export function LabsTab({ petId, reports }: { petId: number; reports: LabReportW
               <div className="flex shrink-0 gap-1.5">
                 {high > 0 && <Badge tone="danger">{high} high</Badge>}
                 {low > 0 && <Badge tone="warning">{low} low</Badge>}
-                {high === 0 && low === 0 && <Badge tone="success">In range</Badge>}
+                {allNormal && <Badge tone="success">In range</Badge>}
               </div>
             </Link>
           </li>

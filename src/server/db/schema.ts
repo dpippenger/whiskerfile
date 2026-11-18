@@ -1,5 +1,5 @@
 import { index, integer, real, sqliteTable, text, uniqueIndex, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
-import { ANALYTE_CATEGORIES, LAB_SOURCES } from "../../shared/labs";
+import { ANALYTE_CATEGORIES, COMPARATORS, LAB_SOURCES } from "../../shared/labs";
 import { CHART_COLORS, REPRODUCTIVE, SEXES, SPECIES } from "../../shared/pets";
 import { ENTRY_KINDS, TEMPERATURE_UNITS, VITALS, WEIGHT_UNITS } from "../../shared/records";
 
@@ -170,7 +170,7 @@ export const labResults = sqliteTable(
       .references(() => analytes.id),
     valueText: text().notNull(),
     value: real(),
-    comparator: text({ enum: ["<", ">"] }),
+    comparator: text({ enum: COMPARATORS }),
     unit: text(),
     refLow: real(),
     refHigh: real(),
