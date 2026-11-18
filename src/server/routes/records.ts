@@ -36,7 +36,7 @@ export type PetRecords = {
 const petExists = (db: Db, id: number) => !!db.select({ id: pets.id }).from(pets).where(eq(pets.id, id)).get();
 
 /** Ids from the list that are not stored files. */
-function unknownFiles(db: Db, ids: number[]): number[] {
+export function unknownFiles(db: Db, ids: number[]): number[] {
   if (ids.length === 0) return [];
   const found = new Set(
     db
@@ -49,7 +49,7 @@ function unknownFiles(db: Db, ids: number[]): number[] {
   return ids.filter((id) => !found.has(id));
 }
 
-const unknownFileError = (field: "fileId" | "fileIds") =>
+export const unknownFileError = (field: "fileId" | "fileIds") =>
   error(400, "Some fields are invalid", { [field]: "Unknown file" });
 
 /**
@@ -182,7 +182,8 @@ export function recordRoutes({ db }: AppContext, authed: Authed) {
         attachments: filed.filter((a) => a.entryId === entry.id),
       })),
       measurements: readings.filter(({ m }) => m.entryId == null).map(({ m, author }) => ({ ...m, author })),
-      attachments: filed.filter((a) => a.entryId == null),
+      // Lab report documents are listed with their report, not here.
+      attachments: filed.filter((a) => a.entryId == null && a.labReportId == null),
     };
   }
 
@@ -286,7 +287,7 @@ export function recordRoutes({ db }: AppContext, authed: Authed) {
           ? db
               .select()
               .from(attachments)
-              .where(and(eq(attachments.id, id), isNull(attachments.entryId)))
+              .where(and(eq(attachments.id, id), isNull(attachments.entryId), isNull(attachments.labReportId)))
               .get()
           : undefined;
         if (!existing) return error(404, "Attachment not found");
