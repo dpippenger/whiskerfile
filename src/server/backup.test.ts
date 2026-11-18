@@ -78,12 +78,15 @@ test("half-written files from a cut-off run are never kept or counted", async ()
   await writeFile(join(backupDir, "db", snapshotName(new Date("2026-11-18T15:00:00Z")) + ".partial"), "trunc");
   await writeFile(join(backupDir, "uploads", "def456.partial"), "trunc");
   await writeFile(join(dataDir, "uploads", "def456"), "scan");
+  // An upload still being written is neither copied nor touched.
+  await writeFile(join(dataDir, "uploads", "0a1b2c.partial"), "incoming");
 
   const next = await runBackup(ctx, new Date("2026-11-19T03:00:00Z"));
   expect(next.status).toBe("ok");
   expect((await readdir(join(backupDir, "db"))).sort()).toEqual([good.file!, next.file!]);
   expect((await readdir(join(backupDir, "uploads"))).sort()).toEqual(["abc123", "def456"]);
   expect(await Bun.file(join(backupDir, "uploads", "def456")).text()).toBe("scan");
+  expect(await Bun.file(join(dataDir, "uploads", "0a1b2c.partial")).text()).toBe("incoming");
 });
 
 test("a snapshot that fails its integrity check is discarded", async () => {

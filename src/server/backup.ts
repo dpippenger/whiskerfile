@@ -54,12 +54,17 @@ export function snapshotsToKeep(names: string[]): Set<string> {
   return keep;
 }
 
-/** Lists a directory, creating it if missing and clearing files a cut-off run left half-written. */
+/** Lists a directory's finished files, creating it if missing. */
 async function listDir(dir: string): Promise<string[]> {
   await mkdir(dir, { recursive: true });
-  const names = await readdir(dir);
-  for (const name of names) if (name.endsWith(PARTIAL)) await rm(join(dir, name));
-  return names.filter((name) => !name.endsWith(PARTIAL));
+  return (await readdir(dir)).filter((name) => !name.endsWith(PARTIAL));
+}
+
+/** Like listDir, for a folder this module writes: also clears what a cut-off run left half-written. */
+async function listBackupDir(dir: string): Promise<string[]> {
+  await mkdir(dir, { recursive: true });
+  for (const name of await readdir(dir)) if (name.endsWith(PARTIAL)) await rm(join(dir, name));
+  return listDir(dir);
 }
 
 export type BackupContext = { sqlite: Database; db: Db; dataDir: string; backupDir: string };
@@ -89,7 +94,7 @@ async function backup({ sqlite, db, dataDir, backupDir }: BackupContext, now: Da
   const target = join(dbDir, file);
   const partial = target + PARTIAL;
   try {
-    const existing = await listDir(dbDir);
+    const existing = await listBackupDir(dbDir);
     sqlite.query("VACUUM INTO ?").run(partial);
 
     const copy = new Database(partial, { readonly: true });
@@ -105,7 +110,7 @@ async function backup({ sqlite, db, dataDir, backupDir }: BackupContext, now: Da
     // the backup lacks is a complete incremental backup.
     const uploadsDir = join(dataDir, "uploads");
     const uploadsBackup = join(backupDir, "uploads");
-    const have = new Set(await listDir(uploadsBackup));
+    const have = new Set(await listBackupDir(uploadsBackup));
     for (const name of await listDir(uploadsDir)) {
       if (have.has(name)) continue;
       const dest = join(uploadsBackup, name);
