@@ -3,10 +3,14 @@ import type { z } from "zod";
 import type { Authenticate } from "./auth";
 import type { BackupContext } from "./backup";
 import type { User } from "./db/schema";
+import type { ReadLab } from "./import/claude";
 import type { RenderPdf } from "./report/pdf";
 
-/** What routes share: the database and folders, and the PDF printer when Chromium is configured. */
-export type AppContext = BackupContext & { renderPdf?: RenderPdf };
+/**
+ * What routes share: the database and folders, the PDF printer when Chromium
+ * is configured, and the lab document reader when an Anthropic API key is.
+ */
+export type AppContext = BackupContext & { renderPdf?: RenderPdf; readLab?: ReadLab };
 
 export type Handler<P extends string> = (
   req: BunRequest<P>,

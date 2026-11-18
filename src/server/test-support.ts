@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { apiRoutes } from "./app";
 import { createAuthenticator } from "./auth";
 import { openDb } from "./db";
+import type { ReadLab } from "./import/claude";
 import type { RenderPdf } from "./report/pdf";
 
 export const ISSUER = "https://team.cloudflareaccess.com";
@@ -58,7 +59,7 @@ export async function dispatch(routes: object, req: Request): Promise<Response> 
  * The API with an in-memory database and a local Access signing key, called
  * in process through its route table (see dispatch).
  */
-export async function startApi(opts: { renderPdf?: RenderPdf } = {}) {
+export async function startApi(opts: { renderPdf?: RenderPdf; readLab?: ReadLab } = {}) {
   const { publicKey, privateKey } = await generateKeyPair("RS256");
   const other = await generateKeyPair("RS256");
   const { sqlite, db } = openDb(":memory:");
@@ -71,7 +72,7 @@ export async function startApi(opts: { renderPdf?: RenderPdf } = {}) {
   const root = await mkdtemp(join(tmpdir(), "whiskerfile-api-"));
   const dataDir = join(root, "data");
   const routes = apiRoutes(
-    { sqlite, db, dataDir, backupDir: join(root, "backups"), renderPdf: opts.renderPdf },
+    { sqlite, db, dataDir, backupDir: join(root, "backups"), renderPdf: opts.renderPdf, readLab: opts.readLab },
     authenticate,
   );
 

@@ -3,8 +3,8 @@ import { files } from "../db/schema";
 import { fileResponse, IMAGE_TYPES, MAX_UPLOAD_BYTES, PREVIEW_MAX_BYTES, sniffMime, storeUpload } from "../files";
 import { error, idParam, type AppContext, type Authed } from "../http";
 
-/** The uploaded file from a multipart body's "file" field, or the error response. */
-async function readUpload(req: Request): Promise<File | Response> {
+/** The "file" field of a multipart upload, or the error response to send. */
+export async function readUpload(req: Request): Promise<File | Response> {
   if (Number(req.headers.get("content-length") ?? 0) > MAX_UPLOAD_BYTES + 64 * 1024) {
     return error(413, "Files can be at most 25 MB");
   }

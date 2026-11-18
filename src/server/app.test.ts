@@ -119,6 +119,7 @@ test("writes are rejected without a valid Access token", async () => {
     ["POST", "/api/pets/1/labs"],
     ["PUT", "/api/labs/1"],
     ["DELETE", "/api/labs/1"],
+    ["POST", "/api/labs/import"],
     ["POST", "/api/analytes"],
     ["PUT", "/api/analytes/1"],
     ["DELETE", "/api/analytes/1"],
