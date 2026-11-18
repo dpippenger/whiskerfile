@@ -10,6 +10,8 @@ services:
       CF_ACCESS_TEAM_DOMAIN: ${CF_ACCESS_TEAM_DOMAIN:?}
       CF_ACCESS_AUD: ${CF_ACCESS_AUD:?}
       BACKUP_CRON: ${BACKUP_CRON:-0 3 * * *}
+      # Optional: lets the lab form read results from a PDF or photo.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       TZ: ${TZ:-UTC}
     volumes:
       - ./data:/data
