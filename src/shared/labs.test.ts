@@ -25,7 +25,11 @@ test("results are read as printed", () => {
   expect(parseLabValue("0,125")).toEqual({ value: 0.125, comparator: null });
   expect(parseLabValue("12,25")).toEqual({ value: 12.25, comparator: null });
   // One three-digit group after a non-zero lead could be 1035 or 1.035: not guessed.
-  for (const qualitative of ["Negative", "2+", "Trace", "1.2.3", "", "-1", "1e3", "1,035", ">2,000", "0,5,0"]) {
+  expect(parseLabValue("-1")).toEqual({ value: -1, comparator: null });
+  expect(parseLabValue("\u22122.5")).toEqual({ value: -2.5, comparator: null });
+  expect(parseLabValue("<-3")).toEqual({ value: -3, comparator: "<" });
+  expect(parseLabValue("-0,5")).toEqual({ value: -0.5, comparator: null });
+  for (const qualitative of ["Negative", "2+", "Trace", "1.2.3", "", "-", "--1", "1e3", "1,035", ">2,000", "0,5,0"]) {
     expect(parseLabValue(qualitative)).toEqual({ value: null, comparator: null });
   }
 });

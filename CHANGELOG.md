@@ -2,12 +2,21 @@
 
 ## Unreleased
 
+### Fixed
+
+- Lab results printed as negative numbers (such as a base excess of -1, including with a typographic minus sign) are read as numbers, so they are flagged and charted. Results saved earlier are re-read when the app starts.
+
+## Phase 4: trends and comparisons (2026-11-18)
+
 ### Added
 
 - Compare: one metric (weight or a test) for several pets on one chart, by date or by age, each pet in its own colour. Only results in one unit are plotted, and pets left out (another unit, no results, or no birth date when comparing by age) are named.
-
 - Trends tab: a chart per chosen metric (weight, and each test with numeric results) on a real time axis, over the reference range printed on each report, with flagged points coloured and limit results (such as <0.5) drawn hollow. Results in another unit, or without a number, are counted and named rather than drawn.
 - The weight tab's trend line is now a chart with dates on its axis and a zoom slider for long histories.
+
+## Phase 3: lab results (2026-11-18)
+
+### Added
 
 - Lab reports: results kept exactly as printed (including "<0.5" and qualitative results), with the reference range from each report, High/Low flags, a range bar, and the previous result with its change. Reports link to a visit and carry their original documents.
 - Lab entry: a keyboard-friendly grid (Enter moves down a column) that copies the tests from the last report, adds a whole category or single tests, pre-fills each unit and range from the pet's last result for that test, previews High/Low as you type, and attaches the original report.

@@ -47,11 +47,16 @@ const PREFIXES: [string, Comparator][] = [
 
 /**
  * Reads a result as printed. "1.20" → 1.2; "<0.5" → < 0.5; "≤0.5" → <= 0.5;
- * ">2,000,000" → > 2000000; "4,5" → 4.5. Anything else (e.g. "Negative",
- * "2+", or the ambiguous "1,035") has no number, and so no flag.
+ * ">2,000,000" → > 2000000; "4,5" → 4.5; "-1.5" or "−1.5" → -1.5 (base
+ * excess can be negative). Anything else (e.g. "Negative", "2+", or the
+ * ambiguous "1,035") has no number, and so no flag.
  */
 export function parseLabValue(text: string): ParsedValue {
-  let s = text.trim().replace(/\s+/g, "");
+  // The Unicode minus sign that reports and word processors use reads as a hyphen.
+  let s = text
+    .trim()
+    .replace(/\s+/g, "")
+    .replace(/\u2212/g, "-");
   let comparator: Comparator | null = null;
   for (const [prefix, c] of PREFIXES) {
     if (s.startsWith(prefix)) {
@@ -60,10 +65,12 @@ export function parseLabValue(text: string): ParsedValue {
       break;
     }
   }
+  const negative = s.startsWith("-");
+  if (negative) s = s.slice(1);
   if (THOUSANDS.test(s)) s = s.replace(/,/g, "");
   else if (DECIMAL_COMMA.test(s)) s = s.replace(",", ".");
   if (!NUMBER.test(s)) return { value: null, comparator: null };
-  return { value: Number(s), comparator };
+  return { value: negative ? -Number(s) : Number(s), comparator };
 }
 
 export type Flag = "high" | "low" | "normal";
