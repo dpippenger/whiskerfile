@@ -4,6 +4,8 @@
 
 ### Added
 
+- Lab reports: results kept exactly as printed (including "<0.5" and qualitative results), with the reference range from each report, High/Low flags, a range bar, and the previous result with its change. Reports link to a visit and carry their original documents.
+- A catalog of 62 common tests (chemistry, electrolytes, CBC, endocrine, urinalysis and others), with codes and units but no built-in reference ranges.
 - Web app manifest and icons: install Whiskerfile to an Android home screen or as a desktop app.
 
 ### Fixed

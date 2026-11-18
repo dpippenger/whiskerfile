@@ -2,7 +2,7 @@
 
 Self-hosted medical records for your pets: cats first, dogs and other animals welcome. It runs at home in Docker and is reached through a Cloudflare tunnel, with Cloudflare Access handling sign-in.
 
-Status: the foundation (server, sign-in, scheduled backups), pet profiles (photo, identity, microchip and registry) and records (vet visits, home exams, vitals, weigh-ins and attached files, with a timeline, weight history and file gallery) are in place. Lab results, trends and PDF reports are being added in phases.
+Status: the foundation (server, sign-in, scheduled backups), pet profiles (photo, identity, microchip and registry) and records (vet visits, home exams, vitals, weigh-ins and attached files, with a timeline, weight history and file gallery) are in place, and lab reports can be viewed with their ranges and flags (entering them in the app comes next). Trends and PDF reports are being added in phases.
 
 See [CHANGELOG.md](CHANGELOG.md) for what each phase added.
 
@@ -35,7 +35,7 @@ To restore: stop the stack, copy a snapshot from `<backup folder>/db/` over `dat
 ```sh
 bun install
 bun run dev      # http://localhost:3000, signed in as a local user
-bun run seed:dev # in a second terminal: adds sample pets, weights, visits and files to the dev server
+bun run seed:dev # in a second terminal: adds sample pets, weights, visits, files and lab reports to the dev server
 bun test
 bun check
 ```
