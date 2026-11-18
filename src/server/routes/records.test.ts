@@ -72,6 +72,31 @@ test("editing a visit moves its vitals to the new date and drops cleared ones", 
   expect(list[0]!.vitals).toEqual({ weight: 4700 });
 });
 
+test("editing a visit keeps its readings, so the latest same-day weight stays the latest", async () => {
+  const { server, call, json, petId } = await setup();
+  using _ = server;
+  const entry = await json<{ id: number }>(
+    call(`/api/pets/${petId}/entries`, {
+      method: "POST",
+      body: visit({ date: "2026-11-01", vitals: { weight: 4000 } }),
+    }),
+  );
+  await call(`/api/pets/${petId}/measurements`, {
+    method: "POST",
+    body: { date: "2026-11-01", kind: "weight", value: 4500 },
+  });
+  const before = await json<{ id: number }[]>(call(`/api/pets/${petId}/measurements?kind=weight`));
+
+  await call(`/api/entries/${entry.id}`, {
+    method: "PUT",
+    body: visit({ date: "2026-11-01", notes: "Edited notes", vitals: { weight: 4000 } }),
+  });
+  const after = await json<{ id: number }[]>(call(`/api/pets/${petId}/measurements?kind=weight`));
+  expect(after.map((m) => m.id)).toEqual(before.map((m) => m.id));
+  const [miso] = await json<PetSummary[]>(call("/api/pets"));
+  expect(miso!.weights.at(-1)).toEqual({ date: "2026-11-01", value: 4500 });
+});
+
 test("an invalid visit is refused without leaving anything behind", async () => {
   const { server, call, json, db, petId } = await setup();
   using _ = server;
@@ -104,8 +129,12 @@ test("standalone weigh-ins can be added, corrected and removed; a visit's readin
   });
   expect(await json(fixed)).toMatchObject({ date: "2026-11-02", value: 4610 });
   expect(
-    (await call(`/api/pets/${petId}/measurements`, { method: "POST", body: { date: "2026-11-01", kind: "weight", value: 0 } }))
-      .status,
+    (
+      await call(`/api/pets/${petId}/measurements`, {
+        method: "POST",
+        body: { date: "2026-11-01", kind: "weight", value: 0 },
+      })
+    ).status,
   ).toBe(400);
 
   await call(`/api/pets/${petId}/entries`, { method: "POST", body: visit() });
@@ -115,6 +144,15 @@ test("standalone weigh-ins can be added, corrected and removed; a visit's readin
   expect(all.map((m) => m.date)).toEqual(["2026-10-01", "2026-11-02"]);
   const fromVisit = all.find((m) => m.entryId !== null)!;
   expect((await call(`/api/measurements/${fromVisit.id}`, { method: "DELETE" })).status).toBe(404);
+  const moved = await call(`/api/measurements/${fromVisit.id}`, {
+    method: "PUT",
+    body: { date: "2026-11-05", kind: "weight", value: 1234 },
+  });
+  expect(moved.status).toBe(404);
+  const after = await json<{ id: number; date: string; value: number }[]>(
+    call(`/api/pets/${petId}/measurements?kind=weight`),
+  );
+  expect(after.find((m) => m.id === fromVisit.id)).toMatchObject({ date: "2026-10-01", value: 4649 });
 
   expect((await call(`/api/measurements/${id}`, { method: "DELETE" })).status).toBe(204);
   const { measurements: standalone } = await json<PetRecords>(call(`/api/pets/${petId}/records`));
@@ -130,7 +168,10 @@ test("deleting a visit removes its vitals; deleting a pet removes all its record
   expect(db.select().from(measurements).all()).toEqual([]);
 
   await call(`/api/pets/${petId}/entries`, { method: "POST", body: visit() });
-  await call(`/api/pets/${petId}/measurements`, { method: "POST", body: { date: "2026-11-01", kind: "weight", value: 4600 } });
+  await call(`/api/pets/${petId}/measurements`, {
+    method: "POST",
+    body: { date: "2026-11-01", kind: "weight", value: 4600 },
+  });
   expect((await call(`/api/pets/${petId}`, { method: "DELETE" })).status).toBe(204);
   expect(db.select().from(entries).all()).toEqual([]);
   expect(db.select().from(measurements).all()).toEqual([]);
@@ -141,7 +182,10 @@ test("the pet list carries each pet's last twelve weights and last vet visit", a
   using _ = server;
   for (let day = 1; day <= 14; day++) {
     const date = `2026-09-${String(day).padStart(2, "0")}`;
-    await call(`/api/pets/${petId}/measurements`, { method: "POST", body: { date, kind: "weight", value: 4000 + day } });
+    await call(`/api/pets/${petId}/measurements`, {
+      method: "POST",
+      body: { date, kind: "weight", value: 4000 + day },
+    });
   }
   await call(`/api/pets/${petId}/entries`, { method: "POST", body: visit({ kind: "home", date: "2026-10-20" }) });
   await call(`/api/pets/${petId}/entries`, { method: "POST", body: visit({ date: "2026-10-05" }) });
@@ -160,5 +204,7 @@ test("display units can be chosen or left to the browser", async () => {
   expect(await json(call("/api/me"))).toMatchObject({ weightUnit: null, temperatureUnit: null });
   const set = await call("/api/me", { method: "PATCH", body: { weightUnit: "kg", temperatureUnit: "f" } });
   expect(await json(set)).toMatchObject({ weightUnit: "kg", temperatureUnit: "f" });
-  expect((await call("/api/me", { method: "PATCH", body: { weightUnit: "stone", temperatureUnit: null } })).status).toBe(400);
+  expect(
+    (await call("/api/me", { method: "PATCH", body: { weightUnit: "stone", temperatureUnit: null } })).status,
+  ).toBe(400);
 });

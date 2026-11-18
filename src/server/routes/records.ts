@@ -36,14 +36,30 @@ function saveEntry(
           .get();
     if (!entry) return undefined;
 
-    tx.delete(measurements).where(eq(measurements.entryId, entry.id)).run();
-    const readings = VITALS.flatMap((kind) => {
+    // Update readings in place rather than replacing them: ids order same-day
+    // readings, so a new id would change which reading counts as the latest.
+    const existing = tx.select().from(measurements).where(eq(measurements.entryId, entry.id)).all();
+    for (const kind of VITALS) {
       const value = vitals[kind];
-      return value == null
-        ? []
-        : [{ petId: entry.petId, entryId: entry.id, kind, value, date: entry.date, createdBy: userId, createdAt: now }];
-    });
-    if (readings.length) tx.insert(measurements).values(readings).run();
+      const current = existing.find((m) => m.kind === kind);
+      if (value == null) {
+        if (current) tx.delete(measurements).where(eq(measurements.id, current.id)).run();
+      } else if (current) {
+        tx.update(measurements).set({ value, date: entry.date }).where(eq(measurements.id, current.id)).run();
+      } else {
+        tx.insert(measurements)
+          .values({
+            petId: entry.petId,
+            entryId: entry.id,
+            kind,
+            value,
+            date: entry.date,
+            createdBy: userId,
+            createdAt: now,
+          })
+          .run();
+      }
+    }
     return entry;
   });
 }

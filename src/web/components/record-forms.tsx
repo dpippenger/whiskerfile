@@ -31,6 +31,17 @@ function issuesToErrors(issues: { path: PropertyKey[]; message: string }[] = [])
 /** Parses a typed number; "" is null and anything unparseable is NaN, which validation rejects. */
 const parseNumber = (text: string) => (text.trim() === "" ? null : Number(text.replace(",", ".")));
 
+/**
+ * The stored value for a converted field. Display text is rounded, so turning
+ * it back into a stored value can shift a reading by a few grams or a tenth of
+ * a degree; a field the user left as shown keeps its stored value exactly.
+ */
+function storedValue(text: string, shown: string, original: number | undefined, convert: (n: number) => number) {
+  if (original !== undefined && text === shown) return original;
+  const typed = parseNumber(text);
+  return typed == null || Number.isNaN(typed) ? typed : convert(typed);
+}
+
 /** Refreshes everything that shows a pet's records after a change. */
 function useRecordsChanged(petId: number) {
   const queryClient = useQueryClient();
@@ -96,7 +107,7 @@ const unitLabel = (units: Units) => ({
 /** A vet visit or home exam with its vitals, typed in the user's units. */
 export function EntryForm({
   petId,
-  units,
+  units: unitsAtOpen,
   entry,
   initialKind = "vet",
   onDone,
@@ -111,7 +122,13 @@ export function EntryForm({
   const records = useRecords(petId);
   const changed = useRecordsChanged(petId);
   const [errors, setErrors] = useState<Errors>({});
+  // Typed numbers are read in the units the form opened with, even if the preference changes meanwhile.
+  const [units] = useState(unitsAtOpen);
   const v = entry?.vitals ?? {};
+  const [shown] = useState(() => ({
+    weight: v.weight != null ? String(fromGrams(v.weight, units.weight)) : "",
+    temperature: v.temperature != null ? String(fromCelsius(v.temperature, units.temperature)) : "",
+  }));
   const [form, setForm] = useState({
     kind: entry?.kind ?? initialKind,
     date: entry?.date ?? localToday(),
@@ -119,8 +136,8 @@ export function EntryForm({
     vet: entry?.vet ?? "",
     reason: entry?.reason ?? "",
     notes: entry?.notes ?? "",
-    weight: v.weight != null ? String(fromGrams(v.weight, units.weight)) : "",
-    temperature: v.temperature != null ? String(fromCelsius(v.temperature, units.temperature)) : "",
+    weight: shown.weight,
+    temperature: shown.temperature,
     heart_rate: v.heart_rate != null ? String(v.heart_rate) : "",
     respiratory_rate: v.respiratory_rate != null ? String(v.respiratory_rate) : "",
     body_condition: v.body_condition != null ? String(v.body_condition) : "",
@@ -147,8 +164,6 @@ export function EntryForm({
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    const weight = parseNumber(form.weight);
-    const temperature = parseNumber(form.temperature);
     const vet = form.kind === "vet";
     const body = {
       kind: form.kind,
@@ -158,8 +173,10 @@ export function EntryForm({
       reason: form.reason,
       notes: form.notes,
       vitals: {
-        weight: weight == null ? null : toGrams(weight, units.weight),
-        temperature: temperature == null ? null : toCelsius(temperature, units.temperature),
+        weight: storedValue(form.weight, shown.weight, v.weight, (n) => toGrams(n, units.weight)),
+        temperature: storedValue(form.temperature, shown.temperature, v.temperature, (n) =>
+          toCelsius(n, units.temperature),
+        ),
         heart_rate: parseNumber(form.heart_rate),
         respiratory_rate: parseNumber(form.respiratory_rate),
         body_condition: parseNumber(form.body_condition),
@@ -302,7 +319,7 @@ export function EntryForm({
 /** A weigh-in on its own, outside any visit. */
 export function WeightForm({
   petId,
-  units,
+  units: unitsAtOpen,
   measurement,
   onDone,
 }: {
@@ -314,8 +331,10 @@ export function WeightForm({
   const id = useId();
   const changed = useRecordsChanged(petId);
   const [errors, setErrors] = useState<Errors>({});
+  const [units] = useState(unitsAtOpen);
+  const [shown] = useState(measurement ? String(fromGrams(measurement.value, units.weight)) : "");
   const [date, setDate] = useState(measurement?.date ?? localToday());
-  const [weight, setWeight] = useState(measurement ? String(fromGrams(measurement.value, units.weight)) : "");
+  const [weight, setWeight] = useState(shown);
 
   const save = useMutation({
     mutationFn: (body: object) =>
@@ -338,8 +357,8 @@ export function WeightForm({
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    const value = parseNumber(weight);
-    const body = { date, kind: "weight", value: value == null ? Number.NaN : toGrams(value, units.weight) };
+    const value = storedValue(weight, shown, measurement?.value, (n) => toGrams(n, units.weight));
+    const body = { date, kind: "weight", value: value ?? Number.NaN };
     const found = issuesToErrors(measurementInput.safeParse(body).error?.issues);
     if (value == null) found.value = "Enter a weight";
     else if (Number.isNaN(value)) found.value = "Enter a number";
