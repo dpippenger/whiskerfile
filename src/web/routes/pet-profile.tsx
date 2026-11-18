@@ -1,4 +1,4 @@
-import { ExternalLink, House, Pencil, Plus, Scale, Stethoscope } from "lucide-react";
+import { ExternalLink, FileText, House, Pencil, Plus, Scale, Stethoscope } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import type { Pet } from "../../server/db/schema";
@@ -6,6 +6,7 @@ import { formatAge, formatDate, localToday } from "../../shared/dates";
 import { CHIP_LOOKUP_URL, reproductiveLabel, SPECIES_LABEL } from "../../shared/pets";
 import { Page } from "../components/page";
 import { PetPhoto } from "../components/pet-photo";
+import { FileForm, FilesTab } from "../components/attachments";
 import { EntryForm, WeightForm } from "../components/record-forms";
 import { Timeline, type Editing } from "../components/timeline";
 import { Badge } from "../components/ui/badge";
@@ -63,17 +64,19 @@ function Microchip({ pet }: { pet: Pet }) {
   );
 }
 
-export type ProfileTab = "timeline" | "weight";
+export type ProfileTab = "timeline" | "weight" | "files";
 
 const TABS: { tab: ProfileTab; label: string; path: string }[] = [
   { tab: "timeline", label: "Timeline", path: "" },
   { tab: "weight", label: "Weight", path: "/weight" },
+  { tab: "files", label: "Files", path: "/files" },
 ];
 
 type DialogState =
   | { mode: "choose" }
   | { mode: "entry"; kind: "vet" | "home"; entry?: Extract<Editing, { type: "entry" }>["entry"] }
   | { mode: "weight"; measurement?: Extract<Editing, { type: "weight" }>["measurement"] }
+  | { mode: "file"; attachment?: Extract<Editing, { type: "file" }>["attachment"] }
   | null;
 
 const CHOICES = [
@@ -86,11 +89,13 @@ const CHOICES = [
   },
   { mode: "entry", kind: "home", label: "Home exam", hint: "Your own check at home", icon: House },
   { mode: "weight", kind: "vet", label: "Weight", hint: "A quick weigh-in", icon: Scale },
+  { mode: "file", kind: "vet", label: "File", hint: "A document on its own, such as adoption papers", icon: FileText },
 ] as const;
 
 function dialogTitle(state: Exclude<DialogState, null>): string {
   if (state.mode === "choose") return "Add record";
   if (state.mode === "weight") return state.measurement ? "Edit weight" : "Add weight";
+  if (state.mode === "file") return state.attachment ? "Edit file" : "Add file";
   const what = state.kind === "vet" ? "vet visit" : "home exam";
   return state.entry ? `Edit ${what}` : `Add ${what}`;
 }
@@ -107,13 +112,16 @@ function Records({ petId, color, tab }: { petId: number; color: string; tab: Pro
     setDialog(
       editing.type === "entry"
         ? { mode: "entry", kind: editing.entry.kind, entry: editing.entry }
-        : { mode: "weight", measurement: editing.measurement },
+        : editing.type === "weight"
+          ? { mode: "weight", measurement: editing.measurement }
+          : { mode: "file", attachment: editing.attachment },
     );
 
   const error = records.error ?? weights.error;
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
+      {/* Phones: the button gets its own full-width row above tabs that share the width. */}
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
         <nav aria-label="Records" className="flex gap-1 rounded-lg bg-background-secondary p-1">
           {TABS.map(({ tab: t, label, path }) => (
             <Link
@@ -121,7 +129,7 @@ function Records({ petId, color, tab }: { petId: number; color: string; tab: Pro
               href={`/pets/${petId}${path}`}
               aria-current={t === tab ? "page" : undefined}
               className={cn(
-                "inline-flex min-h-11 items-center rounded-md px-4 text-sm font-medium text-muted-foreground md:min-h-9",
+                "inline-flex min-h-11 flex-1 items-center justify-center rounded-md px-4 text-sm font-medium text-muted-foreground sm:flex-none md:min-h-9",
                 t === tab && "bg-elevated text-foreground shadow-sm",
               )}
             >
@@ -140,6 +148,9 @@ function Records({ petId, color, tab }: { petId: number; color: string; tab: Pro
       {records.data && weights.data && tab === "weight" && (
         <WeightTab weights={weights.data} records={records.data} units={units} color={color} />
       )}
+      {records.data && tab === "files" && (
+        <FilesTab records={records.data} onEdit={(attachment) => edit({ type: "file", attachment })} />
+      )}
 
       <Dialog
         open={dialog !== null}
@@ -153,7 +164,7 @@ function Records({ petId, color, tab }: { petId: number; color: string; tab: Pro
               <button
                 key={label}
                 type="button"
-                onClick={() => setDialog(mode === "weight" ? { mode } : { mode, kind })}
+                onClick={() => setDialog(mode === "entry" ? { mode, kind } : { mode })}
                 className="flex min-h-16 items-center gap-4 rounded-xl border border-border bg-card px-4 text-left transition hover:border-border-strong hover:bg-card-hover"
               >
                 <Icon className="size-5 shrink-0 text-primary" aria-hidden />
@@ -171,6 +182,7 @@ function Records({ petId, color, tab }: { petId: number; color: string; tab: Pro
         {dialog?.mode === "weight" && (
           <WeightForm petId={petId} units={units} measurement={dialog.measurement} onDone={close} />
         )}
+        {dialog?.mode === "file" && <FileForm petId={petId} attachment={dialog.attachment} onDone={close} />}
       </Dialog>
     </div>
   );

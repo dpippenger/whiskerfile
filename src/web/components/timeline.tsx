@@ -1,18 +1,27 @@
-import { Pencil, Scale, Stethoscope, House } from "lucide-react";
-import type { EntryWithVitals, MeasurementWithAuthor, PetRecords } from "../../server/routes/records";
+import { FileText, House, Pencil, Scale, Stethoscope } from "lucide-react";
+import type {
+  AttachmentWithFile,
+  EntryWithVitals,
+  MeasurementWithAuthor,
+  PetRecords,
+} from "../../server/routes/records";
 import { formatDate } from "../../shared/dates";
 import { ENTRY_KIND_LABEL, formatVital, VITAL_LABEL, VITALS, type Units } from "../../shared/records";
+import { FileChip, fileRef } from "./attachments";
 import { Badge } from "./ui/badge";
 import { Card } from "./ui/card";
 
 export type Editing =
-  { type: "entry"; entry: EntryWithVitals } | { type: "weight"; measurement: MeasurementWithAuthor };
+  | { type: "entry"; entry: EntryWithVitals }
+  | { type: "weight"; measurement: MeasurementWithAuthor }
+  | { type: "file"; attachment: AttachmentWithFile };
 
 type Item =
   | { type: "entry"; date: string; createdAt: number; entry: EntryWithVitals }
-  | { type: "measurement"; date: string; createdAt: number; measurement: MeasurementWithAuthor };
+  | { type: "measurement"; date: string; createdAt: number; measurement: MeasurementWithAuthor }
+  | { type: "file"; date: string; createdAt: number; attachment: AttachmentWithFile };
 
-/** Visits and standalone readings in one list, newest day first, newest entry first within a day. */
+/** Visits and standalone readings and files in one list, newest day first, newest entry first within a day. */
 export function timelineItems(records: PetRecords): Item[] {
   return [
     ...records.entries.map((entry) => ({
@@ -26,6 +35,12 @@ export function timelineItems(records: PetRecords): Item[] {
       date: measurement.date,
       createdAt: measurement.createdAt,
       measurement,
+    })),
+    ...records.attachments.map((attachment) => ({
+      type: "file" as const,
+      date: attachment.date,
+      createdAt: attachment.createdAt,
+      attachment,
     })),
   ].sort((a, b) => (a.date === b.date ? b.createdAt - a.createdAt : a.date < b.date ? 1 : -1));
 }
@@ -77,6 +92,15 @@ function EntryCard({ entry, units, onEdit }: { entry: EntryWithVitals; units: Un
         </dl>
       )}
       {entry.notes && <p className="whitespace-pre-wrap text-foreground-secondary">{entry.notes}</p>}
+      {entry.attachments.length > 0 && (
+        <ul className="flex flex-wrap gap-2">
+          {entry.attachments.map((a) => (
+            <li key={a.id} className="max-w-full">
+              <FileChip file={fileRef(a)} />
+            </li>
+          ))}
+        </ul>
+      )}
       <p className="text-xs text-muted-foreground">Added by {entry.author}</p>
     </Card>
   );
@@ -110,6 +134,21 @@ function MeasurementRow({
   );
 }
 
+function FileRow({ attachment, onEdit }: { attachment: AttachmentWithFile; onEdit: () => void }) {
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-2">
+      <FileText className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+      <div className="min-w-0 flex-1">
+        <FileChip file={fileRef(attachment)} />
+        <p className="mt-1 text-xs text-muted-foreground">
+          {formatDate(attachment.date)} · {attachment.author}
+        </p>
+      </div>
+      <EditButton label={`Edit ${attachment.label ?? attachment.file.originalName}`} onClick={onEdit} />
+    </div>
+  );
+}
+
 export function Timeline({
   records,
   units,
@@ -123,21 +162,36 @@ export function Timeline({
   if (items.length === 0) {
     return (
       <Card className="py-12 text-center text-muted-foreground">
-        No records yet. Use “Add record” to log a vet visit, a home exam or a weight.
+        No records yet. Use “Add record” to log a vet visit, a home exam, a weight or a file.
       </Card>
     );
   }
   return (
     <ol className="space-y-3">
       {items.map((item) => (
-        <li key={item.type === "entry" ? `e${item.entry.id}` : `m${item.measurement.id}`}>
-          {item.type === "entry" ? (
+        <li
+          key={
+            item.type === "entry"
+              ? `e${item.entry.id}`
+              : item.type === "file"
+                ? `f${item.attachment.id}`
+                : `m${item.measurement.id}`
+          }
+        >
+          {item.type === "entry" && (
             <EntryCard entry={item.entry} units={units} onEdit={() => onEdit({ type: "entry", entry: item.entry })} />
-          ) : (
+          )}
+          {item.type === "measurement" && (
             <MeasurementRow
               measurement={item.measurement}
               units={units}
               onEdit={() => onEdit({ type: "weight", measurement: item.measurement })}
+            />
+          )}
+          {item.type === "file" && (
+            <FileRow
+              attachment={item.attachment}
+              onEdit={() => onEdit({ type: "file", attachment: item.attachment })}
             />
           )}
         </li>

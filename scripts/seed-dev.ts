@@ -188,6 +188,45 @@ const visits = [
     vitals: { weight: 3980, temperature: 38.9, heart_rate: 210, body_condition: 4 },
   },
 ];
-for (const visit of visits) await call(`/pets/${misoId}/entries`, "POST", visit);
+/** A minimal one-page PDF showing a line of text. */
+function pdf(text: string): Uint8Array<ArrayBuffer> {
+  const stream = `BT /F1 18 Tf 72 720 Td (${text}) Tj ET`;
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+  ];
+  let body = "%PDF-1.4\n";
+  const offsets = objects.map((object, i) => {
+    const offset = body.length;
+    body += `${i + 1} 0 obj\n${object}\nendobj\n`;
+    return offset;
+  });
+  const xref = body.length;
+  body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets) body += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  body += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return new TextEncoder().encode(body);
+}
+
+async function upload(bytes: Uint8Array<ArrayBuffer>, name: string) {
+  const form = new FormData();
+  form.append("file", new File([bytes], name));
+  return (await call<{ id: number }>("/files", "POST", form)).id;
+}
+
+const labReport = await upload(pdf("IDEXX Chem 17 + Total T4 (sample)"), "IDEXX results.pdf");
+const receipt = await upload(gradientPng(480, [240, 240, 240], [200, 200, 200]), "Receipt.png");
+for (const [i, visit] of visits.entries()) {
+  // The latest visit comes with its lab report and receipt.
+  await call(`/pets/${misoId}/entries`, "POST", i === 2 ? { ...visit, fileIds: [labReport, receipt] } : visit);
+}
+await call(`/pets/${misoId}/attachments`, "POST", {
+  fileId: await upload(pdf("Adoption contract (sample)"), "adoption.pdf"),
+  label: "Adoption papers",
+  date: "2014-06-01",
+});
 await call(`/pets/${misoId}/measurements`, "POST", { date: daysAgo(2), kind: "weight", value: 3995 });
 console.log("Added a year of weights and visits");
