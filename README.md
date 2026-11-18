@@ -52,4 +52,6 @@ bun check
 
 PDF reports need Chromium: set `CHROMIUM_PATH` (in `.env` or the shell) to a Chromium or headless-shell binary, for example `npx playwright install chromium-headless-shell` and its `headless_shell`. Without it, reports answer 503. With it set, `bun test` also prints one real report.
 
+`bun run read:lab <file>` reads one lab PDF or photo with Claude and prints what the form would be filled with, which is the way to check the reading on real reports. It needs `ANTHROPIC_API_KEY` and is billed; `bun test` never calls the API.
+
 Database schema lives in `src/server/db/schema.ts`. After changing it, run `bun run db:generate` and commit the new migration; migrations apply on startup.

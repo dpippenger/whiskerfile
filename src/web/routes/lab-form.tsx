@@ -273,7 +273,8 @@ function LabForm({
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (upload.isPending) return;
+    // Wait for documents still uploading or being read: saving now would leave them out.
+    if (upload.isPending || read.isPending) return;
     const body = {
       ...meta,
       entryId: meta.entryId ? Number(meta.entryId) : null,
@@ -362,7 +363,7 @@ function LabForm({
           )}
           <FilePicker
             onPick={([file]) => file && read.mutate(file)}
-            busy={read.isPending || upload.isPending}
+            busy={read.isPending || upload.isPending || save.isPending}
             label="Read results from a document"
             busyLabel="Reading…"
             icon={ScanText}
@@ -540,8 +541,14 @@ function LabForm({
           >
             Cancel
           </Link>
-          <Button type="submit" variant="primary" disabled={save.isPending || upload.isPending}>
-            {save.isPending ? "Saving…" : upload.isPending ? "Uploading…" : "Save results"}
+          <Button type="submit" variant="primary" disabled={save.isPending || upload.isPending || read.isPending}>
+            {save.isPending
+              ? "Saving…"
+              : upload.isPending
+                ? "Uploading…"
+                : read.isPending
+                  ? "Reading…"
+                  : "Save results"}
           </Button>
         </div>
       </div>

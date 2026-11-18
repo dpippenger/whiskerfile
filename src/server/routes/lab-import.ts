@@ -35,7 +35,8 @@ export function labImportRoutes({ db, readLab }: AppContext, authed: Authed) {
           .orderBy(asc(analytes.sortOrder))
           .all();
         try {
-          const extraction = await readLab({ bytes, mime }, catalog);
+          // The request's signal ends a reading the browser has given up on, so it stops being billed.
+          const extraction = await readLab({ bytes, mime }, catalog, req.signal);
           return Response.json(draftFromExtraction(extraction, catalog));
         } catch (err) {
           if (err instanceof ReadLabError) return error(err.status, err.message);

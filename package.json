@@ -9,6 +9,7 @@
     "typecheck": "bun check",
     "db:generate": "drizzle-kit generate",
     "seed:dev": "bun scripts/seed-dev.ts",
+    "read:lab": "bun scripts/read-lab.ts",
     "format": "prettier --write src scripts",
     "format:check": "prettier --check src scripts"
   },

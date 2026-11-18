@@ -1,118 +1,157 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { expect, test } from "bun:test";
 import type { Extraction } from "../../shared/lab-import";
-import { claudeLabReader, MODEL, READ_TIMEOUT_SECONDS, ReadLabError } from "./claude";
+import { apiError, claudeLabReader, MODEL, ReadLabError } from "./claude";
 
-type Params = Parameters<Anthropic["beta"]["messages"]["parse"]>[0];
-
-const EXTRACTION: Extraction = { date: null, lab: null, accession: null, source: null, results: [] };
+const EXTRACTION: Extraction = {
+  date: "2026-11-06",
+  lab: "IDEXX",
+  accession: null,
+  source: "reference_lab",
+  results: [
+    { code: "CREA", printedName: "Creatinine", value: "2.9", unit: "mg/dL", rangeLow: "0.6", rangeHigh: "2.4" },
+  ],
+};
 const CATALOG = [
   { code: "CREA", name: "Creatinine" },
   { code: "SDMA", name: "SDMA" },
 ];
 const PDF = { bytes: new TextEncoder().encode("%PDF-1.7 report"), mime: "application/pdf" };
 
-/** A stand-in for the SDK client that records each request and answers as told. */
-function fakeClient(answer: () => unknown) {
-  const calls: { params: Params; options: { timeout?: number; maxRetries?: number } }[] = [];
-  const client = {
-    beta: {
-      messages: {
-        parse: async (params: Params, options: { timeout?: number; maxRetries?: number }) => {
-          calls.push({ params, options });
-          return answer();
-        },
-      },
+const message = (fields: object) => ({
+  id: "msg_1",
+  type: "message",
+  role: "assistant",
+  model: MODEL,
+  content: [{ type: "text", text: JSON.stringify(EXTRACTION) }],
+  stop_reason: "end_turn",
+  stop_sequence: null,
+  usage: { input_tokens: 10, output_tokens: 10 },
+  ...fields,
+});
+const apiFailure = (status: number, type: string, text: string) =>
+  Response.json({ type: "error", error: { type, message: text } }, { status });
+
+/**
+ * The real SDK client with the network replaced: each request's URL, headers
+ * and body are recorded, and `answer` decides the HTTP response.
+ */
+function client(answer: () => Response) {
+  const requests: { url: string; headers: Headers; body: Record<string, unknown> }[] = [];
+  const sdk = new Anthropic({
+    apiKey: "test-key",
+    // Fixed, so an ANTHROPIC_BASE_URL in the environment can't redirect the test.
+    baseURL: "https://api.anthropic.com",
+    fetch: async (url: string | URL | Request, init?: RequestInit) => {
+      requests.push({ url: String(url), headers: new Headers(init?.headers), body: JSON.parse(String(init?.body)) });
+      return answer();
     },
-  } as unknown as Anthropic;
-  return { client, calls };
+  });
+  return { sdk, requests };
 }
 
-const reply = (fields: object) => ({ stop_reason: "end_turn", parsed_output: EXTRACTION, ...fields });
+const outcome = (answer: () => Response) =>
+  claudeLabReader(client(answer).sdk)(PDF, CATALOG).then(
+    (extraction): unknown => extraction,
+    (err: ReadLabError): unknown => [err.status, err.message],
+  );
+const statusOf = async (answer: () => Response) => ((await outcome(answer)) as [number])[0];
 
-test("the document comes before the instruction, with the catalog, structured output and fallbacks", async () => {
-  const { client, calls } = fakeClient(() => reply({}));
-  expect(await claudeLabReader(client)(PDF, CATALOG)).toEqual(EXTRACTION);
+test("the request carries the document before the instruction, the catalog, the schema and fallbacks", async () => {
+  const { sdk, requests } = client(() => Response.json(message({})));
+  expect(await claudeLabReader(sdk)(PDF, CATALOG)).toEqual(EXTRACTION);
 
-  const [{ params, options }] = calls as [(typeof calls)[number]];
-  expect(params.model).toBe(MODEL);
-  expect(params.output_config?.effort).toBe("high");
-  expect(params.output_config?.format?.type).toBe("json_schema");
-  expect(params.betas).toEqual(["server-side-fallback-2026-07-01"]);
-  expect(params.fallbacks).toBe("default");
+  expect(requests).toHaveLength(1);
+  const [{ url, headers, body }] = requests as [(typeof requests)[number]];
+  expect(new URL(url).pathname).toBe("/v1/messages");
+  expect(headers.get("anthropic-beta")).toBe("server-side-fallback-2026-07-01");
+  expect(body.model).toBe(MODEL);
+  expect(body.fallbacks).toBe("default");
   // Thinking can't be disabled on this model, and forced tool use is refused: neither is sent.
-  expect(params.thinking).toBeUndefined();
-  expect(params.tool_choice).toBeUndefined();
-  expect(params.system).toContain("CREA — Creatinine\nSDMA — SDMA");
-  expect(params.system).toContain("Never supply a range from general knowledge");
+  expect(body).not.toHaveProperty("thinking");
+  expect(body).not.toHaveProperty("tool_choice");
+  expect(body).not.toHaveProperty("betas");
 
-  const content = params.messages[0]!.content as Anthropic.Beta.BetaContentBlockParam[];
+  const output = body.output_config as { effort: string; format: { type: string; schema: { required: string[] } } };
+  expect(output.effort).toBe("high");
+  expect(output.format.type).toBe("json_schema");
+  expect(output.format.schema.required).toEqual(["date", "lab", "accession", "source", "results"]);
+  expect(Object.keys(output.format)).toEqual(["type", "schema"]);
+
+  expect(body.system).toContain("CREA — Creatinine\nSDMA — SDMA");
+  expect(body.system).toContain("Never supply a range from general knowledge");
+  const [{ content }] = body.messages as [{ content: { type: string; source?: object }[] }];
   expect(content.map((b) => b.type)).toEqual(["document", "text"]);
-  expect(content[0]).toEqual({
-    type: "document",
-    source: { type: "base64", media_type: "application/pdf", data: Buffer.from(PDF.bytes).toString("base64") },
+  expect(content[0]!.source).toEqual({
+    type: "base64",
+    media_type: "application/pdf",
+    data: Buffer.from(PDF.bytes).toString("base64"),
   });
-  expect(options).toEqual({ timeout: READ_TIMEOUT_SECONDS * 1000, maxRetries: 1 });
 });
 
 test("a photo is sent as an image block of its own type", async () => {
-  const { client, calls } = fakeClient(() => reply({}));
-  await claudeLabReader(client)({ bytes: new Uint8Array([0xff, 0xd8, 0xff]), mime: "image/jpeg" }, CATALOG);
-  const content = calls[0]!.params.messages[0]!.content as Anthropic.Beta.BetaContentBlockParam[];
+  const { sdk, requests } = client(() => Response.json(message({})));
+  await claudeLabReader(sdk)({ bytes: new Uint8Array([0xff, 0xd8, 0xff]), mime: "image/jpeg" }, CATALOG);
+  const [{ content }] = requests[0]!.body.messages as [{ content: { type: string; source: object }[] }];
   expect(content[0]).toMatchObject({ type: "image", source: { type: "base64", media_type: "image/jpeg" } });
 });
 
-test("a refusal, a cut-off reply or an unusable reply each give a message to act on", async () => {
-  const outcome = async (answer: () => unknown) =>
-    claudeLabReader(fakeClient(answer).client)(PDF, CATALOG).then(
-      () => null,
-      (err: ReadLabError) => [err.status, err.message],
-    );
-  expect(await outcome(() => reply({ stop_reason: "refusal" }))).toEqual([
-    422,
-    "Claude declined to read this document. Enter the results by hand.",
-  ]);
-  expect(await outcome(() => reply({ stop_reason: "max_tokens" }))).toEqual([
-    422,
-    "This document has more results than can be read at once. Enter them by hand.",
-  ]);
-  expect((await outcome(() => reply({ parsed_output: null })))?.[0]).toBe(502);
+test("the stop reason is checked before the reply is parsed", async () => {
+  // A refusal with plain text, and a reply cut off part-way through its JSON.
+  expect(
+    await outcome(() =>
+      Response.json(message({ stop_reason: "refusal", content: [{ type: "text", text: "I can't help with that." }] })),
+    ),
+  ).toEqual([422, "Claude declined to read this document. Enter the results by hand."]);
+  expect(
+    await outcome(() =>
+      Response.json(
+        message({ stop_reason: "max_tokens", content: [{ type: "text", text: '{"date":"2026-11-06","re' }] }),
+      ),
+    ),
+  ).toEqual([422, "This document has more results than can be read at once. Enter them by hand."]);
 });
 
-test("API errors become messages, not crashes", async () => {
-  const headers = new Headers();
-  const failing = (err: Error) =>
-    claudeLabReader(
-      fakeClient(() => {
-        throw err;
-      }).client,
-    )(PDF, CATALOG).then(
-      () => null,
-      (e: ReadLabError) => [e.status, e.message],
-    );
-  expect(await failing(new Anthropic.AuthenticationError(401, {}, "invalid x-api-key", headers))).toEqual([
+test("a reply that isn't the schema's JSON is refused, not passed on", async () => {
+  const unusable = [502, "Claude's reading of this document couldn't be used. Try again or enter it by hand."];
+  expect(await outcome(() => Response.json(message({ content: [{ type: "text", text: "not json" }] })))).toEqual(
+    unusable,
+  );
+  expect(
+    await outcome(() => Response.json(message({ content: [{ type: "text", text: '{"date":null,"results":[{}]}' }] }))),
+  ).toEqual(unusable);
+  expect(await outcome(() => Response.json(message({ content: [] })))).toEqual(unusable);
+});
+
+test("API errors become messages, and a failed request is not retried", async () => {
+  let calls = 0;
+  const counted = (res: () => Response) => () => {
+    calls++;
+    return res();
+  };
+  expect(await outcome(counted(() => apiFailure(401, "authentication_error", "invalid x-api-key")))).toEqual([
     502,
     "The Anthropic API key was refused. Check ANTHROPIC_API_KEY.",
   ]);
-  expect((await failing(new Anthropic.RateLimitError(429, {}, "slow down", headers)))?.[0]).toBe(503);
-  expect((await failing(new Anthropic.ContentTooLargeError(413, {}, "too big", headers)))?.[0]).toBe(413);
-  expect(
-    await failing(
-      new Anthropic.BadRequestError(
-        400,
-        { type: "error", error: { type: "invalid_request_error", message: "PDF is password protected" } },
-        undefined,
-        headers,
-      ),
-    ),
-  ).toEqual([400, "Claude couldn't read this file: PDF is password protected"]);
-  expect((await failing(new Anthropic.APIConnectionTimeoutError()))?.[0]).toBe(504);
-  expect((await failing(new Anthropic.InternalServerError(500, {}, "oops", headers)))?.[0]).toBe(502);
+  expect(await outcome(counted(() => apiFailure(400, "invalid_request_error", "PDF is password protected")))).toEqual([
+    400,
+    "Claude couldn't read this file: PDF is password protected",
+  ]);
+  expect(await statusOf(counted(() => apiFailure(413, "request_too_large", "too big")))).toBe(413);
+  expect(await statusOf(counted(() => apiFailure(429, "rate_limit_error", "slow down")))).toBe(503);
+  expect(await statusOf(counted(() => apiFailure(529, "overloaded_error", "busy")))).toBe(503);
+  expect(await statusOf(counted(() => apiFailure(500, "api_error", "oops")))).toBe(502);
+  // Each failure was a single request: a retry would outlast the route's deadline.
+  expect(calls).toBe(6);
+});
+
+test("a reading the browser abandoned stops, and a timeout says so", async () => {
+  const { sdk, requests } = client(() => Response.json(message({})));
+  const gone = new AbortController();
+  gone.abort();
+  await expect(claudeLabReader(sdk)(PDF, CATALOG, gone.signal)).rejects.toMatchObject({ status: 499 });
+  expect(requests).toEqual([]);
+  expect(apiError(new Anthropic.APIConnectionTimeoutError()).status).toBe(504);
   // Anything else is a bug here, not the API's doing: it isn't dressed up as a message.
-  const bug = claudeLabReader(
-    fakeClient(() => {
-      throw new TypeError("boom");
-    }).client,
-  )(PDF, CATALOG);
-  await expect(bug).rejects.toBeInstanceOf(TypeError);
+  expect(() => apiError(new TypeError("boom"))).toThrow(TypeError);
 });
