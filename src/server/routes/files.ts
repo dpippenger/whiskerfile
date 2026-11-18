@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { files } from "../db/schema";
-import { fileResponse, IMAGE_TYPES, MAX_UPLOAD_BYTES, PREVIEW_MAX_BYTES, storeUpload } from "../files";
+import { fileResponse, IMAGE_TYPES, MAX_UPLOAD_BYTES, PREVIEW_MAX_BYTES, sniffMime, storeUpload } from "../files";
 import { error, idParam, type AppContext, type Authed } from "../http";
 
 /** The uploaded file from a multipart body's "file" field, or the error response. */
@@ -37,8 +37,10 @@ export function fileRoutes({ db, dataDir }: AppContext, authed: Authed) {
         const upload = await readUpload(req);
         if (upload instanceof Response) return upload;
         if (upload.size > PREVIEW_MAX_BYTES) return error(400, "A preview can be at most 512 KB");
+        // Check the type before storing, so a rejected preview leaves nothing behind.
+        const head = new Uint8Array(await upload.slice(0, 16).arrayBuffer());
+        if (!IMAGE_TYPES.includes(sniffMime(head))) return error(400, "A preview must be an image");
         const preview = await storeUpload(db, dataDir, upload, user.id);
-        if (!IMAGE_TYPES.includes(preview.mime)) return error(400, "A preview must be an image");
         return Response.json(
           db.update(files).set({ previewId: preview.id }).where(eq(files.id, original.id)).returning().get(),
         );

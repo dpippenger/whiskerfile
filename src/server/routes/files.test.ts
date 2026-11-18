@@ -86,7 +86,7 @@ test("uploading the same bytes again restores a stored copy that went missing", 
 });
 
 test("a large image can be given a small preview; nothing else can", async () => {
-  const { server, call, upload } = await setup();
+  const { server, call, upload, dataDir } = await setup();
   using _ = server;
   const big = new Uint8Array(PREVIEW_MAX_BYTES + 10);
   big.set(JPEG);
@@ -106,8 +106,11 @@ test("a large image can be given a small preview; nothing else can", async () =>
   expect(updated.id).toBe(photo.id);
   expect((await call(`/api/files/${updated.previewId}`)).headers.get("content-type")).toBe("image/webp");
 
-  expect((await preview(small, lab.id)).status).toBe(400);
+  // Rejected previews are not stored.
+  const stored = await readdir(join(dataDir, "uploads"));
+  expect((await preview(new Uint8Array([...small, 9]), lab.id)).status).toBe(400);
   expect((await preview(bytes("%PDF-1.7 not an image"), photo.id)).status).toBe(400);
   expect((await preview(big, photo.id)).status).toBe(400);
   expect((await preview(small, 9999)).status).toBe(404);
+  expect(await readdir(join(dataDir, "uploads"))).toEqual(stored);
 });
