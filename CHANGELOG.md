@@ -6,6 +6,8 @@
 
 - Health tab: vaccinations (each vaccine's latest dose, flagged overdue or due within 30 days, with earlier doses beneath), current medications, conditions (diagnoses, allergies, surgery, dental) and a history of past medications and resolved conditions. Due dates come from the certificate or reminder; the app never works out a schedule. Nothing is flagged for a pet that has passed away.
 - Add record offers vaccinations, medications and conditions.
+- Dashboard: each living pet's card lists vaccines overdue or due within 30 days, and the results outside their printed range on its latest lab report.
+- Timeline: lab reports, vaccine doses, the start of each medication and each condition appear alongside visits, weights and files, and can be opened or edited from there.
 
 ### Fixed
 
