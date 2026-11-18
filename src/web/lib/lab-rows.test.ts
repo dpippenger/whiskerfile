@@ -1,5 +1,14 @@
 import { expect, test } from "bun:test";
-import { filledRows, limitErrors, limitText, parseLimit, resultsBody, rowErrors, type Row } from "./lab-rows";
+import {
+  applyDraftResults,
+  filledRows,
+  limitErrors,
+  limitText,
+  parseLimit,
+  resultsBody,
+  rowErrors,
+  type Row,
+} from "./lab-rows";
 
 const row = (key: number, valueText: string, refLow = "", refHigh = ""): Row => ({
   key,
@@ -43,4 +52,34 @@ test("limit errors and server errors land on the row they belong to, skipping bl
   expect(
     rowErrors({ "results.1.analyteId": "Unknown test", date: "Use a valid date", "results.9.unit": "x" }, rows),
   ).toEqual({ "row.4.analyteId": "Unknown test", date: "Use a valid date", "results.9.unit": "x" });
+});
+
+test("results read from a document fill the form without replacing anything typed", () => {
+  let key = 100;
+  const rows: Row[] = [
+    // Typed by hand: kept, and the difference reported.
+    { key: 1, analyteId: 10, valueText: "2.1", unit: "mg/dL", refLow: "0.6", refHigh: "2.4" },
+    // Added with a range carried over from an earlier report, value still empty.
+    { key: 2, analyteId: 20, valueText: "", unit: "µg/dL", refLow: "0", refHigh: "14" },
+    // Typed and the same as the document: nothing to report.
+    { key: 3, analyteId: 30, valueText: "27", unit: "mg/dL", refLow: "", refHigh: "" },
+  ];
+  const { rows: next, kept } = applyDraftResults(
+    rows,
+    [
+      { analyteId: 10, valueText: "2.9", unit: "mg/dL", refLow: "0.6", refHigh: "2.4" },
+      { analyteId: 20, valueText: "<0.5", unit: "µg/dL", refLow: "", refHigh: "" },
+      { analyteId: 30, valueText: "27", unit: "mg/dL", refLow: "16", refHigh: "36" },
+      { analyteId: 40, valueText: "Negative", unit: "", refLow: "", refHigh: "" },
+    ],
+    () => key++,
+  );
+  expect(next).toEqual([
+    rows[0]!,
+    // The document printed no range here, so none is shown: the carried-over one is gone.
+    { key: 2, analyteId: 20, valueText: "<0.5", unit: "µg/dL", refLow: "", refHigh: "" },
+    rows[2]!,
+    { key: 100, analyteId: 40, valueText: "Negative", unit: "", refLow: "", refHigh: "" },
+  ]);
+  expect(kept).toEqual([{ analyteId: 10, typed: "2.1", read: "2.9" }]);
 });

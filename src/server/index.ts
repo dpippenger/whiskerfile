@@ -4,7 +4,9 @@ import { apiRoutes } from "./app";
 import { createAuthenticator, type AuthOptions } from "./auth";
 import { failInterruptedRuns, runBackup } from "./backup";
 import { config } from "./config";
+import Anthropic from "@anthropic-ai/sdk";
 import { openDb } from "./db";
+import { claudeLabReader } from "./import/claude";
 import { chromiumPdf } from "./report/pdf";
 import { staticRoutes } from "./static";
 
@@ -32,6 +34,7 @@ const ctx = {
   dataDir: config.dataDir,
   backupDir: config.backupDir,
   renderPdf: config.chromiumPath ? chromiumPdf(config.chromiumPath) : undefined,
+  readLab: config.anthropicApiKey ? claudeLabReader(new Anthropic({ apiKey: config.anthropicApiKey })) : undefined,
 };
 
 failInterruptedRuns(db);

@@ -4,6 +4,12 @@
 
 ### Added
 
+- Lab form: **Read results from a document** sends the lab's PDF or a photo of the report to Claude, attaches it to the report, and fills in each result, unit and range as printed for you to check before saving. Typed values are never replaced, unmatched results are listed, and ranges come only from the document. Needs `ANTHROPIC_API_KEY`.
+
+## Phase 6: PDF health reports (2026-11-18)
+
+### Added
+
 - Health report: **Report** on a pet's page downloads a PDF (details, weight chart, lab trend charts, every lab report with ranges and flags, vaccinations, medications and conditions), for all records or a chosen period. It is built on the server and printed by Chromium, which the image now includes; set `CHROMIUM_PATH` to use it outside Docker.
 - The image runs under `tini`, so the processes Chromium leaves behind are reaped.
 

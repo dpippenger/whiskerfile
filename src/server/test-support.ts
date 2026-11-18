@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { apiRoutes } from "./app";
 import { createAuthenticator } from "./auth";
 import { openDb } from "./db";
+import type { ReadLab } from "./import/claude";
 import type { RenderPdf } from "./report/pdf";
 
 export const ISSUER = "https://team.cloudflareaccess.com";
@@ -30,14 +31,15 @@ const match = (pattern: string, path: string): Record<string, string> | null => 
 const rank = (pattern: string) => (pattern.endsWith("/*") ? 2 : pattern.includes("/:") ? 1 : 0);
 
 /** The only part of Bun's server object a handler uses. */
-const fakeServer = { timeout: () => {} };
+type FakeServer = { timeout: (req: Request, seconds: number) => void };
+const fakeServer: FakeServer = { timeout: () => {} };
 
 /**
  * Dispatches a request through a Bun `routes` table in process, the way
  * Bun.serve would, without opening a listener: method dispatch, path
  * parameters and wildcard fallbacks behave as in the server.
  */
-export async function dispatch(routes: object, req: Request): Promise<Response> {
+export async function dispatch(routes: object, req: Request, server: FakeServer = fakeServer): Promise<Response> {
   // Handlers are typed for Bun's request; the one built here carries the same params.
   const table = routes as unknown as Record<string, Route>;
   const path = new URL(req.url).pathname;
@@ -49,7 +51,7 @@ export async function dispatch(routes: object, req: Request): Promise<Response> 
     const handler =
       route instanceof Response ? () => route.clone() : typeof route === "function" ? route : route[req.method];
     if (!handler) return new Response("Method not allowed", { status: 405 });
-    return handler(Object.assign(req, { params }), fakeServer);
+    return handler(Object.assign(req, { params }), server);
   }
   return new Response("Not found", { status: 404 });
 }
@@ -58,7 +60,7 @@ export async function dispatch(routes: object, req: Request): Promise<Response> 
  * The API with an in-memory database and a local Access signing key, called
  * in process through its route table (see dispatch).
  */
-export async function startApi(opts: { renderPdf?: RenderPdf } = {}) {
+export async function startApi(opts: { renderPdf?: RenderPdf; readLab?: ReadLab } = {}) {
   const { publicKey, privateKey } = await generateKeyPair("RS256");
   const other = await generateKeyPair("RS256");
   const { sqlite, db } = openDb(":memory:");
@@ -71,7 +73,7 @@ export async function startApi(opts: { renderPdf?: RenderPdf } = {}) {
   const root = await mkdtemp(join(tmpdir(), "whiskerfile-api-"));
   const dataDir = join(root, "data");
   const routes = apiRoutes(
-    { sqlite, db, dataDir, backupDir: join(root, "backups"), renderPdf: opts.renderPdf },
+    { sqlite, db, dataDir, backupDir: join(root, "backups"), renderPdf: opts.renderPdf, readLab: opts.readLab },
     authenticate,
   );
 
@@ -108,8 +110,13 @@ export async function startApi(opts: { renderPdf?: RenderPdf } = {}) {
     return dispatch(
       routes,
       new Request(new URL(path, "http://whiskerfile.test"), { method: init.method ?? "GET", headers, body }),
+      server,
     );
   };
 
-  return { db, dataDir, token, call, otherKey: other.privateKey };
+  /** Each request timeout a handler set, in seconds, in order. */
+  const timeouts: number[] = [];
+  const server: FakeServer = { timeout: (_req, seconds) => timeouts.push(seconds) };
+
+  return { db, dataDir, token, call, timeouts, otherKey: other.privateKey };
 }

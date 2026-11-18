@@ -1,3 +1,4 @@
+import type { DraftResult } from "../../shared/lab-import";
 import { parseLabValue } from "../../shared/labs";
 
 /** One test's row on the lab entry form, as typed. */
@@ -65,4 +66,28 @@ export function rowErrors(fields: Errors, rows: Row[]): Errors {
     out[row ? `row.${row.key}.${m![2]}` : path] ??= message;
   }
   return out;
+}
+
+/** A result already typed into the form that differs from what the document says. */
+export type KeptValue = { analyteId: number; typed: string; read: string };
+
+/**
+ * Adds results read from a document to the form. A value already typed is
+ * never replaced (the difference is reported instead). A row with no value yet
+ * takes the document's unit and range too, even when the document shows none,
+ * so a range carried over from an earlier report can't pass as printed on this one.
+ */
+export function applyDraftResults(rows: Row[], results: DraftResult[], newKey: () => number) {
+  const next = [...rows];
+  const kept: KeptValue[] = [];
+  for (const read of results) {
+    const i = next.findIndex((r) => r.analyteId === read.analyteId);
+    const row = next[i];
+    if (!row) next.push({ key: newKey(), ...read });
+    else if (row.valueText.trim() === "") next[i] = { ...row, ...read };
+    else if (row.valueText.trim() !== read.valueText) {
+      kept.push({ analyteId: read.analyteId, typed: row.valueText.trim(), read: read.valueText });
+    }
+  }
+  return { rows: next, kept };
 }

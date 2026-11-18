@@ -2,7 +2,7 @@
 
 Self-hosted medical records for your pets: cats first, dogs and other animals welcome. It runs at home in Docker and is reached through a Cloudflare tunnel, with Cloudflare Access handling sign-in.
 
-Status: in place are the foundation (server, sign-in, scheduled backups), pet profiles (photo, identity, microchip and registry), records (vet visits, home exams, vitals, weigh-ins and attached files, with a timeline, weight history and file gallery), lab reports (entered by hand from the printed report, with ranges, flags and history), trend charts per pet, comparisons across pets, and vaccinations, medications and conditions. The dashboard shows each pet's vaccines due and out-of-range lab results, and each pet's health report downloads as a PDF to share with a vet. AI-assisted import of lab documents comes next.
+Status: in place are the foundation (server, sign-in, scheduled backups), pet profiles (photo, identity, microchip and registry), records (vet visits, home exams, vitals, weigh-ins and attached files, with a timeline, weight history and file gallery), lab reports (entered by hand from the printed report, with ranges, flags and history), trend charts per pet, comparisons across pets, and vaccinations, medications and conditions. The dashboard shows each pet's vaccines due and out-of-range lab results, each pet's health report downloads as a PDF to share with a vet, and lab results can be read from a PDF or photo of the report with Claude.
 
 See [CHANGELOG.md](CHANGELOG.md) for what each phase added.
 
@@ -34,6 +34,10 @@ The database and uploaded files are copied to the backup folder every night at 0
 
 To restore: stop the stack, copy a snapshot from `<backup folder>/db/` over `data/whiskerfile.sqlite`, delete `data/whiskerfile.sqlite-wal` and `data/whiskerfile.sqlite-shm` if present, copy `<backup folder>/uploads/` into `data/uploads/`, and start the stack again.
 
+## Reading lab reports with Claude
+
+With `ANTHROPIC_API_KEY` set in `.env`, the lab form gets **Read results from a document**. Pick the lab's PDF or a photo of a printed receipt: the document is attached to the report and sent to Anthropic's API, which reads each result, unit and range as printed and matches them to your list of tests. The form is filled in for you to check; nothing is saved until you save it. Values you have already typed are kept, results that aren't in your list are listed for you to add by hand, and no range is ever filled in that the document doesn't print. It uses Claude Opus 5.5, and each document read is billed to your Anthropic account. Without a key, the button explains what to set.
+
 ## Development
 
 ```sh
@@ -47,5 +51,7 @@ bun check
 `bun run dev` sets `AUTH_MODE=dev`, which skips sign-in. Never set that on a server other people can reach.
 
 PDF reports need Chromium: set `CHROMIUM_PATH` (in `.env` or the shell) to a Chromium or headless-shell binary, for example `npx playwright install chromium-headless-shell` and its `headless_shell`. Without it, reports answer 503. With it set, `bun test` also prints one real report.
+
+`bun run read:lab <file>` reads one lab PDF or photo with Claude and prints what the form would be filled with, which is the way to check the reading on real reports. It needs `ANTHROPIC_API_KEY` and is billed; `bun test` never calls the API.
 
 Database schema lives in `src/server/db/schema.ts`. After changing it, run `bun run db:generate` and commit the new migration; migrations apply on startup.
