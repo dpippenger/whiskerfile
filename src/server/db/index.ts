@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/bun-sqlite";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { reparseLabResults } from "./reparse";
 import * as schema from "./schema";
 
 export function openDb(dataDir: string | ":memory:") {
@@ -18,6 +19,7 @@ export function openDb(dataDir: string | ":memory:") {
   sqlite.run("PRAGMA foreign_keys = ON");
   const db = drizzle(sqlite, { schema, casing: "snake_case" });
   migrate(db, { migrationsFolder: "./drizzle" });
+  reparseLabResults(db);
   return { sqlite, db };
 }
 

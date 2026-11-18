@@ -14,14 +14,15 @@ const SIGNED = /^[-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?$/i;
  * limit, is NaN, which the form reports as an error rather than guess.
  */
 export function parseLimit(text: string): number | null {
-  const s = text.trim().replace(/\s+/g, "");
+  const s = text
+    .trim()
+    .replace(/\s+/g, "")
+    .replace(/\u2212/g, "-");
   if (s === "") return null;
   if (SIGNED.test(s)) return Number(s);
   if (!s.includes(",")) return Number.NaN;
-  const negative = s.startsWith("-");
-  const { value, comparator } = parseLabValue(negative ? s.slice(1) : s);
-  if (value == null || comparator) return Number.NaN;
-  return negative ? -value : value;
+  const { value, comparator } = parseLabValue(s);
+  return value == null || comparator ? Number.NaN : value;
 }
 
 export const limitText = (n: number | null) => (n == null ? "" : String(n));
