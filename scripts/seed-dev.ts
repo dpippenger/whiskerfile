@@ -332,3 +332,124 @@ for (const [days, crea, unit, low, high] of [
   });
 }
 console.log("Added lab reports");
+
+// Health records. Miso: an old rabies dose superseded by a newer one, an
+// overdue FVRCP and a FeLV due soon; Pepper has died, so her overdue
+// vaccine and open-ended medication raise nothing.
+const daysAhead = (n: number) => daysAgo(-n);
+const health: [number, string, object][] = [
+  [
+    misoId,
+    "vaccinations",
+    {
+      vaccine: "Rabies",
+      dateGiven: daysAgo(1100),
+      dueDate: daysAgo(400),
+      lot: "RB-1102",
+      clinic: "Northside Animal Hospital",
+      notes: null,
+    },
+  ],
+  [
+    misoId,
+    "vaccinations",
+    {
+      vaccine: "rabies",
+      dateGiven: daysAgo(380),
+      dueDate: daysAhead(715),
+      lot: "RB-2290",
+      clinic: "Northside Animal Hospital",
+      notes: null,
+    },
+  ],
+  [
+    misoId,
+    "vaccinations",
+    {
+      vaccine: "FVRCP",
+      dateGiven: daysAgo(400),
+      dueDate: daysAgo(35),
+      lot: null,
+      clinic: "Northside Animal Hospital",
+      notes: null,
+    },
+  ],
+  [
+    misoId,
+    "vaccinations",
+    { vaccine: "FeLV", dateGiven: daysAgo(350), dueDate: daysAhead(14), lot: null, clinic: null, notes: null },
+  ],
+  [
+    misoId,
+    "medications",
+    {
+      drug: "Methimazole",
+      dose: "2.5 mg",
+      frequency: "Twice daily",
+      startDate: daysAgo(12),
+      endDate: null,
+      reason: "Hyperthyroidism",
+      notes: "Give with food.",
+    },
+  ],
+  [
+    misoId,
+    "medications",
+    {
+      drug: "Amoxicillin",
+      dose: "50 mg",
+      frequency: "Twice daily",
+      startDate: daysAgo(230),
+      endDate: daysAgo(220),
+      reason: "Dental extraction",
+      notes: null,
+    },
+  ],
+  [
+    misoId,
+    "conditions",
+    { kind: "diagnosis", title: "Hyperthyroidism", date: daysAgo(900), resolvedOn: null, notes: null },
+  ],
+  [
+    misoId,
+    "conditions",
+    {
+      kind: "dental",
+      title: "Extraction of lower left premolar",
+      date: daysAgo(230),
+      resolvedOn: daysAgo(215),
+      notes: null,
+    },
+  ],
+  [
+    misoId,
+    "conditions",
+    {
+      kind: "allergy",
+      title: "Chicken",
+      date: daysAgo(1500),
+      resolvedOn: null,
+      notes: "Itchy skin on chicken-based food.",
+    },
+  ],
+  [
+    idOf("Pepper"),
+    "vaccinations",
+    { vaccine: "Rabies", dateGiven: "2019-06-01", dueDate: "2020-06-01", lot: null, clinic: null, notes: null },
+  ],
+  [
+    idOf("Pepper"),
+    "medications",
+    {
+      drug: "Benazepril",
+      dose: "2.5 mg",
+      frequency: "Once daily",
+      startDate: "2020-03-01",
+      endDate: null,
+      reason: "Kidney disease",
+      notes: null,
+    },
+  ],
+];
+for (const [petId, kind, body] of health) await call(`/pets/${petId}/${kind}`, "POST", body);
+console.log("Added health records");

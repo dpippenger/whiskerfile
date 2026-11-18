@@ -1,12 +1,26 @@
-import { ExternalLink, FileText, FlaskConical, House, Pencil, Plus, Scale, Stethoscope } from "lucide-react";
+import {
+  ExternalLink,
+  FileText,
+  FlaskConical,
+  HeartPulse,
+  House,
+  Pencil,
+  Pill,
+  Plus,
+  Scale,
+  Stethoscope,
+  Syringe,
+} from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import type { Pet } from "../../server/db/schema";
+import type { Condition, Medication, Pet, Vaccination } from "../../server/db/schema";
 import { formatAge, formatDate, localToday } from "../../shared/dates";
 import { CHIP_LOOKUP_URL, reproductiveLabel, SPECIES_LABEL } from "../../shared/pets";
 import { Page } from "../components/page";
 import { PetPhoto } from "../components/pet-photo";
 import { FileForm, FilesTab } from "../components/attachments";
+import { ConditionForm, MedicationForm, VaccinationForm } from "../components/health-forms";
+import { HealthTab } from "../components/health-tab";
 import { LabReportView, LabsTab } from "../components/labs";
 import { TrendsTab } from "../components/trends-tab";
 import { EntryForm, WeightForm } from "../components/record-forms";
@@ -16,7 +30,7 @@ import { Button } from "../components/ui/button";
 import { Dialog } from "../components/ui/dialog";
 import { WeightTab } from "../components/weight-tab";
 import { Card } from "../components/ui/card";
-import { useLabs, usePet, useRecords, useRegistries, useWeights } from "../lib/queries";
+import { useHealth, useLabs, usePet, useRecords, useRegistries, useWeights } from "../lib/queries";
 import { useUnits } from "../lib/units";
 import { cn } from "../lib/utils";
 
@@ -66,12 +80,13 @@ function Microchip({ pet }: { pet: Pet }) {
   );
 }
 
-export type ProfileTab = "timeline" | "weight" | "labs" | "trends" | "files";
+export type ProfileTab = "timeline" | "weight" | "labs" | "health" | "trends" | "files";
 
 const TABS: { tab: ProfileTab; label: string; path: string }[] = [
   { tab: "timeline", label: "Timeline", path: "" },
   { tab: "weight", label: "Weight", path: "/weight" },
   { tab: "labs", label: "Labs", path: "/labs" },
+  { tab: "health", label: "Health", path: "/health" },
   { tab: "trends", label: "Trends", path: "/trends" },
   { tab: "files", label: "Files", path: "/files" },
 ];
@@ -81,6 +96,9 @@ type DialogState =
   | { mode: "entry"; kind: "vet" | "home"; entry?: Extract<Editing, { type: "entry" }>["entry"] }
   | { mode: "weight"; measurement?: Extract<Editing, { type: "weight" }>["measurement"] }
   | { mode: "file"; attachment?: Extract<Editing, { type: "file" }>["attachment"] }
+  | { mode: "vaccination"; record?: Vaccination }
+  | { mode: "medication"; record?: Medication }
+  | { mode: "condition"; record?: Condition }
   | null;
 
 const CHOICES = [
@@ -100,6 +118,9 @@ const CHOICES = [
     hint: "Blood work or urinalysis from a report",
     icon: FlaskConical,
   },
+  { mode: "vaccination", kind: "vet", label: "Vaccination", hint: "A dose and when the next is due", icon: Syringe },
+  { mode: "medication", kind: "vet", label: "Medication", hint: "A drug, its dose and how often", icon: Pill },
+  { mode: "condition", kind: "vet", label: "Condition", hint: "A diagnosis, allergy or procedure", icon: HeartPulse },
   { mode: "file", kind: "vet", label: "File", hint: "A document on its own, such as adoption papers", icon: FileText },
 ] as const;
 
@@ -107,6 +128,9 @@ function dialogTitle(state: Exclude<DialogState, null>): string {
   if (state.mode === "choose") return "Add record";
   if (state.mode === "weight") return state.measurement ? "Edit weight" : "Add weight";
   if (state.mode === "file") return state.attachment ? "Edit file" : "Add file";
+  if (state.mode === "vaccination") return state.record ? "Edit vaccination" : "Add vaccination";
+  if (state.mode === "medication") return state.record ? "Edit medication" : "Add medication";
+  if (state.mode === "condition") return state.record ? "Edit condition" : "Add condition";
   const what = state.kind === "vet" ? "vet visit" : "home exam";
   return state.entry ? `Edit ${what}` : `Add ${what}`;
 }
@@ -117,13 +141,16 @@ function Records({
   color,
   tab,
   reportId,
+  deceasedOn,
 }: {
   petId: number;
   color: string;
   tab: ProfileTab;
   reportId?: number;
+  deceasedOn: string | null;
 }) {
   const records = useRecords(petId);
+  const health = useHealth(petId);
   const labs = useLabs(petId);
   const weights = useWeights(petId);
   const units = useUnits();
@@ -140,7 +167,7 @@ function Records({
           : { mode: "file", attachment: editing.attachment },
     );
 
-  const error = records.error ?? weights.error ?? labs.error;
+  const error = records.error ?? weights.error ?? labs.error ?? health.error;
   const report = reportId ? labs.data?.find((r) => r.id === reportId) : undefined;
   return (
     <div className="space-y-4">
@@ -173,6 +200,13 @@ function Records({
         <WeightTab weights={weights.data} records={records.data} units={units} color={color} />
       )}
       {labs.data && tab === "labs" && !reportId && <LabsTab petId={petId} reports={labs.data} />}
+      {health.data && tab === "health" && (
+        <HealthTab
+          health={health.data}
+          deceasedOn={deceasedOn}
+          onEdit={(e) => setDialog({ mode: e.type, record: e.record } as DialogState)}
+        />
+      )}
       {labs.data && weights.data && tab === "trends" && (
         <TrendsTab reports={labs.data} weights={weights.data} units={units} color={color} />
       )}
@@ -205,7 +239,7 @@ function Records({
         dismissible={dialog?.mode === "choose"}
       >
         {dialog?.mode === "choose" && (
-          <div className="grid gap-2">
+          <div className="grid gap-2 sm:grid-cols-2">
             {CHOICES.map(({ mode, kind, label, hint, icon: Icon }) => (
               <button
                 key={label}
@@ -233,6 +267,9 @@ function Records({
           <WeightForm petId={petId} units={units} measurement={dialog.measurement} onDone={close} />
         )}
         {dialog?.mode === "file" && <FileForm petId={petId} attachment={dialog.attachment} onDone={close} />}
+        {dialog?.mode === "vaccination" && <VaccinationForm petId={petId} record={dialog.record} onDone={close} />}
+        {dialog?.mode === "medication" && <MedicationForm petId={petId} record={dialog.record} onDone={close} />}
+        {dialog?.mode === "condition" && <ConditionForm petId={petId} record={dialog.record} onDone={close} />}
       </Dialog>
     </div>
   );
@@ -310,7 +347,7 @@ export function PetProfile({ id, tab = "timeline", reportId }: { id: number; tab
               <p className="whitespace-pre-wrap">{pet.notes}</p>
             </Card>
           )}
-          <Records petId={pet.id} color={pet.chartColor} tab={tab} reportId={reportId} />
+          <Records petId={pet.id} color={pet.chartColor} tab={tab} reportId={reportId} deceasedOn={pet.deceasedOn} />
         </div>
       </div>
     </Page>

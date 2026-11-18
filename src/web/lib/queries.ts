@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { Analyte, ChipRegistry, Measurement, Pet, User } from "../../server/db/schema";
 import type { LabReportWithResults } from "../../server/routes/labs";
 import type { PetSummary } from "../../server/routes/pets";
+import type { PetHealth } from "../../server/routes/health";
 import type { PetRecords } from "../../server/routes/records";
 import type { MetricOption } from "../../server/routes/series";
 import type { ComparePet } from "../../shared/series";
@@ -45,3 +46,7 @@ export const useSeries = (metric: string | null) =>
     queryFn: () => api<ComparePet[]>(`/series?metric=${encodeURIComponent(metric!)}`),
     enabled: metric != null,
   });
+
+/** A pet's vaccinations, medications and conditions. */
+export const useHealth = (petId: number) =>
+  useQuery({ queryKey: ["pets", petId, "health"], queryFn: () => api<PetHealth>(`/pets/${petId}/health`) });
