@@ -63,7 +63,7 @@ Catalog (code — name):
  * so the reply is checked against the schema before it is used; refusals,
  * cut-off replies and API errors become messages the reader can act on.
  */
-export function claudeLabReader(client: Anthropic): ReadLab {
+export function claudeLabReader(client: Anthropic, timeoutMs = READ_TIMEOUT_SECONDS * 1000): ReadLab {
   return async ({ bytes, mime }, catalog, signal) => {
     const data = Buffer.from(bytes).toString("base64");
     const doc: Anthropic.Beta.BetaContentBlockParam =
@@ -96,7 +96,7 @@ export function claudeLabReader(client: Anthropic): ReadLab {
         },
         // No retries: a retried attempt would run past the route's own deadline,
         // still billed after the browser had given up.
-        { timeout: READ_TIMEOUT_SECONDS * 1000, maxRetries: 0, signal },
+        { timeout: timeoutMs, maxRetries: 0, signal },
       );
     } catch (err) {
       throw apiError(err);

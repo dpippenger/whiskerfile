@@ -145,13 +145,33 @@ test("API errors become messages, and a failed request is not retried", async ()
   expect(calls).toBe(6);
 });
 
-test("a reading the browser abandoned stops, and a timeout says so", async () => {
+test("the reading's deadline reaches the SDK, which gives up once and says so", async () => {
+  let attempts = 0;
+  const sdk = new Anthropic({
+    apiKey: "test-key",
+    baseURL: "https://api.anthropic.com",
+    // Answers only when the SDK aborts the request: here, when its deadline passes.
+    fetch: (_url: string | URL | Request, init?: RequestInit) => {
+      attempts++;
+      return new Promise<Response>((_, reject) =>
+        init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError"))),
+      );
+    },
+  });
+  // A short deadline in place of READ_TIMEOUT_SECONDS; the request can't finish any other way.
+  await expect(claudeLabReader(sdk, 20)(PDF, CATALOG)).rejects.toMatchObject({
+    status: 504,
+    message: "Reading the document took too long. Try again.",
+  });
+  expect(attempts).toBe(1);
+});
+
+test("a reading the browser abandoned stops before anything is sent", async () => {
   const { sdk, requests } = client(() => Response.json(message({})));
   const gone = new AbortController();
   gone.abort();
   await expect(claudeLabReader(sdk)(PDF, CATALOG, gone.signal)).rejects.toMatchObject({ status: 499 });
   expect(requests).toEqual([]);
-  expect(apiError(new Anthropic.APIConnectionTimeoutError()).status).toBe(504);
   // Anything else is a bug here, not the API's doing: it isn't dressed up as a message.
   expect(() => apiError(new TypeError("boom"))).toThrow(TypeError);
 });
