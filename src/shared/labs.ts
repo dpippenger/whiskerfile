@@ -213,3 +213,46 @@ export function previousResults<R extends ResultLike>(
   }
   return found;
 }
+
+export const analyteInput = z.object({
+  code: z
+    .string()
+    .trim()
+    .min(1, "Code is required")
+    .max(16)
+    .regex(/^[A-Za-z0-9/+\-]+$/, "Letters, digits, / + and - only")
+    .transform((s) => s.toUpperCase()),
+  name: z.string().trim().min(1, "Name is required").max(80),
+  category: z.enum(ANALYTE_CATEGORIES),
+  defaultUnit: optionalText(20),
+});
+
+export type AnalyteInput = z.input<typeof analyteInput>;
+
+type PrefillSource = {
+  lab: string | null;
+  date: string;
+  id: number;
+  results: { analyteId: number; unit: string | null; refLow: number | null; refHigh: number | null }[];
+};
+
+/**
+ * Unit and range to pre-fill for a test on a new report: from the pet's most
+ * recent result for that test, preferring one from the same lab, else the
+ * catalog's default unit and no range. The app never invents a range.
+ */
+export function prefillFor(
+  analyte: { id: number; defaultUnit: string | null },
+  reports: PrefillSource[],
+  lab: string | null,
+): { unit: string | null; refLow: number | null; refHigh: number | null } {
+  const newestFirst = [...reports].sort((a, b) => (a.date === b.date ? b.id - a.id : a.date < b.date ? 1 : -1));
+  const sameLab = (lab ?? "").trim().toLowerCase();
+  const pick = (candidates: PrefillSource[]) =>
+    candidates.flatMap((r) => r.results.filter((x) => x.analyteId === analyte.id))[0];
+  const found =
+    (sameLab ? pick(newestFirst.filter((r) => (r.lab ?? "").trim().toLowerCase() === sameLab)) : undefined) ??
+    pick(newestFirst);
+  if (!found) return { unit: analyte.defaultUnit, refLow: null, refHigh: null };
+  return { unit: found.unit, refLow: found.refLow, refHigh: found.refHigh };
+}

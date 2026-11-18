@@ -1,5 +1,14 @@
 import { expect, test } from "bun:test";
-import { flagResult, formatRange, labReportInput, parseLabValue, previousResults, rangePosition } from "./labs";
+import {
+  analyteInput,
+  flagResult,
+  formatRange,
+  labReportInput,
+  parseLabValue,
+  prefillFor,
+  previousResults,
+  rangePosition,
+} from "./labs";
 
 test("results are read as printed", () => {
   expect(parseLabValue("1.20")).toEqual({ value: 1.2, comparator: null });
@@ -118,4 +127,34 @@ test("each result is compared with the same test's last earlier result, when com
   // A "<" value is never subtracted.
   expect(previousResults(reports, reports[2]!).get(3)).toMatchObject({ date: "2026-01-10", change: null });
   expect(previousResults(reports, reports[0]!).size).toBe(0);
+});
+
+test("a new row takes unit and range from the last result for that test, preferring the same lab", () => {
+  const crea = { id: 7, defaultUnit: "mg/dL" };
+  const reports = [
+    { id: 1, date: "2026-01-10", lab: "IDEXX", results: [{ analyteId: 7, unit: "mg/dL", refLow: 0.6, refHigh: 2.4 }] },
+    { id: 2, date: "2026-05-02", lab: "Clinic", results: [{ analyteId: 7, unit: "µmol/L", refLow: 71, refHigh: 212 }] },
+    { id: 3, date: "2026-06-01", lab: "Clinic", results: [{ analyteId: 9, unit: "U/L", refLow: 12, refHigh: 130 }] },
+  ];
+  expect(prefillFor(crea, reports, " idexx ")).toEqual({ unit: "mg/dL", refLow: 0.6, refHigh: 2.4 });
+  expect(prefillFor(crea, reports, "Antech")).toEqual({ unit: "µmol/L", refLow: 71, refHigh: 212 });
+  expect(prefillFor(crea, reports, null)).toEqual({ unit: "µmol/L", refLow: 71, refHigh: 212 });
+  expect(prefillFor({ id: 8, defaultUnit: "mmol/L" }, reports, "IDEXX")).toEqual({
+    unit: "mmol/L",
+    refLow: null,
+    refHigh: null,
+  });
+});
+
+test("custom tests need a code and name", () => {
+  expect(analyteInput.parse({ code: " ckmb ", name: "CK-MB", category: "chemistry", defaultUnit: "" })).toEqual({
+    code: "CKMB",
+    name: "CK-MB",
+    category: "chemistry",
+    defaultUnit: null,
+  });
+  expect(analyteInput.safeParse({ code: "a b", name: "x", category: "chemistry", defaultUnit: "" }).success).toBe(
+    false,
+  );
+  expect(analyteInput.safeParse({ code: "X", name: "", category: "chemistry", defaultUnit: "" }).success).toBe(false);
 });
