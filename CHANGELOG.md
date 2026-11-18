@@ -5,6 +5,8 @@
 ### Added
 
 - Lab reports: results kept exactly as printed (including "<0.5" and qualitative results), with the reference range from each report, High/Low flags, a range bar, and the previous result with its change. Reports link to a visit and carry their original documents.
+- Lab entry: a keyboard-friendly grid (Enter moves down a column) that copies the tests from the last report, adds a whole category or single tests, pre-fills each unit and range from the pet's last result for that test, previews High/Low as you type, and attaches the original report.
+- The test catalog can be edited in Settings; a test with results can't be removed.
 - A catalog of 62 common tests (chemistry, electrolytes, CBC, endocrine, urinalysis and others), with codes and units but no built-in reference ranges.
 - Web app manifest and icons: install Whiskerfile to an Android home screen or as a desktop app.
 

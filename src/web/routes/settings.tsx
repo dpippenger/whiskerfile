@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download } from "lucide-react";
 import type { BackupRun } from "../../server/db/schema";
 import { Page } from "../components/page";
+import { CatalogSettings } from "../components/catalog-settings";
 import { RegistriesSettings } from "../components/registries-settings";
 import { UnitsSettings } from "../components/units-settings";
 import { Badge } from "../components/ui/badge";
@@ -31,7 +32,7 @@ export function Settings() {
 
   return (
     <Page title="Settings">
-      <div className="grid gap-4 xl:grid-cols-2 xl:items-start">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-2 xl:items-start">
         <Card className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -80,6 +81,7 @@ export function Settings() {
         <div className="space-y-4">
           <UnitsSettings />
           <RegistriesSettings />
+          <CatalogSettings />
         </div>
       </div>
     </Page>

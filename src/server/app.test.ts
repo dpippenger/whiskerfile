@@ -115,6 +115,9 @@ test("writes are rejected without a valid Access token", async () => {
     ["POST", "/api/pets/1/labs"],
     ["PUT", "/api/labs/1"],
     ["DELETE", "/api/labs/1"],
+    ["POST", "/api/analytes"],
+    ["PUT", "/api/analytes/1"],
+    ["DELETE", "/api/analytes/1"],
   ];
   for (const [method, path] of writes) {
     expect((await call(path, { method, body: {}, jwt: null })).status).toBe(401);

@@ -1,4 +1,4 @@
-import { ArrowLeft, FlaskConical } from "lucide-react";
+import { ArrowLeft, FlaskConical, Pencil, Plus } from "lucide-react";
 import { Link } from "wouter";
 import type { LabReportWithResults, LabResultRow } from "../../server/routes/labs";
 import type { EntryWithVitals } from "../../server/routes/records";
@@ -113,13 +113,22 @@ export function LabReportView({
   const { high, low } = flagCounts(report);
   return (
     <div className="space-y-4">
-      <Link
-        href={`/pets/${petId}/labs`}
-        className="inline-flex min-h-11 items-center gap-2 text-muted-foreground hover:text-foreground md:min-h-9"
-      >
-        <ArrowLeft className="size-4" aria-hidden />
-        All lab reports
-      </Link>
+      <div className="flex items-center justify-between gap-3">
+        <Link
+          href={`/pets/${petId}/labs`}
+          className="inline-flex min-h-11 items-center gap-2 text-muted-foreground hover:text-foreground md:min-h-9"
+        >
+          <ArrowLeft className="size-4" aria-hidden />
+          All lab reports
+        </Link>
+        <Link
+          href={`/pets/${petId}/labs/${report.id}/edit`}
+          className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border-strong bg-elevated px-4 text-sm font-medium hover:bg-card-hover md:min-h-9"
+        >
+          <Pencil className="size-4" aria-hidden />
+          Edit
+        </Link>
+      </div>
       <Card className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-lg font-semibold">{formatDate(report.date)}</h2>
@@ -231,16 +240,27 @@ export function LabReportView({
 
 /** A pet's lab reports, newest first, with how many results fall outside their ranges. */
 export function LabsTab({ petId, reports }: { petId: number; reports: LabReportWithResults[] }) {
+  const add = (
+    <Link
+      href={`/pets/${petId}/labs/new`}
+      className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border-strong bg-elevated px-4 text-sm font-medium hover:bg-card-hover md:min-h-9"
+    >
+      <Plus className="size-4" aria-hidden />
+      Add lab results
+    </Link>
+  );
   if (reports.length === 0) {
     return (
-      <Card className="flex flex-col items-center gap-2 py-12 text-center text-muted-foreground">
+      <Card className="flex flex-col items-center gap-3 py-12 text-center text-muted-foreground">
         <FlaskConical className="size-6" aria-hidden />
         No lab results yet.
+        {add}
       </Card>
     );
   }
   return (
     <ul className="space-y-3">
+      <li className="flex justify-end">{add}</li>
       {reports.map((report) => {
         const { high, low, allNormal } = flagCounts(report);
         return (

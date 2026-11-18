@@ -188,3 +188,45 @@ test("deleting a pet removes its lab reports", async () => {
   expect(db.select().from(labReports).all()).toEqual([]);
   expect(db.select().from(labResults).all()).toEqual([]);
 });
+
+test("the household can add, rename and remove tests, but not one with results", async () => {
+  const { call, json, analyte, petId } = await setup();
+  const created = await call("/api/analytes", {
+    method: "POST",
+    body: { code: "symm", name: "Symmetric dimethylarginine", category: "chemistry", defaultUnit: "µg/dL" },
+  });
+  expect(created.status).toBe(201);
+  const custom = await json<{ id: number; code: string; sortOrder: number }>(created);
+  expect(custom.code).toBe("SYMM");
+  const catalog = await json<{ id: number; sortOrder: number }[]>(call("/api/analytes"));
+  expect(catalog.at(-1)!.id).toBe(custom.id);
+
+  const dupe = await call("/api/analytes", {
+    method: "POST",
+    body: { code: "CREA", name: "x", category: "chemistry", defaultUnit: "" },
+  });
+  expect(dupe.status).toBe(400);
+  expect((await json<{ fields: object }>(dupe)).fields).toEqual({ code: "Already in the catalog" });
+
+  const renamed = await call(`/api/analytes/${custom.id}`, {
+    method: "PUT",
+    body: { code: "SYMM", name: "SDMA (in-house)", category: "chemistry", defaultUnit: "µg/dL" },
+  });
+  expect(await json(renamed)).toMatchObject({ name: "SDMA (in-house)" });
+
+  await call(`/api/pets/${petId}/labs`, {
+    method: "POST",
+    body: report([{ analyteId: analyte("CREA"), valueText: "2.6", unit: "mg/dL", refLow: 0.6, refHigh: 2.4 }]),
+  });
+  expect((await call(`/api/analytes/${analyte("CREA")}`, { method: "DELETE" })).status).toBe(409);
+  expect((await call(`/api/analytes/${custom.id}`, { method: "DELETE" })).status).toBe(204);
+  expect((await call(`/api/analytes/${custom.id}`, { method: "DELETE" })).status).toBe(404);
+  expect(
+    (
+      await call("/api/analytes/99999", {
+        method: "PUT",
+        body: { code: "Q", name: "q", category: "other", defaultUnit: "" },
+      })
+    ).status,
+  ).toBe(404);
+});
