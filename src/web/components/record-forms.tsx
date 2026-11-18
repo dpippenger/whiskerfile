@@ -17,6 +17,7 @@ import {
   type Vital,
 } from "../../shared/records";
 import { api, ApiError } from "../lib/api";
+import { FileChip, FilePicker, fileRef, storedRef, uploadOriginal, type FileRef } from "./attachments";
 import { useRecords } from "../lib/queries";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
@@ -117,6 +118,16 @@ export function EntryForm({
     weight: v.weight != null ? String(fromGrams(v.weight, units.weight)) : "",
     temperature: v.temperature != null ? String(fromCelsius(v.temperature, units.temperature)) : "",
   }));
+  const [attached, setAttached] = useState<FileRef[]>(() => (entry?.attachments ?? []).map(fileRef));
+  // Picked files upload one after another; the visit can't be saved until all are stored.
+  const upload = useMutation({
+    mutationFn: async (picked: File[]) => {
+      for (const file of picked) {
+        const stored = await uploadOriginal(file);
+        setAttached((list) => (list.some((f) => f.fileId === stored.id) ? list : [...list, storedRef(stored)]));
+      }
+    },
+  });
   const [form, setForm] = useState({
     kind: entry?.kind ?? initialKind,
     date: entry?.date ?? localToday(),
@@ -152,6 +163,7 @@ export function EntryForm({
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
+    if (upload.isPending) return;
     const vet = form.kind === "vet";
     const body = {
       kind: form.kind,
@@ -169,6 +181,7 @@ export function EntryForm({
         respiratory_rate: parseNumber(form.respiratory_rate),
         body_condition: parseNumber(form.body_condition),
       },
+      fileIds: attached.map((f) => f.fileId),
     };
     const found = issuesToErrors(entryInput.safeParse(body).error?.issues);
     for (const [kind, value] of Object.entries(body.vitals)) {
@@ -287,9 +300,29 @@ export function EntryForm({
         <Textarea {...field("notes")} rows={5} placeholder="Findings, advice, follow-ups" />
       </Field>
 
+      <fieldset className="space-y-3">
+        <legend className="text-sm font-semibold text-foreground-secondary">Files</legend>
+        {attached.length > 0 && (
+          <ul className="flex flex-wrap gap-2">
+            {attached.map((file) => (
+              <li key={file.fileId} className="max-w-full">
+                <FileChip
+                  file={file}
+                  onRemove={() => setAttached((list) => list.filter((f) => f.fileId !== file.fileId))}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+        <FilePicker onPick={(files) => upload.mutate(files)} busy={upload.isPending} multiple label="Attach files" />
+        {(upload.error || errors.fileIds) && (
+          <p className="text-xs text-danger">{upload.error?.message ?? errors.fileIds}</p>
+        )}
+      </fieldset>
+
       <FormActions
         onCancel={onDone}
-        saving={save.isPending}
+        saving={save.isPending || upload.isPending}
         onDelete={entry ? () => remove.mutate() : undefined}
         deleting={remove.isPending}
         error={

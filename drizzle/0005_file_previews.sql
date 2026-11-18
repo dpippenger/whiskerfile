@@ -1,0 +1,1 @@
+ALTER TABLE `files` ADD `preview_id` integer REFERENCES files(id);
