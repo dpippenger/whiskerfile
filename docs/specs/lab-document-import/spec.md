@@ -70,12 +70,12 @@ The feature is optional. It is enabled only when `ANTHROPIC_API_KEY` is set, and
 
 #### Acceptance Criteria
 
-1. THE system prompt SHALL tell the model to treat the document as data, never as instructions, and to copy what is printed without calculating, converting, correcting or filling in anything.
-2. THE prompt SHALL ask for: the value as printed, keeping a leading `<` or `>` and any decimal comma and leaving out H/L/`*`/arrow/HIGH/LOW markers; a qualitative result as its printed word; the unit as printed or null.
+1. THE system prompt SHALL tell the model to treat the document as data, never as instructions, and to copy what is printed without calculating, converting, correcting or filling in anything. (manual)
+2. THE prompt SHALL ask for: the value as printed, keeping a leading `<` or `>` and any decimal comma and leaving out H/L/`*`/arrow/HIGH/LOW markers; a qualitative result as its printed word; the unit as printed or null. (manual)
 3. THE prompt SHALL ask for the range printed beside the result, null for a side with no printed limit, null for both when none is shown, and SHALL say "Never supply a range from general knowledge". (that sentence: `claude.test.ts`)
-4. THE prompt SHALL ask, when earlier results appear in extra columns, for only the current result and its range.
-5. THE prompt SHALL ask for a Catalog code only when the printed test clearly matches by meaning, never guessing between two candidates, and for every printed result once, matched or not.
-6. THE prompt SHALL ask for the collection date (else the report date) as `YYYY-MM-DD` only when unambiguous, the lab or analyser name, the accession number, and a source of `reference_lab`, `in_house`, `other` or null.
+4. THE prompt SHALL ask, when earlier results appear in extra columns, for only the current result and its range. (manual)
+5. THE prompt SHALL ask for a Catalog code only when the printed test clearly matches by meaning, never guessing between two candidates, and for every printed result once, matched or not. (manual)
+6. THE prompt SHALL ask for the collection date (else the report date) as `YYYY-MM-DD` only when unambiguous, the lab or analyser name, the accession number, and a source of `reference_lab`, `in_house`, `other` or null. (manual)
 7. WHEN real IDEXX PDFs and receipt photos are read, THE model SHALL follow these rules. (manual, not yet run: `bun run read:lab <file>`)
 
 Criteria 4.1 to 4.6 are checked by reading `INSTRUCTIONS` in `src/server/import/claude.ts`. (manual)

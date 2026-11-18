@@ -58,7 +58,7 @@ The PDF health report reuses these chart options with a print theme; its layout 
 1. THE `rangeBand` function SHALL return, per point, its x (`dateToUtc` of its date), `low` = `refLow` and `height` = `refHigh - refLow` WHEN both limits are present and `refHigh >= refLow`. (`src/shared/series.test.ts`)
 2. IF a point has only one limit, no limits, or `refHigh < refLow`, THE `rangeBand` function SHALL return null `low` and `height` for it, so the band breaks there. (`src/shared/series.test.ts`)
 3. THE lab chart SHALL draw the band as two series, `range-low` and `range`, stacked in stack `range` with `stackStrategy: "all"`, so a range with a negative lower limit (such as -2 to 2) is drawn from that limit rather than from zero. (`src/shared/trend-options.test.ts`)
-4. THE band series SHALL be stepped (`step: "end"`), silent, without symbols or visible lines, with `connectNulls: false`, and only `range` SHALL be filled, in the theme's band colour. With `step: "end"` each stretch between two results is shaded with the earlier result's range, and the band runs from the first result to the last.
+4. THE band series SHALL be stepped (`step: "end"`), silent, without symbols or visible lines, with `connectNulls: false`, and only `range` SHALL be filled, in the theme's band colour. With `step: "end"` each stretch between two results is shaded with the earlier result's range, and the band runs from the first result to the last. (manual)
 5. THE Trends tab SHALL caption each lab chart: "Shaded: the reference range printed on each report. Hollow points are results given as a limit, such as <0.5." (manual)
 
 ### Requirement 4: Ages and multi-pet comparison series
@@ -87,8 +87,8 @@ The PDF health report reuses these chart options with a print theme; its layout 
 3. WHEN every x on a time axis falls within one day, THE `timePadding` function SHALL set the axis `min` and `max` 30 days either side; otherwise, and for no points, it SHALL set neither. (`src/shared/trend-options.test.ts`)
 4. THE Compare chart against age SHALL use no time padding and a `value` x axis named "Age (years)". (`src/shared/trend-options.test.ts`)
 5. WHILE the theme is interactive AND a lab or weight chart has 8 or more points (on Compare: any one pet has 8 or more), THE options SHALL include one Zoom_Slider (height 20, bottom 8, `filterMode: "none"`) and a grid bottom of 56; otherwise `dataZoom` SHALL be an empty list. (`src/shared/trend-options.test.ts`)
-6. THE time axis SHALL hide overlapping labels and name the month on day ticks (`{MMM} {d}`), and the y axis SHALL scale to the data rather than start at zero.
-7. THE tooltip SHALL trigger per point and be confined to the chart.
+6. THE time axis SHALL hide overlapping labels and name the month on day ticks (`{MMM} {d}`), and the y axis SHALL scale to the data rather than start at zero. (manual)
+7. THE tooltip SHALL trigger per point and be confined to the chart. (manual)
 8. WHEN a reader swipes vertically over a chart on a phone, THE page SHALL scroll; zooming is done with the Zoom_Slider, not by dragging in the chart. (manual)
 
 ### Requirement 6: Points and tooltips
@@ -110,11 +110,11 @@ The PDF health report reuses these chart options with a print theme; its layout 
 
 #### Acceptance Criteria
 
-1. THE `EChart` component SHALL register only the line chart, grid, tooltip and slider-zoom components and the SVG renderer, and SHALL draw with `renderer: "svg"`.
-2. WHEN the option or `animation` prop changes, THE `EChart` component SHALL replace the chart's option (`notMerge: true`), with `animation` (default true) overriding the option's own.
+1. THE `EChart` component SHALL register only the line chart, grid, tooltip and slider-zoom components and the SVG renderer, and SHALL draw with `renderer: "svg"`. (manual)
+2. WHEN the option or `animation` prop changes, THE `EChart` component SHALL replace the chart's option (`notMerge: true`), with `animation` (default true) overriding the option's own. (manual)
 3. WHEN its container changes size, THE `EChart` component SHALL resize the chart. (manual)
-4. WHEN it unmounts, THE `EChart` component SHALL stop observing its container and dispose the chart.
-5. THE `EChart` component SHALL render a `role="img"` container with the given `aria-label`.
+4. WHEN it unmounts, THE `EChart` component SHALL stop observing its container and dispose the chart. (manual)
+5. THE `EChart` component SHALL render a `role="img"` container with the given `aria-label`. (manual)
 
 ### Requirement 8: Trends tab
 
@@ -122,9 +122,9 @@ The PDF health report reuses these chart options with a print theme; its layout 
 
 #### Acceptance Criteria
 
-1. THE Trends tab SHALL be reached at `/pets/:id/trends` and offer a Weight chip WHEN the pet has a weight, and a chip for each test with at least one Numeric_Result, grouped under category headings in catalog category order and ordered by the test's sort order. Each chip shows the test code and name and reports its state with `aria-pressed`.
-2. WHEN the tab opens, THE Trends tab SHALL select Weight (if any weight exists) and up to three tests from the latest report (newest date, then highest id) flagged `high` or `low`; IF none is flagged, the first three tests in that report with a number.
-3. WHEN a chip is pressed, THE Trends tab SHALL add or remove that metric's chart; charts appear with Weight first, then tests in sort order.
+1. THE Trends tab SHALL be reached at `/pets/:id/trends` and offer a Weight chip WHEN the pet has a weight, and a chip for each test with at least one Numeric_Result, grouped under category headings in catalog category order and ordered by the test's sort order. Each chip shows the test code and name and reports its state with `aria-pressed`. (manual)
+2. WHEN the tab opens, THE Trends tab SHALL select Weight (if any weight exists) and up to three tests from the latest report (newest date, then highest id) flagged `high` or `low`; IF none is flagged, the first three tests in that report with a number. (manual)
+3. WHEN a chip is pressed, THE Trends tab SHALL add or remove that metric's chart; charts appear with Weight first, then tests in sort order. (manual)
 4. THE Trends tab SHALL head each test chart with its name, code and Series_Unit, and WHEN results were not drawn SHALL add "Not shown: N in another unit, M without a number." (manual)
 5. THE Trends tab SHALL draw the weight chart with `weightTrendOption` in the reader's weight unit, two decimals, in the pet's colour, even for a single weight. (manual)
 6. IF the pet has no weights and no Numeric_Results, THE Trends tab SHALL show "Nothing to chart yet. Weights and lab results with numbers appear here."; IF nothing is selected, "Choose what to chart." (manual)
@@ -145,7 +145,7 @@ The PDF health report reuses these chart options with a print theme; its layout 
 
 #### Acceptance Criteria
 
-1. THE Compare page SHALL be reached at `/compare` from the main navigation.
+1. THE Compare page SHALL be reached at `/compare` from the main navigation. (manual)
 2. THE Compare page SHALL offer the metrics from `/api/series/metrics` in a select: Weight first when offered, then tests in one group per category, labelled "code · name"; it SHALL start on the first metric returned. (manual)
 3. THE Compare page SHALL offer "Date" and "Age" as a radio group, starting on Date. (manual)
 4. THE Compare page SHALL show a chip for each pet with data for the chosen metric; WHEN a chip is pressed, the pet SHALL be hidden or shown, and a hidden pet SHALL be neither plotted nor named. WHEN the metric changes, every pet SHALL be shown again. (manual)

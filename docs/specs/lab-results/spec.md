@@ -37,7 +37,7 @@ This spec covers the test catalog, lab reports and their results, the reading ru
 
 1. THE System SHALL seed 62 analytes in `drizzle/0007_seed_analytes.sql`, each with a code, name, category and an optional US conventional default unit, and with no reference range. (manual)
 2. THE System SHALL return the catalog from `GET /api/analytes` ordered by sort order, then id. (`src/server/routes/labs.test.ts`)
-3. THE System SHALL keep analyte codes unique (`analytes_code_unique`).
+3. THE System SHALL keep analyte codes unique (`analytes_code_unique`). (manual)
 4. THE Catalog_Settings card (`src/web/components/catalog-settings.tsx`) SHALL list analytes in collapsible sections per Category, in Category order, with the count of tests, and SHALL omit a Category with no tests. (manual)
 5. THE Catalog_Settings card SHALL show each test's code, name and default unit, hiding the unit below the `sm` width. (manual)
 
@@ -60,7 +60,7 @@ This spec covers the test catalog, lab reports and their results, the reading ru
 
 #### Acceptance Criteria
 
-1. THE System SHALL require a valid ISO sample date and a Source, and accept an optional lab (up to 80 characters), accession (up to 60) and notes (up to 4000), each stored as null when blank. (`src/shared/labs.test.ts`)
+1. THE System SHALL require a valid ISO sample date and a Source, and accept an optional lab (up to 80 characters), accession (up to 60) and notes (up to 4000), each stored as null when blank. (manual)
 2. THE System SHALL require 1 to 200 results and at most 20 Documents per report, and refuse the same analyte twice with "Already in this report" on the repeated row. (`src/shared/labs.test.ts`, `src/server/routes/labs.test.ts`)
 3. IF a report names a visit of another pet, an unknown analyte or an unknown file, THEN THE System SHALL answer 400 with `entryId: "Not a visit of this pet"`, `results.N.analyteId: "Unknown test"` (the first unknown) or `fileIds: "Unknown file"`, and write nothing. (`src/server/routes/labs.test.ts`)
 4. WHEN a report is created (`POST /api/pets/:id/labs`, 201) or edited (`PUT /api/labs/:id`, 200), THE System SHALL save the report, its results and its Documents in one transaction; IF the pet or report does not exist, THEN THE System SHALL answer 404. (`src/server/routes/labs.test.ts`)
@@ -80,7 +80,7 @@ This spec covers the test catalog, lab reports and their results, the reading ru
 1. THE System SHALL store each result's Value_Text (trimmed, 1 to 40 characters), its unit (up to 20 characters, null when blank) and its Printed_Range as finite numbers or null. (`src/shared/labs.test.ts`)
 2. IF `refLow` is greater than `refHigh`, THEN THE System SHALL refuse the result with "Must be at least the low limit" on `refHigh`. (`src/shared/labs.test.ts`)
 3. WHEN a result is saved, THE System SHALL store the Parsed_Value of its Value_Text alongside it, read on the server. (`src/server/routes/labs.test.ts`)
-4. THE System SHALL never supply a reference range itself: no seed, default or catalog field holds one.
+4. THE System SHALL never supply a reference range itself: no seed, default or catalog field holds one. (manual)
 
 ### Requirement 5: Reading printed values
 
@@ -110,7 +110,7 @@ This spec covers the test catalog, lab reports and their results, the reading ru
 
 #### Acceptance Criteria
 
-1. THE System SHALL work out each Flag from the stored Parsed_Value and Printed_Range when shown, and SHALL NOT store it.
+1. THE System SHALL work out each Flag from the stored Parsed_Value and Printed_Range when shown, and SHALL NOT store it. (manual)
 2. WHEN a plain number is below `refLow` or above `refHigh`, THE System SHALL flag it `low` or `high`; at or between the limits of a one- or two-sided range it SHALL flag it `normal`. (`src/shared/labs.test.ts`)
 3. IF a result has no number or no range, THEN THE System SHALL give no Flag. (`src/shared/labs.test.ts`)
 4. WHEN a Limit_Result is shown, THE System SHALL flag it only when every value it allows is on one side: `<x` low when x ≤ refLow, `≤x` low when x < refLow, `>x` high when x ≥ refHigh, `≥x` high when x > refHigh, `normal` when it lies within a one-sided range, and no Flag when its values straddle a limit (`≤0.8` against a low limit of 0.8). (`src/shared/labs.test.ts`)
@@ -147,7 +147,7 @@ This spec covers the test catalog, lab reports and their results, the reading ru
 2. THE Lab_Form SHALL offer only the pet's vet visits (date · reason) or "Not linked to a visit" for the visit link, and SHALL let several Documents be attached and removed before saving. (manual)
 3. THE Lab_Form SHALL add tests by "Add a test…" (tests not yet on the form, grouped by Category), by a chip per Category (all its tests not yet present), and by "Same tests as <date>" (the tests on the pet's latest other report). (manual)
 4. WHEN a test is added, THE Lab_Form SHALL leave its result blank and Prefill its unit and range from the pet's most recent other result for that test, preferring one whose lab matches the lab field (trimmed, case-insensitive), else the catalog's default unit and no range. (`src/shared/labs.test.ts`)
-5. WHEN Enter is pressed in a cell, THE Entry_Grid SHALL move to the same column in the next row (Shift+Enter: previous row) and select its text instead of submitting; each row's remove button SHALL come last in its Tab order. (manual)
+5. WHEN Enter is pressed in a cell, THE Entry_Grid SHALL move to the same column in the next row (Shift+Enter: previous row) and select its text instead of submitting; in the table layout each row's remove button SHALL come last in its Tab order, and in the card layout it comes first, beside the test name. (manual)
 6. WHILE a row's result and limits read as numbers, THE Entry_Grid SHALL preview its High or Low badge. (manual)
 7. THE Entry_Grid SHALL lay rows out as a table when its own width reaches the `@2xl` container size and as cards below it, with flag and remove beside the test name. (manual)
 

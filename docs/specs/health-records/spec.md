@@ -6,7 +6,7 @@ Whiskerfile keeps three kinds of health record for each pet: vaccinations (one r
 
 A hard project rule shapes this feature: the app never invents medical facts. It has no vaccine schedules, booster intervals or doses. A vaccine's next due date is typed by the user from the certificate or the clinic's reminder, vaccine names are free text with suggestions only, and dose and frequency are free text as printed on the label. Every status the app shows (overdue, due soon, current, upcoming, past, active, resolved) is derived only from dates the user entered.
 
-Statuses depend on today's date. The server runs in UTC, so it never decides what is due: it returns raw records and the browser computes every status from `localToday()`, the user's own calendar date.
+Statuses depend on today's date. The server runs in UTC, so it never reads its own clock to decide what is due: the API returns raw records and the browser computes each status from `localToday()`, the user's own calendar date. The PDF report is the one place the server computes statuses, from the `today` the browser sends with the request (see the pdf-health-reports spec).
 
 This spec covers the three record types, their validation and API, the Health tab and forms, the dashboard alert block with the server fields that feed it, and the timeline rows for lab reports, vaccinations, medications and conditions. Pet profiles, visits and files, lab results, PDF reports, AI lab import and the platform (auth, database, backups) have their own specs and appear here only as integration points.
 
@@ -38,8 +38,8 @@ This spec covers the three record types, their validation and API, the Health ta
 1. THE `vaccinationInput` schema SHALL require a vaccine name of 1 to 80 characters after trimming, with the message "Enter the vaccine". (`src/shared/health.test.ts`)
 2. THE `vaccinationInput` schema SHALL require a date given that is a real calendar date in `YYYY-MM-DD` form, and accept an empty or null due date as no due date. (`src/shared/dates.test.ts` for the date check)
 3. IF the due date is before the date given, THEN THE schema SHALL reject it on the `dueDate` field with "Must be on or after the date given". (`src/shared/health.test.ts`)
-4. THE schema SHALL accept optional lot (up to 40 characters), clinic (up to 120) and notes (up to 2000), trimming each and storing a blank one as null.
-5. THE System SHALL accept any vaccine name the user types; the names FVRCP, Rabies, FeLV, DHPP, Bordetella, Leptospirosis, Lyme and Canine influenza (`VACCINE_SUGGESTIONS`) SHALL only be offered as suggestions.
+4. THE schema SHALL accept optional lot (up to 40 characters), clinic (up to 120) and notes (up to 2000), trimming each and storing a blank one as null. (manual)
+5. THE System SHALL accept any vaccine name the user types; the names FVRCP, Rabies, FeLV, DHPP, Bordetella, Leptospirosis, Lyme and Canine influenza (`VACCINE_SUGGESTIONS`) SHALL only be offered as suggestions. (manual)
 
 ### Requirement 2: Medication and condition validation
 
@@ -152,7 +152,7 @@ This spec covers the three record types, their validation and API, the Health ta
 #### Acceptance Criteria
 
 1. THE `GET /api/pets` response SHALL give each Pet_Summary a `vaccinations` array of every dose's `id`, `vaccine`, `dateGiven` and `dueDate`, newest first by date given then id, empty for a pet with none. (`src/server/routes/health.test.ts`)
-2. THE server SHALL NOT compute any Due_Status; the browser SHALL compute it. (`src/server/routes/health.test.ts`)
+2. THE health and pet-list APIs SHALL return vaccine doses without a Due_Status, and the server SHALL NOT use its own clock to compute one; the browser computes it, and the PDF report computes it from the `today` the browser sends. (`src/server/routes/health.test.ts`)
 3. THE Pet_Summary SHALL carry `latestLab` as the pet's report with the latest sample date, ties broken by the higher id (the one added last), or null when the pet has no reports. (`src/server/routes/labs.test.ts`)
 4. THE `latestLab.flagged` list SHALL hold only results `flagResult()` marks `high` or `low`, each as code, name, value text, unit and flag, in analyte catalog order; in-range, unranged and undecidable results SHALL be left out. (`src/server/routes/labs.test.ts`)
 
