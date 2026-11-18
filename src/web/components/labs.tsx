@@ -72,21 +72,20 @@ export function RangeBar({ result }: { result: LabResultRow }) {
 
 const formatChange = (change: number) => `${change > 0 ? "+" : change < 0 ? "−" : ""}${Math.abs(change)}`;
 
-function PreviousCell({ previous }: { previous: Previous<LabResultRow> | undefined }) {
+function PreviousCell({ previous, unit }: { previous: Previous<LabResultRow> | undefined; unit: string | null }) {
   if (!previous) return <span className="text-muted-foreground">—</span>;
+  // The two numbers aren't comparable when the units differ, including one with no unit.
+  const unitDiffers = (previous.result.unit ?? "") !== (unit ?? "");
   return (
     <span className="flex flex-col">
       <span className="font-mono tabular-nums">
         {previous.result.valueText}
-        {previous.result.unit && (
+        {(previous.result.unit || unitDiffers) && (
           <span
-            className={cn(
-              "ml-1 font-sans text-xs text-muted-foreground",
-              // A different unit is the reason there is no change: make it stand out.
-              previous.change == null && "text-warning",
-            )}
+            className={cn("ml-1 font-sans text-xs text-muted-foreground", unitDiffers && "text-info")}
+            title={unitDiffers ? "Different unit from this result" : undefined}
           >
-            {previous.result.unit}
+            {previous.result.unit ?? "no unit"}
           </span>
         )}
         {previous.change != null && (
@@ -216,7 +215,7 @@ export function LabReportView({
                         <RangeBar result={r} />
                       </td>
                       <td className="hidden px-4 py-2.5 lg:table-cell">
-                        <PreviousCell previous={previous.get(r.analyteId)} />
+                        <PreviousCell previous={previous.get(r.analyteId)} unit={r.unit} />
                       </td>
                     </tr>
                   );
