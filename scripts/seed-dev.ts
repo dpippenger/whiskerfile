@@ -228,7 +228,7 @@ const labReport = await upload(pdf("IDEXX Chem 17 + Total T4 (sample)"), "IDEXX 
 const receipt = await upload(gradientPng(480, [240, 240, 240], [200, 200, 200]), "Receipt.png");
 for (const [i, visit] of visits.entries()) {
   // The latest visit comes with its lab report and receipt.
-  await call(`/pets/${misoId}/entries`, "POST", i === 2 ? { ...visit, fileIds: [labReport, receipt] } : visit);
+  await call(`/pets/${misoId}/entries`, "POST", i === 2 ? { ...visit, fileIds: [receipt] } : visit);
 }
 await call(`/pets/${misoId}/attachments`, "POST", {
   fileId: await upload(pdf("Adoption contract (sample)"), "adoption.pdf"),
@@ -237,3 +237,66 @@ await call(`/pets/${misoId}/attachments`, "POST", {
 });
 await call(`/pets/${misoId}/measurements`, "POST", { date: daysAgo(2), kind: "weight", value: 3995 });
 console.log("Added a year of weights and visits");
+
+// Two lab reports for Miso, linked to her vet visits. The reference ranges
+// below are made up for trying the UI; they are not medical guidance.
+const analytes = (await (await fetch(new URL("/api/analytes", base))).json()) as { id: number; code: string }[];
+const misoVisits = (
+  (await (await fetch(new URL(`/api/pets/${misoId}/records`, base))).json()) as {
+    entries: { id: number; kind: string; date: string }[];
+  }
+).entries.filter((e) => e.kind === "vet");
+type Row = [code: string, value: string, unit: string | null, low: number | null, high: number | null];
+const results = (rows: Row[]) =>
+  rows.map(([code, valueText, unit, refLow, refHigh]) => ({
+    analyteId: analytes.find((a) => a.code === code)!.id,
+    valueText,
+    unit,
+    refLow,
+    refHigh,
+  }));
+const labs: { visit: { id: number; date: string }; rows: Row[]; fileIds: number[] }[] = [
+  {
+    visit: misoVisits.at(-1)!,
+    fileIds: [],
+    rows: [
+      ["CREA", "1.9", "mg/dL", 0.6, 2.4],
+      ["BUN", "31", "mg/dL", 16, 37],
+      ["SDMA", "12", "µg/dL", null, 14],
+      ["PHOS", "4.4", "mg/dL", 3.1, 7.5],
+      ["ALT", "88", "U/L", 12, 130],
+      ["TT4", "4.6", "µg/dL", 0.8, 4.7],
+      ["HCT", "36.2", "%", 30.3, 52.3],
+      ["USG", "1.035", null, 1.035, null],
+    ],
+  },
+  {
+    visit: misoVisits[0]!,
+    fileIds: [labReport],
+    rows: [
+      ["CREA", "2.1", "mg/dL", 0.6, 2.4],
+      ["BUN", "39", "mg/dL", 16, 37],
+      ["SDMA", "<0.5", "µg/dL", null, 14],
+      ["PHOS", "5.2", "mg/dL", 3.1, 7.5],
+      ["ALT", "164", "U/L", 12, 130],
+      ["TT4", "7.9", "µg/dL", 0.8, 4.7],
+      ["HCT", "33.0", "%", 30.3, 52.3],
+      ["WBC", "4.1", "K/µL", 2.87, 17.02],
+      ["USG", "1.022", null, 1.035, null],
+      ["FELV", "Negative", null, null, null],
+    ],
+  },
+];
+for (const lab of labs) {
+  await call(`/pets/${misoId}/labs`, "POST", {
+    date: lab.visit.date,
+    source: "reference_lab",
+    lab: "Sample Lab",
+    accession: `S-${lab.visit.id}0042`,
+    notes: null,
+    entryId: lab.visit.id,
+    fileIds: lab.fileIds,
+    results: results(lab.rows),
+  });
+}
+console.log("Added lab reports");

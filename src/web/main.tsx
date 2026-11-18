@@ -20,6 +20,10 @@ createRoot(document.getElementById("root")!).render(
         <Route path="/pets/:id">{({ id }) => <PetProfile id={Number(id)} />}</Route>
         <Route path="/pets/:id/weight">{({ id }) => <PetProfile id={Number(id)} tab="weight" />}</Route>
         <Route path="/pets/:id/files">{({ id }) => <PetProfile id={Number(id)} tab="files" />}</Route>
+        <Route path="/pets/:id/labs">{({ id }) => <PetProfile id={Number(id)} tab="labs" />}</Route>
+        <Route path="/pets/:id/labs/:reportId">
+          {({ id, reportId }) => <PetProfile id={Number(id)} tab="labs" reportId={Number(reportId)} />}
+        </Route>
         <Route path="/settings" component={Settings} />
         <Route>
           <Page title="Page not found">

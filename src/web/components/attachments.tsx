@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { FileText, Pencil, Upload, X } from "lucide-react";
 import { useId, useRef, useState, type FormEvent } from "react";
 import type { StoredFile } from "../../server/db/schema";
+import type { LabReportWithResults } from "../../server/routes/labs";
 import type { AttachmentWithFile, PetRecords } from "../../server/routes/records";
 import { formatDate, localToday } from "../../shared/dates";
 import { attachmentInput } from "../../shared/records";
@@ -157,11 +158,21 @@ export function FileChip({ file, onRemove }: { file: FileRef; onRemove?: () => v
 }
 
 /** Every file kept for a pet, from visits and on its own, newest first. */
-export function FilesTab({ records, onEdit }: { records: PetRecords; onEdit: (a: AttachmentWithFile) => void }) {
+export function FilesTab({
+  records,
+  labs,
+  onEdit,
+}: {
+  records: PetRecords;
+  labs: LabReportWithResults[];
+  onEdit: (a: AttachmentWithFile) => void;
+}) {
   const kindOf = new Map(records.entries.map((e) => [e.id, e]));
-  const all = [...records.attachments, ...records.entries.flatMap((e) => e.attachments)].sort((a, b) =>
-    a.date === b.date ? b.id - a.id : a.date < b.date ? 1 : -1,
-  );
+  const all = [
+    ...records.attachments,
+    ...records.entries.flatMap((e) => e.attachments),
+    ...labs.flatMap((r) => r.attachments),
+  ].sort((a, b) => (a.date === b.date ? b.id - a.id : a.date < b.date ? 1 : -1));
   if (all.length === 0) {
     return (
       <Card className="py-12 text-center text-muted-foreground">
@@ -192,10 +203,11 @@ export function FilesTab({ records, onEdit }: { records: PetRecords; onEdit: (a:
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{a.label ?? a.file.originalName}</p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {formatDate(a.date)} · {visit ? (visit.reason ?? "Visit") : "Filed"} · {formatSize(a.file.sizeBytes)}
+                  {formatDate(a.date)} · {visit ? (visit.reason ?? "Visit") : a.labReportId ? "Lab report" : "Filed"} ·{" "}
+                  {formatSize(a.file.sizeBytes)}
                 </p>
               </div>
-              {!a.entryId && (
+              {!a.entryId && !a.labReportId && (
                 <button
                   type="button"
                   onClick={() => onEdit(a)}
