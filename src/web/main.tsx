@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { Route, Switch } from "wouter";
 import { AppShell } from "./components/app-shell";
 import { Page } from "./components/page";
+import { Compare } from "./routes/compare";
 import { Dashboard } from "./routes/dashboard";
 import { LabEntry } from "./routes/lab-form";
 import { EditPet, NewPet } from "./routes/pet-form";
@@ -30,6 +31,7 @@ createRoot(document.getElementById("root")!).render(
         <Route path="/pets/:id/labs/:reportId">
           {({ id, reportId }) => <PetProfile id={Number(id)} tab="labs" reportId={Number(reportId)} />}
         </Route>
+        <Route path="/compare" component={Compare} />
         <Route path="/settings" component={Settings} />
         <Route>
           <Page title="Page not found">

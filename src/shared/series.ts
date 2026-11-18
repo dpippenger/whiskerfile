@@ -100,3 +100,58 @@ export function rangeBand(points: Pick<LabPoint, "date" | "refLow" | "refHigh">[
     };
   });
 }
+
+export type ComparePet = { petId: number; name: string; dob: string | null; results: LabResultInput[] };
+export type CompareAxis = "date" | "age";
+
+/** Why a pet is missing from a comparison. */
+export type LeftOut = {
+  petId: number;
+  name: string;
+  reason: "no-data" | "other-unit" | "no-birth-date" | "before-birth";
+};
+
+/**
+ * Several pets' results for one test on one chart. Only one unit is plotted:
+ * the unit of the most recent numeric result across all pets; a pet with no
+ * result in that unit is left out and named. Against age, a pet without a
+ * birth date is left out too. Points are [x, value] with x a UTC date or an
+ * age in years.
+ */
+export function compareSeries(pets: ComparePet[], axis: CompareAxis) {
+  const plotted: { petId: number; name: string; points: (LabPoint & { x: number })[] }[] = [];
+  const leftOut: LeftOut[] = [];
+  const leave = (pet: ComparePet, reason: LeftOut["reason"]) =>
+    leftOut.push({ petId: pet.petId, name: pet.name, reason });
+  const xOf = (pet: ComparePet, date: string) => (axis === "date" ? dateToUtc(date) : ageInYears(pet.dob!, date));
+
+  // Each pet's results that can be placed on this axis; only those choose the unit.
+  const placeable: { pet: ComparePet; results: LabResultInput[] }[] = [];
+  for (const pet of pets) {
+    const numeric = pet.results.filter((r) => r.value != null);
+    if (numeric.length === 0) leave(pet, "no-data");
+    else if (axis === "age" && !pet.dob) leave(pet, "no-birth-date");
+    else {
+      // Against age, results dated before the birth date can't be placed.
+      const results = numeric.filter((r) => xOf(pet, r.date) != null);
+      if (results.length === 0) leave(pet, "before-birth");
+      else placeable.push({ pet, results });
+    }
+  }
+  const latest = placeable
+    .flatMap((p) => p.results)
+    .sort((a, b) => (a.date === b.date ? a.order - b.order : a.date < b.date ? -1 : 1))
+    .at(-1);
+  const unit = latest?.unit ?? null;
+
+  for (const { pet, results } of placeable) {
+    const points = labSeries(results.filter((r) => (r.unit ?? "") === (unit ?? ""))).points.map((p) => ({
+      ...p,
+      x: xOf(pet, p.date)!,
+    }));
+    if (points.length === 0) leave(pet, "other-unit");
+    else plotted.push({ petId: pet.petId, name: pet.name, points });
+  }
+  leftOut.sort((a, b) => a.name.localeCompare(b.name));
+  return { unit, plotted, leftOut };
+}

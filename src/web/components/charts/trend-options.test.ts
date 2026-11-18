@@ -2,7 +2,14 @@ import { expect, test } from "bun:test";
 import { formatDate } from "../../../shared/dates";
 import { parseLabValue } from "../../../shared/labs";
 import { dateToUtc, labSeries } from "../../../shared/series";
-import { CHART_THEME, escapeHtml, labTrendOption, timePadding, weightTrendOption } from "./trend-options";
+import {
+  CHART_THEME,
+  compareOption,
+  escapeHtml,
+  labTrendOption,
+  timePadding,
+  weightTrendOption,
+} from "./trend-options";
 
 type Item = {
   value: [number, number];
@@ -113,4 +120,35 @@ test("a chart whose points share one day still spans weeks", () => {
   expect(timePadding([])).toEqual({});
   const single = weightTrendOption([{ date: "2026-06-01", value: 9 }], { color: "#fff", unit: "lb", format: String });
   expect(single.xAxis).toMatchObject({ min: day - 30 * 86_400_000, max: day + 30 * 86_400_000 });
+});
+
+test("comparisons draw a line per pet in its colour, with names escaped", () => {
+  const pets = [
+    {
+      name: "Miso <3",
+      color: "#a855f7",
+      points: [{ x: 10.5, value: 2.6, label: "2.6", date: "2026-11-06", limit: false }],
+    },
+    {
+      name: "Reggie",
+      color: "#60a5fa",
+      points: [{ x: 5.4, value: 0.5, label: "<0.5", date: "2026-09-01", limit: true }],
+    },
+  ];
+  const byAge = compareOption(pets, { axis: "age", unit: "mg/dL" });
+  expect(byAge.xAxis).toMatchObject({ type: "value", name: "Age (years)" });
+  const lines = byAge.series as unknown as {
+    name: string;
+    lineStyle: { color: string };
+    data: { tooltip: { formatter: () => string } }[];
+  }[];
+  expect(lines.map((l) => [l.name, l.lineStyle.color])).toEqual([
+    ["Miso <3", "#a855f7"],
+    ["Reggie", "#60a5fa"],
+  ]);
+  expect(lines[0]!.data[0]!.tooltip.formatter()).toContain("Miso &lt;3");
+  expect(lines[0]!.data[0]!.tooltip.formatter()).toContain("<b>2.6</b> mg/dL");
+  expect(lines.map((l) => (l.data[0] as unknown as { symbol: string }).symbol)).toEqual(["circle", "emptyCircle"]);
+  expect(lines[1]!.data[0]!.tooltip.formatter()).toContain("<b>&lt;0.5</b>");
+  expect(compareOption(pets, { axis: "date", unit: null }).xAxis).toMatchObject({ type: "time" });
 });

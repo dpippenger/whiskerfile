@@ -3,6 +3,8 @@ import type { Analyte, ChipRegistry, Measurement, Pet, User } from "../../server
 import type { LabReportWithResults } from "../../server/routes/labs";
 import type { PetSummary } from "../../server/routes/pets";
 import type { PetRecords } from "../../server/routes/records";
+import type { MetricOption } from "../../server/routes/series";
+import type { ComparePet } from "../../shared/series";
 import { api } from "./api";
 
 export const usePets = () => useQuery({ queryKey: ["pets"], queryFn: () => api<PetSummary[]>("/pets") });
@@ -31,3 +33,15 @@ export const useLabs = (petId: number) =>
   useQuery({ queryKey: ["pets", petId, "labs"], queryFn: () => api<LabReportWithResults[]>(`/pets/${petId}/labs`) });
 
 export const useAnalytes = () => useQuery({ queryKey: ["analytes"], queryFn: () => api<Analyte[]>("/analytes") });
+
+/** What pets can be compared on. */
+export const useMetrics = () =>
+  useQuery({ queryKey: ["series", "metrics"], queryFn: () => api<MetricOption[]>("/series/metrics") });
+
+/** Every pet's weights (grams) or results for one test. */
+export const useSeries = (metric: string | null) =>
+  useQuery({
+    queryKey: ["series", metric],
+    queryFn: () => api<ComparePet[]>(`/series?metric=${encodeURIComponent(metric!)}`),
+    enabled: metric != null,
+  });
