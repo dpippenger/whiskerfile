@@ -62,30 +62,38 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-/** Picks a photo by button or drag and drop, shrinks it in the browser and uploads it. */
+async function uploadPhoto(file: File) {
+  const form = new FormData();
+  form.append("file", await downsizeImage(file, 1024));
+  return api<StoredFile>("/files", { method: "POST", body: form });
+}
+
+/**
+ * Picks a photo by button or drag and drop. The upload itself belongs to the
+ * form, which must not save while one is in flight.
+ */
 function PhotoPicker({
   name,
   species,
   fileId,
-  onChange,
+  uploading,
+  error,
+  onPick,
+  onRemove,
 }: {
   name: string;
   species: Pet["species"];
   fileId: number | null;
-  onChange: (id: number | null) => void;
+  uploading: boolean;
+  error: Error | null;
+  onPick: (file: File) => void;
+  onRemove: () => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
-  const upload = useMutation({
-    mutationFn: async (file: File) => {
-      const form = new FormData();
-      form.append("file", await downsizeImage(file, 1024));
-      return api<StoredFile>("/files", { method: "POST", body: form });
-    },
-    onSuccess: (file) => onChange(file.id),
-  });
 
-  const pick = (file: File | undefined) => file && upload.mutate(file);
+  // One upload at a time, so a slower earlier upload can never win.
+  const pick = (file: File | undefined) => file && !uploading && onPick(file);
 
   return (
     <div
@@ -107,18 +115,18 @@ function PhotoPicker({
       <PetPhoto pet={{ name: name || "New pet", species, photoFileId: fileId }} className="size-32" />
       <div className="flex flex-col items-center gap-2 sm:items-start">
         <div className="flex flex-wrap justify-center gap-2">
-          <Button onClick={() => input.current?.click()} disabled={upload.isPending}>
+          <Button onClick={() => input.current?.click()} disabled={uploading}>
             <ImagePlus className="size-4" aria-hidden />
-            {upload.isPending ? "Uploading…" : fileId ? "Change photo" : "Add photo"}
+            {uploading ? "Uploading…" : fileId ? "Change photo" : "Add photo"}
           </Button>
           {fileId && (
-            <Button variant="ghost" onClick={() => onChange(null)} disabled={upload.isPending}>
+            <Button variant="ghost" onClick={onRemove} disabled={uploading}>
               Remove
             </Button>
           )}
         </div>
         <p className="hidden text-xs text-muted-foreground md:block">Or drop an image here.</p>
-        {upload.error && <p className="text-xs text-danger">{upload.error.message}</p>}
+        {error && <p className="text-xs text-danger">{error.message}</p>}
       </div>
       <input
         ref={input}
@@ -201,6 +209,7 @@ function PetForm({ pet }: { pet?: Pet }) {
   const today = localToday();
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((f) => ({ ...f, [key]: value }));
+  const upload = useMutation({ mutationFn: uploadPhoto, onSuccess: (file) => set("photoFileId", file.id) });
   const fid = (name: string) => `${id}-${name}`;
 
   const save = useMutation({
@@ -216,6 +225,7 @@ function PetForm({ pet }: { pet?: Pet }) {
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
+    if (upload.isPending) return;
     const body = {
       ...form,
       chartColor: form.chartColor || undefined,
@@ -245,7 +255,10 @@ function PetForm({ pet }: { pet?: Pet }) {
             name={form.name}
             species={form.species}
             fileId={form.photoFileId}
-            onChange={(photoFileId) => set("photoFileId", photoFileId)}
+            uploading={upload.isPending}
+            error={upload.error}
+            onPick={(file) => upload.mutate(file)}
+            onRemove={() => set("photoFileId", null)}
           />
           {errors.photoFileId && <p className="mt-2 text-xs text-danger">{errors.photoFileId}</p>}
         </Card>
@@ -381,8 +394,8 @@ function PetForm({ pet }: { pet?: Pet }) {
           >
             Cancel
           </Link>
-          <Button type="submit" variant="primary" disabled={save.isPending}>
-            {save.isPending ? "Saving…" : pet ? "Save changes" : "Add pet"}
+          <Button type="submit" variant="primary" disabled={save.isPending || upload.isPending}>
+            {save.isPending ? "Saving…" : upload.isPending ? "Uploading photo…" : pet ? "Save changes" : "Add pet"}
           </Button>
         </div>
       </div>

@@ -73,3 +73,14 @@ test("empty, missing and oversized uploads are refused", async () => {
   const big = await upload(new Uint8Array(MAX_UPLOAD_BYTES + 1), "big.bin");
   expect(big.status).toBe(413);
 });
+
+test("uploading the same bytes again restores a stored copy that went missing", async () => {
+  const { server, call, upload, dataDir } = await setup();
+  using _ = server;
+  const first = (await (await upload(PNG, "a.png")).json()) as { id: number; sha256: string };
+  await Bun.write(join(dataDir, "uploads", first.sha256), "trunc");
+
+  const again = (await (await upload(PNG, "a.png")).json()) as { id: number };
+  expect(again.id).toBe(first.id);
+  expect(new Uint8Array(await (await call(`/api/files/${first.id}`)).arrayBuffer())).toEqual(PNG);
+});

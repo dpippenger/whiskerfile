@@ -43,9 +43,8 @@ export async function storeUpload(db: Db, dataDir: string, upload: File, userId:
   const bytes = new Uint8Array(await upload.arrayBuffer());
   const sha256 = new Bun.CryptoHasher("sha256").update(bytes).digest("hex");
 
-  const existing = db.select().from(files).where(eq(files.sha256, sha256)).get();
-  if (existing) return existing;
-
+  // Write the bytes whenever the stored copy is missing or short, even if the
+  // row exists: uploading the same file again then repairs a lost copy.
   const target = uploadPath(dataDir, sha256);
   const onDisk = await stat(target).catch(() => null);
   if (onDisk?.size !== bytes.length) {
@@ -55,6 +54,8 @@ export async function storeUpload(db: Db, dataDir: string, upload: File, userId:
     await rename(partial, target);
   }
 
+  const existing = db.select().from(files).where(eq(files.sha256, sha256)).get();
+  if (existing) return existing;
   return db
     .insert(files)
     .values({

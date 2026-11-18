@@ -45,13 +45,19 @@ export async function startApi() {
 
   const signedIn = await token({ email: "a@example.com" });
 
-  /** Calls the API as a@example.com. A plain-object body is sent as JSON. */
-  const call = (path: string, init: { method?: string; body?: unknown; jwt?: string | null } = {}) => {
+  /**
+   * Calls the API as a@example.com. A FormData body is sent as is, `raw` is
+   * sent unchanged as JSON, and any other body is serialised to JSON.
+   */
+  const call = (path: string, init: { method?: string; body?: unknown; raw?: string; jwt?: string | null } = {}) => {
     const headers: Record<string, string> = {};
     const jwt = init.jwt === undefined ? signedIn : init.jwt;
     if (jwt) headers["Cf-Access-Jwt-Assertion"] = jwt;
     let body: BodyInit | undefined;
-    if (init.body instanceof FormData) body = init.body;
+    if (init.raw !== undefined) {
+      headers["Content-Type"] = "application/json";
+      body = init.raw;
+    } else if (init.body instanceof FormData) body = init.body;
     else if (init.body !== undefined) {
       headers["Content-Type"] = "application/json";
       body = JSON.stringify(init.body);

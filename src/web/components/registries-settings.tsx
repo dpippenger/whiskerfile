@@ -118,7 +118,7 @@ export function RegistriesSettings() {
                       rel="noreferrer"
                       className="inline-flex items-center gap-1 hover:text-foreground"
                     >
-                      {new URL(registry.website).host}
+                      {URL.canParse(registry.website) ? new URL(registry.website).host : registry.website}
                       <ExternalLink className="size-3" aria-hidden />
                     </a>
                   )}

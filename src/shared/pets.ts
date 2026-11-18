@@ -80,13 +80,20 @@ export const petInput = z
 
 export type PetInput = z.input<typeof petInput>;
 
+/** An http(s) address the browser's URL parser accepts. */
+export function isWebAddress(value: string): boolean {
+  if (!URL.canParse(value)) return false;
+  const url = new URL(value);
+  return (url.protocol === "https:" || url.protocol === "http:") && url.hostname !== "";
+}
+
 export const chipRegistryInput = z.object({
   name: z.string().trim().min(1, "Name is required").max(80),
   website: z
     .string()
     .trim()
     .max(200)
-    .refine((s) => s === "" || /^https?:\/\/\S+$/.test(s), "Use a full https:// address")
+    .refine((s) => s === "" || isWebAddress(s), "Use a full https:// address")
     .transform((s) => s || null)
     .nullable(),
   phone: optionalText(40),

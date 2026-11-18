@@ -71,13 +71,13 @@ test("invalid pets get a 400 naming each bad field", async () => {
     dob: "Use a valid date",
   });
 
-  const notJson = await fetch(new URL("/api/pets", server.url), {
-    method: "POST",
-    headers: { "Cf-Access-Jwt-Assertion": "x" },
-  });
-  expect(notJson.status).toBe(401);
-  const bad = await call("/api/pets", { method: "POST", body: "not an object" });
-  expect(bad.status).toBe(400);
+  const notJson = await call("/api/pets", { method: "POST", raw: "{not json" });
+  expect(notJson.status).toBe(400);
+  expect(await notJson.json()).toEqual({ error: "Request body must be JSON" });
+  const empty = await call("/api/pets/1", { method: "PUT", raw: "" });
+  expect(empty.status).toBe(400);
+  const notAnObject = await call("/api/pets", { method: "POST", body: "a string" });
+  expect(notAnObject.status).toBe(400);
 });
 
 test("a pet may only refer to an existing registry and an image file", async () => {

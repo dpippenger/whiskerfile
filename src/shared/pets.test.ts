@@ -49,3 +49,12 @@ test("registry websites must be full addresses", () => {
   expect(chipRegistryInput.safeParse({ name: "X", website: "example.com", phone: "" }).success).toBe(false);
   expect(chipRegistryInput.parse({ name: "X", website: "", phone: "" })).toEqual({ name: "X", website: null, phone: null });
 });
+
+test("registry websites must be addresses the browser can open", () => {
+  const ok = (website: string) => chipRegistryInput.safeParse({ name: "X", website, phone: "" }).success;
+  expect(ok("https://www.akcreunite.org")).toBe(true);
+  expect(ok("http://localhost:8080/path")).toBe(true);
+  for (const bad of ["https://?", "https://example.com:abc", "https://[x]", "http://%", "javascript:alert(1)", "ftp://x.org"]) {
+    expect(ok(bad)).toBe(false);
+  }
+});
