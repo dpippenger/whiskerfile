@@ -9,6 +9,7 @@ import { labRoutes } from "./routes/labs";
 import { petRoutes } from "./routes/pets";
 import { recordRoutes } from "./routes/records";
 import { registryRoutes } from "./routes/registries";
+import { seriesRoutes } from "./routes/series";
 
 /** API routes. Every handler here runs only for an authenticated user. */
 export function apiRoutes(ctx: AppContext, authenticate: Authenticate) {
@@ -28,6 +29,7 @@ export function apiRoutes(ctx: AppContext, authenticate: Authenticate) {
     ...petRoutes(ctx, authed),
     ...recordRoutes(ctx, authed),
     ...labRoutes(ctx, authed),
+    ...seriesRoutes(ctx, authed),
     ...registryRoutes(ctx, authed),
     "/api/*": authed(() => error(404, "Not found")),
   };
