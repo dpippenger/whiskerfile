@@ -145,3 +145,50 @@ export const labReportInput = z
   });
 
 export type LabReportInput = z.input<typeof labReportInput>;
+
+type ResultLike = {
+  analyteId: number;
+  valueText: string;
+  value: number | null;
+  comparator: Comparator | null;
+  unit: string | null;
+};
+type ReportLike<R extends ResultLike> = { id: number; date: string; results: R[] };
+
+export type Previous<R extends ResultLike> = {
+  date: string;
+  result: R;
+  /** Current minus previous, only when both are plain numbers in the same unit. */
+  change: number | null;
+};
+
+/**
+ * For each result in `report`, the same test's result on the most recent
+ * earlier report (by date, then by entry order), with the change when the two
+ * can be compared.
+ */
+export function previousResults<R extends ResultLike>(
+  reports: ReportLike<R>[],
+  report: ReportLike<R>,
+): Map<number, Previous<R>> {
+  const earlier = reports
+    .filter((r) => r.date < report.date || (r.date === report.date && r.id < report.id))
+    .sort((a, b) => (a.date === b.date ? b.id - a.id : a.date < b.date ? 1 : -1));
+  const found = new Map<number, Previous<R>>();
+  for (const current of report.results) {
+    for (const r of earlier) {
+      const result = r.results.find((x) => x.analyteId === current.analyteId);
+      if (!result) continue;
+      const comparable =
+        current.value != null &&
+        result.value != null &&
+        !current.comparator &&
+        !result.comparator &&
+        (current.unit ?? "") === (result.unit ?? "");
+      const change = comparable ? Math.round((current.value! - result.value!) * 1e6) / 1e6 : null;
+      found.set(current.analyteId, { date: r.date, result, change });
+      break;
+    }
+  }
+  return found;
+}

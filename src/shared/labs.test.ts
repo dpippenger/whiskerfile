@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { flagResult, formatRange, labReportInput, parseLabValue, rangePosition } from "./labs";
+import { flagResult, formatRange, labReportInput, parseLabValue, previousResults, rangePosition } from "./labs";
 
 test("results are read as printed", () => {
   expect(parseLabValue("1.20")).toEqual({ value: 1.2, comparator: null });
@@ -81,4 +81,29 @@ test("a report needs results, valid ranges and no analyte twice", () => {
   expect(paths(report([result({ valueText: " " })]))).toEqual(["results.0.valueText"]);
   expect(paths(report([result({ refLow: 3 })]))).toEqual(["results.0.refHigh"]);
   expect(paths(report([result(), result({ analyteId: 2 }), result()]))).toEqual(["results.2.analyteId"]);
+});
+
+test("each result is compared with the same test's last earlier result, when comparable", () => {
+  const result = (analyteId: number, valueText: string, unit = "mg/dL") => ({
+    analyteId,
+    valueText,
+    ...parseLabValue(valueText),
+    unit,
+  });
+  const reports = [
+    { id: 1, date: "2026-01-10", results: [result(1, "1.8"), result(2, "20"), result(3, "<0.5")] },
+    { id: 2, date: "2026-05-02", results: [result(1, "2.1"), result(2, "1.7", "mmol/L")] },
+    { id: 3, date: "2026-05-02", results: [result(3, "0.9")] },
+    { id: 4, date: "2026-11-06", results: [result(1, "2.6"), result(2, "25"), result(3, "1.2"), result(4, "5")] },
+  ];
+  const prev = previousResults(reports, reports[3]!);
+  expect(prev.get(1)).toMatchObject({ date: "2026-05-02", change: 0.5 });
+  // Different units: shown, but no change.
+  expect(prev.get(2)).toMatchObject({ date: "2026-05-02", change: null });
+  // Same date, earlier entry wins over older dates.
+  expect(prev.get(3)).toMatchObject({ date: "2026-05-02", change: 0.3 });
+  expect(prev.has(4)).toBe(false);
+  // A "<" value is never subtracted.
+  expect(previousResults(reports, reports[2]!).get(3)).toMatchObject({ date: "2026-01-10", change: null });
+  expect(previousResults(reports, reports[0]!).size).toBe(0);
 });
