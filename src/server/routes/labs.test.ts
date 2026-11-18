@@ -241,7 +241,6 @@ test("the pet list carries the results outside their range on each pet's latest 
     refLow: 0.6,
     refHigh: 2.4,
   });
-  await call(`/api/pets/${petId}/labs`, { method: "POST", body: report([crea("3.1")], { date: "2026-05-01" }) });
   // Two reports on the same day: the one added last is the latest.
   await call(`/api/pets/${petId}/labs`, { method: "POST", body: report([crea("2.9")], { date: "2026-11-06" }) });
   const latest = await json<{ id: number }>(
@@ -256,6 +255,8 @@ test("the pet list carries the results outside their range on each pet's latest 
       ]),
     }),
   );
+  // An older report entered afterwards, as when filling in past results, is not the latest.
+  await call(`/api/pets/${petId}/labs`, { method: "POST", body: report([crea("3.1")], { date: "2026-05-01" }) });
   await call("/api/pets", { method: "POST", body: { ...PET, name: "Tofu" } });
 
   const [miso, tofu] = await json<PetSummary[]>(call("/api/pets"));

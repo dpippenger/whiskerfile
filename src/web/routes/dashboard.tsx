@@ -2,7 +2,6 @@ import { PawPrint, Plus } from "lucide-react";
 import { Link } from "wouter";
 import type { PetSummary } from "../../server/routes/pets";
 import { formatAge, formatDate, localToday } from "../../shared/dates";
-import { vaccineStatus } from "../../shared/health";
 import { reproductiveLabel, SPECIES_LABEL } from "../../shared/pets";
 import { fromGrams, type Units } from "../../shared/records";
 import { Page } from "../components/page";
@@ -10,6 +9,7 @@ import { PetPhoto } from "../components/pet-photo";
 import { Sparkline } from "../components/sparkline";
 import { Badge } from "../components/ui/badge";
 import { Card } from "../components/ui/card";
+import { petAlerts } from "../lib/alerts";
 import { usePets } from "../lib/queries";
 import { useUnits } from "../lib/units";
 
@@ -44,12 +44,8 @@ function WeightLine({ pet, units }: { pet: PetSummary; units: Units }) {
 
 /** Vaccines overdue or due soon, then the results outside their range on the latest lab report. */
 function Alerts({ pet, today }: { pet: PetSummary; today: string }) {
-  if (pet.deceasedOn) return null;
-  const due = vaccineStatus(pet.vaccinations, today)
-    .filter((v) => v.status)
-    .sort((a, b) => Number(b.status === "overdue") - Number(a.status === "overdue"));
-  const lab = pet.latestLab;
-  if (due.length === 0 && !lab?.flagged.length) return null;
+  const { due, lab } = petAlerts(pet, today);
+  if (due.length === 0 && !lab) return null;
   return (
     <div className="space-y-2 border-t border-border pt-3">
       {due.length > 0 && (
@@ -63,7 +59,7 @@ function Alerts({ pet, today }: { pet: PetSummary; today: string }) {
           ))}
         </ul>
       )}
-      {lab && lab.flagged.length > 0 && (
+      {lab && (
         <div>
           <p className="mb-1 text-xs text-muted-foreground">Out of range on the labs of {formatDate(lab.date)}</p>
           <ul className="flex flex-wrap gap-1.5">

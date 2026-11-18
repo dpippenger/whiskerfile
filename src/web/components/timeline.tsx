@@ -8,12 +8,13 @@ import type {
   MeasurementWithAuthor,
   PetRecords,
 } from "../../server/routes/records";
-import { formatDate } from "../../shared/dates";
+import { formatDate, localToday } from "../../shared/dates";
 import { CONDITION_KIND_LABEL } from "../../shared/health";
 import { ENTRY_KIND_LABEL, formatVital, VITAL_LABEL, VITALS, type Units } from "../../shared/records";
 import { FileChip, fileRef } from "./attachments";
 import type { HealthEditing } from "./health-tab";
 import { LabReportRow } from "./labs";
+import { medicationDates, timelineItems, type TimelineItem } from "../lib/timeline-items";
 import { Badge } from "./ui/badge";
 import { Card } from "./ui/card";
 
@@ -22,66 +23,6 @@ export type Editing =
   | { type: "weight"; measurement: MeasurementWithAuthor }
   | { type: "file"; attachment: AttachmentWithFile }
   | HealthEditing;
-
-type Dated = { date: string; createdAt: number };
-type Item = Dated &
-  (
-    | { type: "entry"; entry: EntryWithVitals }
-    | { type: "measurement"; measurement: MeasurementWithAuthor }
-    | { type: "file"; attachment: AttachmentWithFile }
-    | { type: "lab"; report: LabReportWithResults }
-    | { type: "vaccination"; record: PetHealth["vaccinations"][number] }
-    | { type: "medication"; record: PetHealth["medications"][number] }
-    | { type: "condition"; record: PetHealth["conditions"][number] }
-  );
-
-/**
- * Visits, standalone readings and files, lab reports, vaccine doses, the start
- * of each medication and each condition in one list, newest day first, newest
- * entry first within a day.
- */
-export function timelineItems(records: PetRecords, labs: LabReportWithResults[], health: PetHealth): Item[] {
-  const items: Item[] = [
-    ...records.entries.map((entry) => ({
-      type: "entry" as const,
-      date: entry.date,
-      createdAt: entry.createdAt,
-      entry,
-    })),
-    ...records.measurements.map((measurement) => ({
-      type: "measurement" as const,
-      date: measurement.date,
-      createdAt: measurement.createdAt,
-      measurement,
-    })),
-    ...records.attachments.map((attachment) => ({
-      type: "file" as const,
-      date: attachment.date,
-      createdAt: attachment.createdAt,
-      attachment,
-    })),
-    ...labs.map((report) => ({ type: "lab" as const, date: report.date, createdAt: report.createdAt, report })),
-    ...health.vaccinations.map((record) => ({
-      type: "vaccination" as const,
-      date: record.dateGiven,
-      createdAt: record.createdAt,
-      record,
-    })),
-    ...health.medications.map((record) => ({
-      type: "medication" as const,
-      date: record.startDate,
-      createdAt: record.createdAt,
-      record,
-    })),
-    ...health.conditions.map((record) => ({
-      type: "condition" as const,
-      date: record.date,
-      createdAt: record.createdAt,
-      record,
-    })),
-  ];
-  return items.sort((a, b) => (a.date === b.date ? b.createdAt - a.createdAt : a.date < b.date ? 1 : -1));
-}
 
 function EditButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
@@ -217,7 +158,7 @@ function HealthRow({
   );
 }
 
-function itemRow(item: Item, units: Units, onEdit: (editing: Editing) => void): [string, ReactNode] {
+function itemRow(item: TimelineItem, units: Units, onEdit: (editing: Editing) => void): [string, ReactNode] {
   switch (item.type) {
     case "entry":
       return [
@@ -266,7 +207,7 @@ function itemRow(item: Item, units: Units, onEdit: (editing: Editing) => void): 
               {m.dose && <span className="text-foreground-secondary">{m.dose}</span>}
             </>
           }
-          detail={`Started ${formatDate(m.startDate)}${m.endDate ? `, stopped ${formatDate(m.endDate)}` : ""}`}
+          detail={medicationDates(m, localToday())}
           author={m.author}
           label={`Edit ${m.drug}`}
           onEdit={() => onEdit({ type: "medication", record: m })}
