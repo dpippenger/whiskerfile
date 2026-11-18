@@ -3,7 +3,9 @@ import type { PetRecords } from "../../server/routes/records";
 import { formatDate } from "../../shared/dates";
 import { ENTRY_KIND_LABEL, fromGrams, type Units } from "../../shared/records";
 import { cn } from "../lib/utils";
-import { Sparkline } from "./sparkline";
+import { useMemo } from "react";
+import { EChart } from "./charts/echart";
+import { weightTrendOption } from "./charts/trend-options";
 import { Card } from "./ui/card";
 
 /** Signed change in display units, e.g. "+0.12" or "−0.30"; null for the first weight. */
@@ -26,6 +28,15 @@ export function WeightTab({
   units: Units;
   color: string;
 }) {
+  // Built once per data change, so re-renders don't reset the chart's zoom.
+  const chart = useMemo(
+    () =>
+      weightTrendOption(
+        weights.map((w) => ({ date: w.date, value: fromGrams(w.value, units.weight) })),
+        { color, unit: units.weight, format: (v) => v.toFixed(2) },
+      ),
+    [weights, units.weight, color],
+  );
   if (weights.length === 0) {
     return <Card className="py-12 text-center text-muted-foreground">No weights recorded yet.</Card>;
   }
@@ -50,13 +61,7 @@ export function WeightTab({
             {Math.min(...values).toFixed(2)}–{Math.max(...values).toFixed(2)} {units.weight}
           </p>
         </div>
-        {weights.length > 1 && <Sparkline values={values} color={color} dots className="h-28 w-full md:h-36" />}
-        {weights.length > 1 && (
-          <div className="flex justify-between text-xs text-muted-foreground tabular-nums">
-            <span>{formatDate(weights[0]!.date)}</span>
-            <span>{formatDate(latest.date)}</span>
-          </div>
-        )}
+        {weights.length > 1 && <EChart option={chart} label="Weight over time" className="h-56 w-full md:h-72" />}
       </Card>
 
       <Card className="p-0 md:p-0">
