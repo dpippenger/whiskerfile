@@ -1,6 +1,6 @@
-import { ExternalLink, FileText, House, Pencil, Plus, Scale, Stethoscope } from "lucide-react";
+import { ExternalLink, FileText, FlaskConical, House, Pencil, Plus, Scale, Stethoscope } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import type { Pet } from "../../server/db/schema";
 import { formatAge, formatDate, localToday } from "../../shared/dates";
 import { CHIP_LOOKUP_URL, reproductiveLabel, SPECIES_LABEL } from "../../shared/pets";
@@ -91,6 +91,13 @@ const CHOICES = [
   },
   { mode: "entry", kind: "home", label: "Home exam", hint: "Your own check at home", icon: House },
   { mode: "weight", kind: "vet", label: "Weight", hint: "A quick weigh-in", icon: Scale },
+  {
+    mode: "labs",
+    kind: "vet",
+    label: "Lab results",
+    hint: "Blood work or urinalysis from a report",
+    icon: FlaskConical,
+  },
   { mode: "file", kind: "vet", label: "File", hint: "A document on its own, such as adoption papers", icon: FileText },
 ] as const;
 
@@ -119,6 +126,7 @@ function Records({
   const weights = useWeights(petId);
   const units = useUnits();
   const [dialog, setDialog] = useState<DialogState>(null);
+  const [, navigate] = useLocation();
   const close = () => setDialog(null);
 
   const edit = (editing: Editing) =>
@@ -197,7 +205,11 @@ function Records({
               <button
                 key={label}
                 type="button"
-                onClick={() => setDialog(mode === "entry" ? { mode, kind } : { mode })}
+                onClick={() =>
+                  mode === "labs"
+                    ? navigate(`/pets/${petId}/labs/new`)
+                    : setDialog(mode === "entry" ? { mode, kind } : { mode })
+                }
                 className="flex min-h-16 items-center gap-4 rounded-xl border border-border bg-card px-4 text-left transition hover:border-border-strong hover:bg-card-hover"
               >
                 <Icon className="size-5 shrink-0 text-primary" aria-hidden />

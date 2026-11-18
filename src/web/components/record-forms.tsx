@@ -41,7 +41,7 @@ function useRecordsChanged(petId: number) {
 }
 
 /** Delete with a second, explicit confirmation click. */
-function DeleteButton({ onConfirm, pending }: { onConfirm: () => void; pending: boolean }) {
+export function DeleteButton({ onConfirm, pending }: { onConfirm: () => void; pending: boolean }) {
   const [armed, setArmed] = useState(false);
   return (
     <Button
