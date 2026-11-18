@@ -8,6 +8,7 @@ import { Page } from "../components/page";
 import { PetPhoto } from "../components/pet-photo";
 import { FileForm, FilesTab } from "../components/attachments";
 import { LabReportView, LabsTab } from "../components/labs";
+import { TrendsTab } from "../components/trends-tab";
 import { EntryForm, WeightForm } from "../components/record-forms";
 import { Timeline, type Editing } from "../components/timeline";
 import { Badge } from "../components/ui/badge";
@@ -65,12 +66,13 @@ function Microchip({ pet }: { pet: Pet }) {
   );
 }
 
-export type ProfileTab = "timeline" | "weight" | "labs" | "files";
+export type ProfileTab = "timeline" | "weight" | "labs" | "trends" | "files";
 
 const TABS: { tab: ProfileTab; label: string; path: string }[] = [
   { tab: "timeline", label: "Timeline", path: "" },
   { tab: "weight", label: "Weight", path: "/weight" },
   { tab: "labs", label: "Labs", path: "/labs" },
+  { tab: "trends", label: "Trends", path: "/trends" },
   { tab: "files", label: "Files", path: "/files" },
 ];
 
@@ -143,15 +145,15 @@ function Records({
   return (
     <div className="space-y-4">
       {/* Phones: the button gets its own full-width row above tabs that share the width. */}
-      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <nav aria-label="Records" className="flex gap-1 rounded-lg bg-background-secondary p-1">
+      <div className="flex flex-col-reverse gap-3 @2xl/main:flex-row @2xl/main:items-center @2xl/main:justify-between">
+        <nav aria-label="Records" className="flex gap-1 overflow-x-auto rounded-lg bg-background-secondary p-1">
           {TABS.map(({ tab: t, label, path }) => (
             <Link
               key={t}
               href={`/pets/${petId}${path}`}
               aria-current={t === tab ? "page" : undefined}
               className={cn(
-                "inline-flex min-h-11 flex-1 items-center justify-center rounded-md px-2 text-sm font-medium text-muted-foreground sm:flex-none sm:px-4 md:min-h-9",
+                "inline-flex min-h-11 shrink-0 grow items-center justify-center rounded-md px-3 text-sm font-medium text-muted-foreground @2xl/main:grow-0 @2xl/main:px-4 md:min-h-9",
                 t === tab && "bg-elevated text-foreground shadow-sm",
               )}
             >
@@ -171,6 +173,9 @@ function Records({
         <WeightTab weights={weights.data} records={records.data} units={units} color={color} />
       )}
       {labs.data && tab === "labs" && !reportId && <LabsTab petId={petId} reports={labs.data} />}
+      {labs.data && weights.data && tab === "trends" && (
+        <TrendsTab reports={labs.data} weights={weights.data} units={units} color={color} />
+      )}
       {labs.data &&
         records.data &&
         tab === "labs" &&
