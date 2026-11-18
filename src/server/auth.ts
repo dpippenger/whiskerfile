@@ -3,9 +3,7 @@ import { jwtVerify, type JWTVerifyGetKey } from "jose";
 import type { Db } from "./db";
 import { users, type User } from "./db/schema";
 
-export type AuthOptions =
-  | { mode: "dev" }
-  | { mode: "access"; keys: JWTVerifyGetKey; issuer: string; audience: string };
+export type AuthOptions = { mode: "dev" } | { mode: "access"; keys: JWTVerifyGetKey; issuer: string; audience: string };
 
 const DEV_EMAIL = "dev@localhost";
 

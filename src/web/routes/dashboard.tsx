@@ -104,7 +104,8 @@ export function Dashboard() {
           </Link>
         </Card>
       )}
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2 2xl:grid-cols-3">
+      {/* Columns follow the content width, not the viewport, so the sidebar can't squeeze them. */}
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 @2xl/main:grid-cols-2 @6xl/main:grid-cols-3">
         {sorted.map((pet) => (
           <PetCard key={pet.id} pet={pet} today={today} units={units} />
         ))}

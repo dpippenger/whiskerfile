@@ -63,7 +63,11 @@ export function Select({ className, invalid = false, ...props }: SelectHTMLAttri
   );
 }
 
-export function Textarea({ className, invalid = false, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement> & Invalid) {
+export function Textarea({
+  className,
+  invalid = false,
+  ...props
+}: TextareaHTMLAttributes<HTMLTextAreaElement> & Invalid) {
   return (
     <textarea
       aria-invalid={invalid || undefined}

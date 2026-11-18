@@ -11,8 +11,7 @@ async function setup() {
 }
 
 test("requests without a valid Access token are rejected", async () => {
-  const { server, token, get, otherKey, db } = await setup();
-  using _ = server;
+  const { token, get, call, otherKey, db } = await setup();
   const rejected = [
     undefined,
     "not-a-jwt",
@@ -33,18 +32,19 @@ test("requests without a valid Access token are rejected", async () => {
       "/api/chip-registries",
       "/api/pets/1/records",
       "/api/pets/1/measurements?kind=weight",
+      "/api/analytes",
+      "/api/pets/1/labs",
       "/api/unknown",
     ]) {
       expect((await get(path, jwt)).status).toBe(401);
     }
   }
-  expect((await fetch(new URL("/api/backups", server.url), { method: "POST" })).status).toBe(401);
+  expect((await call("/api/backups", { method: "POST", jwt: null })).status).toBe(401);
   expect(db.select().from(users).all()).toEqual([]);
 });
 
 test("a valid token signs in and creates the user once", async () => {
-  const { server, token, get, db } = await setup();
-  using _ = server;
+  const { token, get, db } = await setup();
   const jwt = await token({ email: "Riley@Example.com" });
   const first = await get("/api/me", jwt);
   expect(first.status).toBe(200);
@@ -60,27 +60,28 @@ test("dev mode signs in a fixed local user without a token", async () => {
 });
 
 test("the backup list keeps every downloadable snapshot beyond recent history", async () => {
-  const { server, token, db } = await setup();
-  using _ = server;
+  const { call, db } = await setup();
   db.insert(backupRuns).values({ startedAt: 1, status: "ok", file: "old-kept.sqlite" }).run();
   db.insert(backupRuns).values({ startedAt: 2, status: "ok" }).run();
-  for (let i = 0; i < 25; i++) db.insert(backupRuns).values({ startedAt: 10 + i, status: "failed" }).run();
+  for (let i = 0; i < 25; i++)
+    db.insert(backupRuns)
+      .values({ startedAt: 10 + i, status: "failed" })
+      .run();
 
-  const res = await fetch(new URL("/api/backups", server.url), {
-    headers: { "Cf-Access-Jwt-Assertion": await token({ email: "a@example.com" }) },
-  });
+  const res = await call("/api/backups");
   const runs = (await res.json()) as { file: string | null }[];
   expect(runs).toHaveLength(21);
   expect(runs.at(-1)?.file).toBe("old-kept.sqlite");
 });
 
 test("a backup can be run, listed and downloaded", async () => {
-  const { server, token } = await setup();
-  using _ = server;
-  const headers = { "Cf-Access-Jwt-Assertion": await token({ email: "a@example.com" }) };
-  const call = (path: string, method = "GET") => fetch(new URL(path, server.url), { method, headers });
+  const { call } = await setup();
 
-  const run = (await (await call("/api/backups", "POST")).json()) as { id: number; status: string; file: string };
+  const run = (await (await call("/api/backups", { method: "POST" })).json()) as {
+    id: number;
+    status: string;
+    file: string;
+  };
   expect(run.status).toBe("ok");
   expect(await (await call("/api/backups")).json()).toMatchObject([{ id: run.id, status: "ok" }]);
 
@@ -91,8 +92,7 @@ test("a backup can be run, listed and downloaded", async () => {
 });
 
 test("writes are rejected without a valid Access token", async () => {
-  const { server, call } = await setup();
-  using _ = server;
+  const { call } = await setup();
   const writes: [string, string][] = [
     ["POST", "/api/pets"],
     ["PUT", "/api/pets/1"],
@@ -112,6 +112,9 @@ test("writes are rejected without a valid Access token", async () => {
     ["PUT", "/api/attachments/1"],
     ["DELETE", "/api/attachments/1"],
     ["PUT", "/api/files/1/preview"],
+    ["POST", "/api/pets/1/labs"],
+    ["PUT", "/api/labs/1"],
+    ["DELETE", "/api/labs/1"],
   ];
   for (const [method, path] of writes) {
     expect((await call(path, { method, body: {}, jwt: null })).status).toBe(401);

@@ -8,14 +8,17 @@
     "test": "bun test",
     "typecheck": "bun check",
     "db:generate": "drizzle-kit generate",
-    "seed:dev": "bun scripts/seed-dev.ts"
+    "seed:dev": "bun scripts/seed-dev.ts",
+    "format": "prettier --write src scripts",
+    "format:check": "prettier --check src scripts"
   },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "bun-plugin-tailwind": "^0.1.2",
-    "drizzle-kit": "^0.31.11"
+    "drizzle-kit": "^0.31.11",
+    "prettier": "3.10.1"
   },
   "peerDependencies": {
     "typescript": "^7"

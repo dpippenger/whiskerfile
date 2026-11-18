@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import type { ChipRegistry, Measurement, Pet, User } from "../../server/db/schema";
+import type { Analyte, ChipRegistry, Measurement, Pet, User } from "../../server/db/schema";
+import type { LabReportWithResults } from "../../server/routes/labs";
 import type { PetSummary } from "../../server/routes/pets";
 import type { PetRecords } from "../../server/routes/records";
 import { api } from "./api";
@@ -24,3 +25,9 @@ export const useRegistries = () =>
   useQuery({ queryKey: ["chip-registries"], queryFn: () => api<ChipRegistry[]>("/chip-registries") });
 
 export const useMe = () => useQuery({ queryKey: ["me"], queryFn: () => api<User>("/me") });
+
+/** A pet's lab reports, newest first. */
+export const useLabs = (petId: number) =>
+  useQuery({ queryKey: ["pets", petId, "labs"], queryFn: () => api<LabReportWithResults[]>(`/pets/${petId}/labs`) });
+
+export const useAnalytes = () => useQuery({ queryKey: ["analytes"], queryFn: () => api<Analyte[]>("/analytes") });

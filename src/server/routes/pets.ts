@@ -41,7 +41,9 @@ export function petRoutes({ db }: AppContext, authed: Authed) {
     if (input.photoFileId) {
       const file = db.select().from(files).where(eq(files.id, input.photoFileId)).get();
       if (!file || !IMAGE_TYPES.includes(file.mime)) {
-        return error(400, "Some fields are invalid", { photoFileId: "The photo must be a JPEG, PNG, WebP or GIF image" });
+        return error(400, "Some fields are invalid", {
+          photoFileId: "The photo must be a JPEG, PNG, WebP or GIF image",
+        });
       }
     }
     return null;
@@ -55,7 +57,11 @@ export function petRoutes({ db }: AppContext, authed: Authed) {
         if ("response" in parsed) return parsed.response;
         const invalid = checkReferences(parsed.data);
         if (invalid) return invalid;
-        const inUse = db.select({ color: pets.chartColor }).from(pets).all().map((p) => p.color);
+        const inUse = db
+          .select({ color: pets.chartColor })
+          .from(pets)
+          .all()
+          .map((p) => p.color);
         const now = Date.now();
         const pet = db
           .insert(pets)

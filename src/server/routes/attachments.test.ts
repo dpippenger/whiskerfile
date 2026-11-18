@@ -47,8 +47,7 @@ async function setup() {
 const pdf = (text: string) => new TextEncoder().encode(`%PDF-1.7\n${text}`);
 
 test("files attached to a visit are stored byte for byte and follow its date", async () => {
-  const { server, call, json, upload, records, petId } = await setup();
-  using _ = server;
+  const { call, json, upload, records, petId } = await setup();
   // A large photo of a receipt: attachments are originals, never shrunk or re-encoded.
   const photo = crypto.getRandomValues(new Uint8Array(3 * 1024 * 1024));
   photo.set([0xff, 0xd8, 0xff, 0xe0]);
@@ -83,8 +82,7 @@ test("files attached to a visit are stored byte for byte and follow its date", a
 });
 
 test("a visit naming an unknown file is refused and changes nothing", async () => {
-  const { server, call, json, upload, records, db, petId } = await setup();
-  using _ = server;
+  const { call, json, upload, records, db, petId } = await setup();
   const lab = await upload(pdf("x"), "lab.pdf");
   const entry = await json<{ id: number }>(
     call(`/api/pets/${petId}/entries`, { method: "POST", body: visit({ fileIds: [lab.id] }) }),
@@ -107,8 +105,7 @@ test("a visit naming an unknown file is refused and changes nothing", async () =
 });
 
 test("files can be filed on their own, relabelled and removed", async () => {
-  const { server, call, json, upload, records, petId } = await setup();
-  using _ = server;
+  const { call, json, upload, records, petId } = await setup();
   const scan = await upload(pdf("adoption"), "adoption.pdf");
   const created = await call(`/api/pets/${petId}/attachments`, {
     method: "POST",
@@ -157,8 +154,7 @@ test("files can be filed on their own, relabelled and removed", async () => {
 });
 
 test("a visit's files can only be relabelled with the visit, but can be removed directly", async () => {
-  const { server, call, json, upload, records, petId } = await setup();
-  using _ = server;
+  const { call, json, upload, records, petId } = await setup();
   const lab = await upload(pdf("x"), "lab.pdf");
   await call(`/api/pets/${petId}/entries`, { method: "POST", body: visit({ fileIds: [lab.id] }) });
   const attached = (await records()).entries[0]!.attachments[0]!;
@@ -170,8 +166,7 @@ test("a visit's files can only be relabelled with the visit, but can be removed 
 });
 
 test("deleting a pet removes its attachments but not the stored files", async () => {
-  const { server, call, upload, db, petId } = await setup();
-  using _ = server;
+  const { call, upload, db, petId } = await setup();
   const lab = await upload(pdf("x"), "lab.pdf");
   await call(`/api/pets/${petId}/entries`, { method: "POST", body: visit({ fileIds: [lab.id] }) });
   await call(`/api/pets/${petId}/attachments`, {

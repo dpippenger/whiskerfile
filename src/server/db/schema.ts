@@ -1,4 +1,5 @@
-import { index, integer, real, sqliteTable, text, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
+import { index, integer, real, sqliteTable, text, uniqueIndex, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
+import { ANALYTE_CATEGORIES, COMPARATORS, LAB_SOURCES } from "../../shared/labs";
 import { CHART_COLORS, REPRODUCTIVE, SEXES, SPECIES } from "../../shared/pets";
 import { ENTRY_KINDS, TEMPERATURE_UNITS, VITALS, WEIGHT_UNITS } from "../../shared/records";
 
@@ -119,9 +120,71 @@ export const measurements = sqliteTable(
   (t) => [index("measurements_pet_kind_date").on(t.petId, t.kind, t.date), index("measurements_entry").on(t.entryId)],
 );
 
+/** A test that can appear on a lab report, such as creatinine or a white cell count. */
+export const analytes = sqliteTable("analytes", {
+  id: integer().primaryKey({ autoIncrement: true }),
+  code: text().notNull().unique(),
+  name: text().notNull(),
+  category: text({ enum: ANALYTE_CATEGORIES }).notNull(),
+  // Pre-filled for a new result; each result keeps the unit printed on its report.
+  defaultUnit: text(),
+  sortOrder: integer().notNull(),
+});
+
+/** One set of lab results from a single sample. Deleting its visit only unlinks it. */
+export const labReports = sqliteTable(
+  "lab_reports",
+  {
+    id: integer().primaryKey({ autoIncrement: true }),
+    petId: integer()
+      .notNull()
+      .references(() => pets.id, { onDelete: "cascade" }),
+    entryId: integer().references(() => entries.id, { onDelete: "set null" }),
+    date: text().notNull(),
+    source: text({ enum: LAB_SOURCES }).notNull(),
+    lab: text(),
+    accession: text(),
+    notes: text(),
+    createdBy: integer()
+      .notNull()
+      .references(() => users.id),
+    createdAt: integer().notNull(),
+    updatedAt: integer().notNull(),
+  },
+  (t) => [index("lab_reports_pet_date").on(t.petId, t.date)],
+);
+
 /**
- * A stored file filed under a pet, either on a visit (sharing its date) or on
- * its own. Removing an attachment leaves the stored file in place.
+ * A result exactly as printed (`valueText`), with the number and comparator
+ * read from it, and the reference range printed beside it on the report.
+ */
+export const labResults = sqliteTable(
+  "lab_results",
+  {
+    id: integer().primaryKey({ autoIncrement: true }),
+    reportId: integer()
+      .notNull()
+      .references(() => labReports.id, { onDelete: "cascade" }),
+    analyteId: integer()
+      .notNull()
+      .references(() => analytes.id),
+    valueText: text().notNull(),
+    value: real(),
+    comparator: text({ enum: COMPARATORS }),
+    unit: text(),
+    refLow: real(),
+    refHigh: real(),
+  },
+  (t) => [
+    uniqueIndex("lab_results_report_analyte").on(t.reportId, t.analyteId),
+    index("lab_results_analyte").on(t.analyteId),
+  ],
+);
+
+/**
+ * A stored file filed under a pet: on a visit (sharing its date), on a lab
+ * report (its original document), or on its own. Removing an attachment
+ * leaves the stored file in place.
  */
 export const attachments = sqliteTable(
   "attachments",
@@ -131,6 +194,7 @@ export const attachments = sqliteTable(
       .notNull()
       .references(() => pets.id, { onDelete: "cascade" }),
     entryId: integer().references(() => entries.id, { onDelete: "cascade" }),
+    labReportId: integer().references(() => labReports.id, { onDelete: "cascade" }),
     fileId: integer()
       .notNull()
       .references(() => files.id),
@@ -141,7 +205,11 @@ export const attachments = sqliteTable(
       .references(() => users.id),
     createdAt: integer().notNull(),
   },
-  (t) => [index("attachments_pet_date").on(t.petId, t.date), index("attachments_entry").on(t.entryId)],
+  (t) => [
+    index("attachments_pet_date").on(t.petId, t.date),
+    index("attachments_entry").on(t.entryId),
+    index("attachments_lab_report").on(t.labReportId),
+  ],
 );
 
 export type User = typeof users.$inferSelect;
@@ -151,4 +219,7 @@ export type Pet = typeof pets.$inferSelect;
 export type Entry = typeof entries.$inferSelect;
 export type Measurement = typeof measurements.$inferSelect;
 export type Attachment = typeof attachments.$inferSelect;
+export type Analyte = typeof analytes.$inferSelect;
+export type LabReport = typeof labReports.$inferSelect;
+export type LabResult = typeof labResults.$inferSelect;
 export type BackupRun = typeof backupRuns.$inferSelect;

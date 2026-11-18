@@ -32,8 +32,7 @@ async function setup() {
 }
 
 test("images and PDFs are shown inline; anything else, whatever it claims to be, downloads", async () => {
-  const { server, call, upload } = await setup();
-  using _ = server;
+  const { call, upload } = await setup();
 
   const photo = (await (await upload(JPEG, "Miso at the vet.jpg")).json()) as { id: number; mime: string };
   expect(photo.mime).toBe("image/jpeg");
@@ -56,8 +55,7 @@ test("images and PDFs are shown inline; anything else, whatever it claims to be,
 });
 
 test("the same bytes are stored once, under their hash, with no leftovers", async () => {
-  const { server, upload, dataDir } = await setup();
-  using _ = server;
+  const { upload, dataDir } = await setup();
   const first = (await (await upload(PNG, "a.png")).json()) as { id: number; sha256: string };
   const second = (await (await upload(PNG, "b.png")).json()) as { id: number };
   expect(second.id).toBe(first.id);
@@ -66,8 +64,7 @@ test("the same bytes are stored once, under their hash, with no leftovers", asyn
 });
 
 test("empty, missing and oversized uploads are refused", async () => {
-  const { server, call, upload } = await setup();
-  using _ = server;
+  const { call, upload } = await setup();
   expect((await upload(new Uint8Array(), "empty.png")).status).toBe(400);
   expect((await call("/api/files", { method: "POST", body: new FormData() })).status).toBe(400);
   const big = await upload(new Uint8Array(MAX_UPLOAD_BYTES + 1), "big.bin");
@@ -75,8 +72,7 @@ test("empty, missing and oversized uploads are refused", async () => {
 });
 
 test("uploading the same bytes again restores a stored copy that went missing", async () => {
-  const { server, call, upload, dataDir } = await setup();
-  using _ = server;
+  const { call, upload, dataDir } = await setup();
   const first = (await (await upload(PNG, "a.png")).json()) as { id: number; sha256: string };
   await Bun.write(join(dataDir, "uploads", first.sha256), "trunc");
 
@@ -86,8 +82,7 @@ test("uploading the same bytes again restores a stored copy that went missing", 
 });
 
 test("a large image can be given a small preview; nothing else can", async () => {
-  const { server, call, upload, dataDir } = await setup();
-  using _ = server;
+  const { call, upload, dataDir } = await setup();
   const big = new Uint8Array(PREVIEW_MAX_BYTES + 10);
   big.set(JPEG);
   const photo = (await (await upload(big, "receipt.jpg")).json()) as { id: number; previewId: number | null };

@@ -82,7 +82,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Cat className="size-5 text-primary" aria-hidden />
           <span className="text-base font-bold tracking-tight">Whiskerfile</span>
         </header>
-        <main className="min-w-0 flex-1 p-4 pb-24 md:p-6 md:pb-6 lg:p-8">{children}</main>
+        <main className="@container/main min-w-0 flex-1 p-4 pb-24 md:p-6 md:pb-6 lg:p-8">{children}</main>
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 flex border-t border-border bg-background-secondary pb-[env(safe-area-inset-bottom)] md:hidden">

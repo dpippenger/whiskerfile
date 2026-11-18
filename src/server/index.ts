@@ -5,6 +5,7 @@ import { createAuthenticator, type AuthOptions } from "./auth";
 import { failInterruptedRuns, runBackup } from "./backup";
 import { config } from "./config";
 import { openDb } from "./db";
+import { staticRoutes } from "./static";
 
 function authOptions(): AuthOptions {
   if (config.authMode === "dev") {
@@ -39,6 +40,7 @@ const server = Bun.serve({
   development: process.env.NODE_ENV !== "production" && { hmr: true, console: true },
   routes: {
     "/healthz": new Response("ok"),
+    ...staticRoutes,
     ...apiRoutes(ctx, createAuthenticator(db, authOptions())),
     "/*": index,
   },

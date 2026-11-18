@@ -5,7 +5,13 @@ import { cn } from "../lib/utils";
 const ICONS = { cat: Cat, dog: Dog, rabbit: Rabbit, bird: Bird, reptile: Turtle } as const;
 
 /** The pet's photo, or its species icon when there is none. */
-export function PetPhoto({ pet, className }: { pet: Pick<Pet, "name" | "species" | "photoFileId">; className?: string }) {
+export function PetPhoto({
+  pet,
+  className,
+}: {
+  pet: Pick<Pet, "name" | "species" | "photoFileId">;
+  className?: string;
+}) {
   if (pet.photoFileId) {
     return (
       <img

@@ -40,8 +40,7 @@ async function setup() {
 }
 
 test("a visit is saved with its vitals and its author", async () => {
-  const { server, call, json, petId } = await setup();
-  using _ = server;
+  const { call, json, petId } = await setup();
   const created = await call(`/api/pets/${petId}/entries`, { method: "POST", body: visit() });
   expect(created.status).toBe(201);
 
@@ -56,8 +55,7 @@ test("a visit is saved with its vitals and its author", async () => {
 });
 
 test("editing a visit moves its vitals to the new date and drops cleared ones", async () => {
-  const { server, call, json, petId } = await setup();
-  using _ = server;
+  const { call, json, petId } = await setup();
   const entry = await json<{ id: number }>(call(`/api/pets/${petId}/entries`, { method: "POST", body: visit() }));
 
   const edited = await call(`/api/entries/${entry.id}`, {
@@ -73,8 +71,7 @@ test("editing a visit moves its vitals to the new date and drops cleared ones", 
 });
 
 test("editing a visit keeps its readings, so the latest same-day weight stays the latest", async () => {
-  const { server, call, json, petId } = await setup();
-  using _ = server;
+  const { call, json, petId } = await setup();
   const entry = await json<{ id: number }>(
     call(`/api/pets/${petId}/entries`, {
       method: "POST",
@@ -98,8 +95,7 @@ test("editing a visit keeps its readings, so the latest same-day weight stays th
 });
 
 test("an invalid visit is refused without leaving anything behind", async () => {
-  const { server, call, json, db, petId } = await setup();
-  using _ = server;
+  const { call, json, db, petId } = await setup();
   const res = await call(`/api/pets/${petId}/entries`, {
     method: "POST",
     body: visit({ vitals: { weight: 4649, temperature: 101.5 } }),
@@ -114,8 +110,7 @@ test("an invalid visit is refused without leaving anything behind", async () => 
 });
 
 test("standalone weigh-ins can be added, corrected and removed; a visit's readings cannot", async () => {
-  const { server, call, json, petId } = await setup();
-  using _ = server;
+  const { call, json, petId } = await setup();
   const weighIn = await call(`/api/pets/${petId}/measurements`, {
     method: "POST",
     body: { date: "2026-11-01", kind: "weight", value: 4600 },
@@ -161,8 +156,7 @@ test("standalone weigh-ins can be added, corrected and removed; a visit's readin
 });
 
 test("deleting a visit removes its vitals; deleting a pet removes all its records", async () => {
-  const { server, call, json, db, petId } = await setup();
-  using _ = server;
+  const { call, json, db, petId } = await setup();
   const entry = await json<EntryWithVitals>(call(`/api/pets/${petId}/entries`, { method: "POST", body: visit() }));
   await call(`/api/entries/${entry.id}`, { method: "DELETE" });
   expect(db.select().from(measurements).all()).toEqual([]);
@@ -178,8 +172,7 @@ test("deleting a visit removes its vitals; deleting a pet removes all its record
 });
 
 test("the pet list carries each pet's last twelve weights and last vet visit", async () => {
-  const { server, call, json, petId } = await setup();
-  using _ = server;
+  const { call, json, petId } = await setup();
   for (let day = 1; day <= 14; day++) {
     const date = `2026-09-${String(day).padStart(2, "0")}`;
     await call(`/api/pets/${petId}/measurements`, {
@@ -199,8 +192,7 @@ test("the pet list carries each pet's last twelve weights and last vet visit", a
 });
 
 test("display units can be chosen or left to the browser", async () => {
-  const { server, call, json } = await setup();
-  using _ = server;
+  const { call, json } = await setup();
   expect(await json(call("/api/me"))).toMatchObject({ weightUnit: null, temperatureUnit: null });
   const set = await call("/api/me", { method: "PATCH", body: { weightUnit: "kg", temperatureUnit: "f" } });
   expect(await json(set)).toMatchObject({ weightUnit: "kg", temperatureUnit: "f" });

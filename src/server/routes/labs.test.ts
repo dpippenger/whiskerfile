@@ -1,0 +1,190 @@
+import { expect, test } from "bun:test";
+import { attachments, files, labReports, labResults } from "../db/schema";
+import { startApi } from "../test-support";
+import type { LabReportWithResults } from "./labs";
+import type { PetRecords } from "./records";
+
+const PET = {
+  name: "Miso",
+  species: "cat",
+  breed: null,
+  sex: "female",
+  reproductive: "altered",
+  dob: null,
+  dobEstimated: false,
+  coatColor: null,
+  eyeColor: null,
+  microchip: null,
+  chipRegistryId: null,
+  photoFileId: null,
+  notes: null,
+  deceasedOn: null,
+};
+
+async function setup() {
+  const api = await startApi();
+  const json = async <T>(res: Response | Promise<Response>) => (await (await res).json()) as T;
+  const petId = (await json<{ id: number }>(api.call("/api/pets", { method: "POST", body: PET }))).id;
+  const catalog = await json<{ id: number; code: string }[]>(api.call("/api/analytes"));
+  const analyte = (code: string) => catalog.find((a) => a.code === code)!.id;
+  const upload = async (text: string, name: string) => {
+    const form = new FormData();
+    form.append("file", new File([new TextEncoder().encode(`%PDF-1.7\n${text}`)], name));
+    return (await json<{ id: number }>(api.call("/api/files", { method: "POST", body: form }))).id;
+  };
+  const labs = () => json<LabReportWithResults[]>(api.call(`/api/pets/${petId}/labs`));
+  return { ...api, json, petId, analyte, upload, labs };
+}
+
+const report = (results: object[], fields: object = {}) => ({
+  date: "2026-11-06",
+  source: "reference_lab",
+  lab: "IDEXX",
+  accession: "A123",
+  notes: "",
+  entryId: null,
+  results,
+  ...fields,
+});
+
+test("a report is saved with its results as printed, in catalog order, with its document", async () => {
+  const { call, analyte, upload, labs, petId } = await setup();
+  const doc = await upload("chem", "Chem 17.pdf");
+  const created = await call(`/api/pets/${petId}/labs`, {
+    method: "POST",
+    body: report(
+      [
+        { analyteId: analyte("FELV"), valueText: "Negative", unit: "", refLow: null, refHigh: null },
+        { analyteId: analyte("CREA"), valueText: "2.6", unit: "mg/dL", refLow: 0.6, refHigh: 2.4 },
+        { analyteId: analyte("SDMA"), valueText: "<0.5", unit: "µg/dL", refLow: null, refHigh: 14 },
+      ],
+      { fileIds: [doc] },
+    ),
+  });
+  expect(created.status).toBe(201);
+
+  const [saved] = await labs();
+  expect(saved!.results.map((r) => [r.code, r.valueText, r.value, r.comparator, r.unit])).toEqual([
+    ["SDMA", "<0.5", 0.5, "<", "µg/dL"],
+    ["CREA", "2.6", 2.6, null, "mg/dL"],
+    ["FELV", "Negative", null, null, null],
+  ]);
+  expect(saved!.attachments.map((a) => [a.file.originalName, a.date])).toEqual([["Chem 17.pdf", "2026-11-06"]]);
+  expect(saved).toMatchObject({ lab: "IDEXX", accession: "A123", author: "a", entryId: null });
+});
+
+test("editing a report updates kept results in place and moves its documents to the new date", async () => {
+  const { call, json, db, analyte, upload, labs, petId } = await setup();
+  const doc = await upload("chem", "chem.pdf");
+  const { id } = await json<{ id: number }>(
+    call(`/api/pets/${petId}/labs`, {
+      method: "POST",
+      body: report(
+        [
+          { analyteId: analyte("CREA"), valueText: "2.6", unit: "mg/dL", refLow: 0.6, refHigh: 2.4 },
+          { analyteId: analyte("BUN"), valueText: "34", unit: "mg/dL", refLow: 16, refHigh: 37 },
+        ],
+        { fileIds: [doc] },
+      ),
+    }),
+  );
+  const creaId = (await labs())[0]!.results.find((r) => r.code === "CREA")!.id;
+
+  const edited = await call(`/api/labs/${id}`, {
+    method: "PUT",
+    body: report(
+      [
+        { analyteId: analyte("CREA"), valueText: "2.5", unit: "mg/dL", refLow: 0.6, refHigh: 2.4 },
+        { analyteId: analyte("PHOS"), valueText: "5.1", unit: "mg/dL", refLow: 3.1, refHigh: 7.5 },
+      ],
+      { date: "2026-11-07" },
+    ),
+  });
+  expect(edited.status).toBe(200);
+  const [saved] = await labs();
+  expect(saved!.results.map((r) => [r.code, r.valueText])).toEqual([
+    ["CREA", "2.5"],
+    ["PHOS", "5.1"],
+  ]);
+  expect(saved!.results.find((r) => r.code === "CREA")!.id).toBe(creaId);
+  expect(saved!.attachments.map((a) => a.date)).toEqual(["2026-11-07"]);
+  expect(db.select().from(labResults).all()).toHaveLength(2);
+});
+
+test("a report naming an unknown test, file or another pet's visit is refused and writes nothing", async () => {
+  const { call, json, db, analyte, petId } = await setup();
+  const otherPet = (await json<{ id: number }>(call("/api/pets", { method: "POST", body: { ...PET, name: "Other" } })))
+    .id;
+  const otherVisit = await json<{ id: number }>(
+    call(`/api/pets/${otherPet}/entries`, {
+      method: "POST",
+      body: { kind: "vet", date: "2026-11-01", clinic: "", vet: "", reason: "", notes: "", vitals: {} },
+    }),
+  );
+  const crea = { analyteId: analyte("CREA"), valueText: "2.6", unit: "mg/dL", refLow: 0.6, refHigh: 2.4 };
+  const fields = async (body: object) => {
+    const res = await call(`/api/pets/${petId}/labs`, { method: "POST", body });
+    expect(res.status).toBe(400);
+    return (await json<{ fields: object }>(res)).fields;
+  };
+
+  expect(await fields(report([crea, { ...crea, analyteId: 99999 }]))).toEqual({
+    "results.1.analyteId": "Unknown test",
+  });
+  expect(await fields(report([crea], { entryId: otherVisit.id }))).toEqual({ entryId: "Not a visit of this pet" });
+  expect(await fields(report([crea], { fileIds: [99999] }))).toEqual({ fileIds: "Unknown file" });
+  expect(await fields(report([crea, crea]))).toHaveProperty(["results.1.analyteId"]);
+  expect(await fields(report([]))).toHaveProperty("results");
+  expect(db.select().from(labReports).all()).toEqual([]);
+  expect((await call("/api/pets/999/labs", { method: "POST", body: report([crea]) })).status).toBe(404);
+  expect((await call("/api/labs/999", { method: "PUT", body: report([crea]) })).status).toBe(404);
+});
+
+test("deleting a visit unlinks its report; deleting the report keeps the stored files", async () => {
+  const { call, json, db, analyte, upload, labs, petId } = await setup();
+  const visit = await json<{ id: number }>(
+    call(`/api/pets/${petId}/entries`, {
+      method: "POST",
+      body: { kind: "vet", date: "2026-11-06", clinic: "", vet: "", reason: "", notes: "", vitals: {} },
+    }),
+  );
+  const doc = await upload("chem", "chem.pdf");
+  const crea = { analyteId: analyte("CREA"), valueText: "2.6", unit: "mg/dL", refLow: 0.6, refHigh: 2.4 };
+  const { id } = await json<{ id: number }>(
+    call(`/api/pets/${petId}/labs`, { method: "POST", body: report([crea], { entryId: visit.id, fileIds: [doc] }) }),
+  );
+
+  await call(`/api/entries/${visit.id}`, { method: "DELETE" });
+  expect((await labs()).map((r) => [r.id, r.entryId])).toEqual([[id, null]]);
+
+  expect((await call(`/api/labs/${id}`, { method: "DELETE" })).status).toBe(204);
+  expect(await labs()).toEqual([]);
+  expect(db.select().from(labResults).all()).toEqual([]);
+  expect(db.select().from(attachments).all()).toEqual([]);
+  expect(db.select().from(files).all()).toHaveLength(1);
+  expect((await call(`/api/labs/${id}`, { method: "DELETE" })).status).toBe(404);
+});
+
+test("a report's documents are not listed or editable as files filed on their own", async () => {
+  const { call, json, analyte, upload, labs, petId } = await setup();
+  const doc = await upload("chem", "chem.pdf");
+  const crea = { analyteId: analyte("CREA"), valueText: "2.6", unit: "mg/dL", refLow: 0.6, refHigh: 2.4 };
+  await call(`/api/pets/${petId}/labs`, { method: "POST", body: report([crea], { fileIds: [doc] }) });
+
+  const records = await json<PetRecords>(call(`/api/pets/${petId}/records`));
+  expect(records.attachments).toEqual([]);
+  const attachmentId = (await labs())[0]!.attachments[0]!.id;
+  expect(
+    (await call(`/api/attachments/${attachmentId}`, { method: "PUT", body: { label: "x", date: "2026-01-01" } }))
+      .status,
+  ).toBe(404);
+});
+
+test("deleting a pet removes its lab reports", async () => {
+  const { call, db, analyte, petId } = await setup();
+  const crea = { analyteId: analyte("CREA"), valueText: "2.6", unit: "mg/dL", refLow: 0.6, refHigh: 2.4 };
+  await call(`/api/pets/${petId}/labs`, { method: "POST", body: report([crea]) });
+  await call(`/api/pets/${petId}`, { method: "DELETE" });
+  expect(db.select().from(labReports).all()).toEqual([]);
+  expect(db.select().from(labResults).all()).toEqual([]);
+});

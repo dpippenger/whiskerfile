@@ -7,6 +7,7 @@ import { CHIP_LOOKUP_URL, reproductiveLabel, SPECIES_LABEL } from "../../shared/
 import { Page } from "../components/page";
 import { PetPhoto } from "../components/pet-photo";
 import { FileForm, FilesTab } from "../components/attachments";
+import { LabReportView, LabsTab } from "../components/labs";
 import { EntryForm, WeightForm } from "../components/record-forms";
 import { Timeline, type Editing } from "../components/timeline";
 import { Badge } from "../components/ui/badge";
@@ -14,7 +15,7 @@ import { Button } from "../components/ui/button";
 import { Dialog } from "../components/ui/dialog";
 import { WeightTab } from "../components/weight-tab";
 import { Card } from "../components/ui/card";
-import { usePet, useRecords, useRegistries, useWeights } from "../lib/queries";
+import { useLabs, usePet, useRecords, useRegistries, useWeights } from "../lib/queries";
 import { useUnits } from "../lib/units";
 import { cn } from "../lib/utils";
 
@@ -64,11 +65,12 @@ function Microchip({ pet }: { pet: Pet }) {
   );
 }
 
-export type ProfileTab = "timeline" | "weight" | "files";
+export type ProfileTab = "timeline" | "weight" | "labs" | "files";
 
 const TABS: { tab: ProfileTab; label: string; path: string }[] = [
   { tab: "timeline", label: "Timeline", path: "" },
   { tab: "weight", label: "Weight", path: "/weight" },
+  { tab: "labs", label: "Labs", path: "/labs" },
   { tab: "files", label: "Files", path: "/files" },
 ];
 
@@ -101,8 +103,19 @@ function dialogTitle(state: Exclude<DialogState, null>): string {
 }
 
 /** The record tabs and the add/edit dialog for one pet. */
-function Records({ petId, color, tab }: { petId: number; color: string; tab: ProfileTab }) {
+function Records({
+  petId,
+  color,
+  tab,
+  reportId,
+}: {
+  petId: number;
+  color: string;
+  tab: ProfileTab;
+  reportId?: number;
+}) {
   const records = useRecords(petId);
+  const labs = useLabs(petId);
   const weights = useWeights(petId);
   const units = useUnits();
   const [dialog, setDialog] = useState<DialogState>(null);
@@ -117,7 +130,8 @@ function Records({ petId, color, tab }: { petId: number; color: string; tab: Pro
           : { mode: "file", attachment: editing.attachment },
     );
 
-  const error = records.error ?? weights.error;
+  const error = records.error ?? weights.error ?? labs.error;
+  const report = reportId ? labs.data?.find((r) => r.id === reportId) : undefined;
   return (
     <div className="space-y-4">
       {/* Phones: the button gets its own full-width row above tabs that share the width. */}
@@ -129,7 +143,7 @@ function Records({ petId, color, tab }: { petId: number; color: string; tab: Pro
               href={`/pets/${petId}${path}`}
               aria-current={t === tab ? "page" : undefined}
               className={cn(
-                "inline-flex min-h-11 flex-1 items-center justify-center rounded-md px-4 text-sm font-medium text-muted-foreground sm:flex-none md:min-h-9",
+                "inline-flex min-h-11 flex-1 items-center justify-center rounded-md px-2 text-sm font-medium text-muted-foreground sm:flex-none sm:px-4 md:min-h-9",
                 t === tab && "bg-elevated text-foreground shadow-sm",
               )}
             >
@@ -148,8 +162,27 @@ function Records({ petId, color, tab }: { petId: number; color: string; tab: Pro
       {records.data && weights.data && tab === "weight" && (
         <WeightTab weights={weights.data} records={records.data} units={units} color={color} />
       )}
+      {labs.data && tab === "labs" && !reportId && <LabsTab petId={petId} reports={labs.data} />}
+      {labs.data &&
+        records.data &&
+        tab === "labs" &&
+        reportId &&
+        (report ? (
+          <LabReportView
+            petId={petId}
+            report={report}
+            reports={labs.data}
+            visit={records.data.entries.find((e) => e.id === report.entryId)}
+          />
+        ) : (
+          <p className="text-danger">This lab report doesn't exist.</p>
+        ))}
       {records.data && tab === "files" && (
-        <FilesTab records={records.data} onEdit={(attachment) => edit({ type: "file", attachment })} />
+        <FilesTab
+          records={records.data}
+          labs={labs.data ?? []}
+          onEdit={(attachment) => edit({ type: "file", attachment })}
+        />
       )}
 
       <Dialog
@@ -188,7 +221,7 @@ function Records({ petId, color, tab }: { petId: number; color: string; tab: Pro
   );
 }
 
-export function PetProfile({ id, tab = "timeline" }: { id: number; tab?: ProfileTab }) {
+export function PetProfile({ id, tab = "timeline", reportId }: { id: number; tab?: ProfileTab; reportId?: number }) {
   const query = usePet(id);
   const today = localToday();
 
@@ -260,7 +293,7 @@ export function PetProfile({ id, tab = "timeline" }: { id: number; tab?: Profile
               <p className="whitespace-pre-wrap">{pet.notes}</p>
             </Card>
           )}
-          <Records petId={pet.id} color={pet.chartColor} tab={tab} />
+          <Records petId={pet.id} color={pet.chartColor} tab={tab} reportId={reportId} />
         </div>
       </div>
     </Page>
