@@ -4,6 +4,13 @@
 
 ### Added
 
+- Health report: **Report** on a pet's page downloads a PDF (details, weight chart, lab trend charts, every lab report with ranges and flags, vaccinations, medications and conditions), for all records or a chosen period. It is built on the server and printed by Chromium, which the image now includes; set `CHROMIUM_PATH` to use it outside Docker.
+- The image runs under `tini`, so the processes Chromium leaves behind are reaped.
+
+## Phase 5: vaccinations, medications and conditions (2026-11-18)
+
+### Added
+
 - Health tab: vaccinations (each vaccine's latest dose, flagged overdue or due within 30 days, with earlier doses beneath), current medications, conditions (diagnoses, allergies, surgery, dental) and a history of past medications and resolved conditions. Due dates come from the certificate or reminder; the app never works out a schedule. Nothing is flagged for a pet that has passed away.
 - Add record offers vaccinations, medications and conditions.
 - Dashboard: each living pet's card lists vaccines overdue or due within 30 days, and the results outside their printed range on its latest lab report.

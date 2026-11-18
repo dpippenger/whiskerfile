@@ -2,7 +2,7 @@
 
 Self-hosted medical records for your pets: cats first, dogs and other animals welcome. It runs at home in Docker and is reached through a Cloudflare tunnel, with Cloudflare Access handling sign-in.
 
-Status: in place are the foundation (server, sign-in, scheduled backups), pet profiles (photo, identity, microchip and registry), records (vet visits, home exams, vitals, weigh-ins and attached files, with a timeline, weight history and file gallery), lab reports (entered by hand from the printed report, with ranges, flags and history), trend charts per pet, comparisons across pets, and vaccinations, medications and conditions. The dashboard shows each pet's vaccines due and out-of-range lab results. PDF reports are being added next.
+Status: in place are the foundation (server, sign-in, scheduled backups), pet profiles (photo, identity, microchip and registry), records (vet visits, home exams, vitals, weigh-ins and attached files, with a timeline, weight history and file gallery), lab reports (entered by hand from the printed report, with ranges, flags and history), trend charts per pet, comparisons across pets, and vaccinations, medications and conditions. The dashboard shows each pet's vaccines due and out-of-range lab results, and each pet's health report downloads as a PDF to share with a vet. AI-assisted import of lab documents comes next.
 
 See [CHANGELOG.md](CHANGELOG.md) for what each phase added.
 
@@ -24,6 +24,10 @@ You need Docker, a domain on Cloudflare, and a Cloudflare Zero Trust team (the f
 
 The app container publishes no port on the host, so the tunnel is the only way in. The app also verifies Cloudflare's signed header on every request and rejects anything without it.
 
+## Health reports
+
+**Report** on a pet's page downloads a PDF of the pet's details, weight chart, a trend chart for each test with two or more results, every lab report with its ranges and flags, vaccinations, medications and conditions, for all records or a chosen period. The image includes Chromium, which prints it.
+
 ## Backups
 
 The database and uploaded files are copied to the backup folder every night at 03:00 (`BACKUP_CRON`, read in the `TZ` time zone). Set `BACKUP_PATH` to a folder on a different disk or a NAS share. Seven daily, four weekly and twelve monthly snapshots are kept. Settings shows each run and lets you back up on demand or download a snapshot.
@@ -41,5 +45,7 @@ bun check
 ```
 
 `bun run dev` sets `AUTH_MODE=dev`, which skips sign-in. Never set that on a server other people can reach.
+
+PDF reports need Chromium: set `CHROMIUM_PATH` (in `.env` or the shell) to a Chromium or headless-shell binary, for example `npx playwright install chromium-headless-shell` and its `headless_shell`. Without it, reports answer 503. With it set, `bun test` also prints one real report.
 
 Database schema lives in `src/server/db/schema.ts`. After changing it, run `bun run db:generate` and commit the new migration; migrations apply on startup.
