@@ -37,6 +37,7 @@ test("requests without a valid Access token are rejected", async () => {
       "/api/series/metrics",
       "/api/series?metric=weight",
       "/api/pets/1/health",
+      "/api/pets/1/report.pdf",
       "/api/unknown",
     ]) {
       expect((await get(path, jwt)).status).toBe(401);

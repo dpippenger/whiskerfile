@@ -3,8 +3,10 @@ import type { z } from "zod";
 import type { Authenticate } from "./auth";
 import type { BackupContext } from "./backup";
 import type { User } from "./db/schema";
+import type { RenderPdf } from "./report/pdf";
 
-export type AppContext = BackupContext;
+/** What routes share: the database and folders, and the PDF printer when Chromium is configured. */
+export type AppContext = BackupContext & { renderPdf?: RenderPdf };
 
 export type Handler<P extends string> = (
   req: BunRequest<P>,

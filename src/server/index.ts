@@ -5,6 +5,7 @@ import { createAuthenticator, type AuthOptions } from "./auth";
 import { failInterruptedRuns, runBackup } from "./backup";
 import { config } from "./config";
 import { openDb } from "./db";
+import { chromiumPdf } from "./report/pdf";
 import { staticRoutes } from "./static";
 
 function authOptions(): AuthOptions {
@@ -25,7 +26,13 @@ function authOptions(): AuthOptions {
 }
 
 const { sqlite, db } = openDb(config.dataDir);
-const ctx = { sqlite, db, dataDir: config.dataDir, backupDir: config.backupDir };
+const ctx = {
+  sqlite,
+  db,
+  dataDir: config.dataDir,
+  backupDir: config.backupDir,
+  renderPdf: config.chromiumPath ? chromiumPdf(config.chromiumPath) : undefined,
+};
 
 failInterruptedRuns(db);
 Bun.cron(config.backupCron, async () => {
