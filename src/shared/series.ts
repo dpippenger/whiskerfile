@@ -100,3 +100,47 @@ export function rangeBand(points: Pick<LabPoint, "date" | "refLow" | "refHigh">[
     };
   });
 }
+
+export type ComparePet = { petId: number; name: string; dob: string | null; results: LabResultInput[] };
+export type CompareAxis = "date" | "age";
+
+/** Why a pet is missing from a comparison. */
+export type LeftOut = { petId: number; name: string; reason: "no-data" | "other-unit" | "no-birth-date" };
+
+/**
+ * Several pets' results for one test on one chart. Only one unit is plotted:
+ * the unit of the most recent numeric result across all pets; a pet with no
+ * result in that unit is left out and named. Against age, a pet without a
+ * birth date is left out too. Points are [x, value] with x a UTC date or an
+ * age in years.
+ */
+export function compareSeries(pets: ComparePet[], axis: CompareAxis) {
+  const latest = pets
+    .flatMap((p) => p.results.filter((r) => r.value != null))
+    .sort((a, b) => (a.date === b.date ? a.order - b.order : a.date < b.date ? -1 : 1))
+    .at(-1);
+  const unit = latest?.unit ?? null;
+  const plotted: { petId: number; name: string; points: (LabPoint & { x: number })[] }[] = [];
+  const leftOut: LeftOut[] = [];
+  for (const pet of pets) {
+    const numeric = pet.results.filter((r) => r.value != null);
+    if (numeric.length === 0) {
+      leftOut.push({ petId: pet.petId, name: pet.name, reason: "no-data" });
+      continue;
+    }
+    if (axis === "age" && !pet.dob) {
+      leftOut.push({ petId: pet.petId, name: pet.name, reason: "no-birth-date" });
+      continue;
+    }
+    const inUnit = labSeries(numeric.filter((r) => (r.unit ?? "") === (unit ?? ""))).points;
+    if (inUnit.length === 0) {
+      leftOut.push({ petId: pet.petId, name: pet.name, reason: "other-unit" });
+      continue;
+    }
+    const points = inUnit
+      .map((p) => ({ ...p, x: axis === "date" ? dateToUtc(p.date) : ageInYears(pet.dob!, p.date) }))
+      .filter((p): p is LabPoint & { x: number } => p.x != null);
+    plotted.push({ petId: pet.petId, name: pet.name, points });
+  }
+  return { unit, plotted, leftOut };
+}

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { parseLabValue } from "./labs";
-import { ageInYears, dateToUtc, labSeries, rangeBand, type LabResultInput } from "./series";
+import { ageInYears, compareSeries, dateToUtc, labSeries, rangeBand, type LabResultInput } from "./series";
 
 const result = (
   date: string,
@@ -63,4 +63,39 @@ test("the range band follows each result's own range and breaks where it isn't t
   expect(band[1]!.height).toBeCloseTo(1.4);
   expect(band.slice(2).map((b) => b.height)).toEqual([null, null]);
   expect(band[0]!.x).toBe(dateToUtc("2026-01-01"));
+});
+
+const pet = (petId: number, name: string, dob: string | null, results: LabResultInput[]) => ({
+  petId,
+  name,
+  dob,
+  results,
+});
+
+test("comparing pets plots the latest unit and names every pet left out", () => {
+  const pets = [
+    pet(1, "Miso", "2014-03-15", [result("2025-01-01", "1.6"), result("2026-11-06", "2.6")]),
+    pet(2, "Reggie", "2020-06-01", [result("2025-03-01", "141", "µmol/L", 71, 212)]),
+    pet(3, "Biscuit", null, [result("2026-10-01", "1.1")]),
+    pet(4, "Pepper", "2005-05-05", [result("2021-01-01", "Negative", null, null, null)]),
+  ];
+  const byDate = compareSeries(pets, "date");
+  expect(byDate.unit).toBe("mg/dL");
+  expect(byDate.plotted.map((p) => [p.name, p.points.map((x) => x.x)])).toEqual([
+    ["Miso", [dateToUtc("2025-01-01"), dateToUtc("2026-11-06")]],
+    ["Biscuit", [dateToUtc("2026-10-01")]],
+  ]);
+  expect(byDate.leftOut).toEqual([
+    { petId: 2, name: "Reggie", reason: "other-unit" },
+    { petId: 4, name: "Pepper", reason: "no-data" },
+  ]);
+
+  const byAge = compareSeries(pets, "age");
+  expect(byAge.plotted.map((p) => p.name)).toEqual(["Miso"]);
+  expect(byAge.plotted[0]!.points[0]!.x).toBeCloseTo(ageInYears("2014-03-15", "2025-01-01")!);
+  expect(byAge.leftOut.map((l) => [l.name, l.reason])).toEqual([
+    ["Reggie", "other-unit"],
+    ["Biscuit", "no-birth-date"],
+    ["Pepper", "no-data"],
+  ]);
 });
