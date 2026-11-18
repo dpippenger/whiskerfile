@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { apiRoutes } from "./app";
 import { createAuthenticator } from "./auth";
 import { openDb } from "./db";
-import { users } from "./db/schema";
+import { backupRuns, users } from "./db/schema";
 
 const ISSUER = "https://team.cloudflareaccess.com";
 const AUDIENCE = "aud-tag";
@@ -27,10 +27,10 @@ async function setup() {
     routes: apiRoutes({ sqlite, db, dataDir: join(root, "data"), backupDir: join(root, "backups") }, authenticate),
   });
 
-  const token = (claims: Record<string, unknown>, opts: { aud?: string; exp?: string; key?: CryptoKey } = {}) =>
+  const token = (claims: Record<string, unknown>, opts: { aud?: string; iss?: string; exp?: string; key?: CryptoKey } = {}) =>
     new SignJWT(claims)
       .setProtectedHeader({ alg: "RS256" })
-      .setIssuer(ISSUER)
+      .setIssuer(opts.iss ?? ISSUER)
       .setAudience(opts.aud ?? AUDIENCE)
       .setExpirationTime(opts.exp ?? "5m")
       .sign(opts.key ?? privateKey);
@@ -47,6 +47,7 @@ test("requests without a valid Access token are rejected", async () => {
     undefined,
     "not-a-jwt",
     await token({ email: "a@example.com" }, { aud: "another-app" }),
+    await token({ email: "a@example.com" }, { iss: "https://other.cloudflareaccess.com" }),
     await token({ email: "a@example.com" }, { exp: "-1m" }),
     await token({ email: "a@example.com" }, { key: otherKey }),
     await token({ sub: "service-token" }),
@@ -69,6 +70,27 @@ test("a valid token signs in and creates the user once", async () => {
   expect(await first.json()).toMatchObject({ email: "riley@example.com", name: "riley" });
   await get("/api/me", jwt);
   expect(db.select().from(users).all()).toHaveLength(1);
+});
+
+test("dev mode signs in a fixed local user without a token", async () => {
+  const { db } = openDb(":memory:");
+  const user = await createAuthenticator(db, { mode: "dev" })(new Request("http://localhost/api/me"));
+  expect(user?.email).toBe("dev@localhost");
+});
+
+test("the backup list keeps every downloadable snapshot beyond recent history", async () => {
+  const { server, token, db } = await setup();
+  using _ = server;
+  db.insert(backupRuns).values({ startedAt: 1, status: "ok", file: "old-kept.sqlite" }).run();
+  db.insert(backupRuns).values({ startedAt: 2, status: "ok" }).run();
+  for (let i = 0; i < 25; i++) db.insert(backupRuns).values({ startedAt: 10 + i, status: "failed" }).run();
+
+  const res = await fetch(new URL("/api/backups", server.url), {
+    headers: { "Cf-Access-Jwt-Assertion": await token({ email: "a@example.com" }) },
+  });
+  const runs = (await res.json()) as { file: string | null }[];
+  expect(runs).toHaveLength(21);
+  expect(runs.at(-1)?.file).toBe("old-kept.sqlite");
 });
 
 test("a backup can be run, listed and downloaded", async () => {

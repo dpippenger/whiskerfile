@@ -11,11 +11,14 @@ You need Docker, a domain on Cloudflare, and a Cloudflare Zero Trust team (the f
 1. In Zero Trust, create a tunnel and copy its token. Add a public hostname to it (for example `pets.example.com`) with the service `http://app:3000`.
 2. Create a self-hosted Access application for that hostname. Add Google as a login method and a policy that allows only your household's email addresses. Copy the application's Audience (AUD) tag.
 3. Copy `.env.example` to `.env` and fill in `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD` and `TUNNEL_TOKEN`.
-4. Start it:
+4. Create the data and backup folders yourself, so they belong to you and not to root, then start it:
 
    ```sh
+   mkdir -p data backups
    docker compose up -d --build
    ```
+
+   The app runs as user 1000. If `id -u` prints something else, set `APP_UID` and `APP_GID` in `.env`. A custom `BACKUP_PATH` must exist and be writable by that user.
 
 The app container publishes no port on the host, so the tunnel is the only way in. The app also verifies Cloudflare's signed header on every request and rejects anything without it.
 

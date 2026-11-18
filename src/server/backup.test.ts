@@ -1,5 +1,6 @@
 import { Database } from "bun:sqlite";
 import { expect, test } from "bun:test";
+import { writeFileSync } from "node:fs";
 import { mkdtemp, readdir, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -11,7 +12,8 @@ const at = (iso: string) => snapshotName(new Date(iso));
 
 test("snapshot names round-trip their timestamp", () => {
   const when = new Date("2026-11-18T03:00:07Z");
-  expect(snapshotName(when)).toBe("whiskerfile-20261118T030007Z.sqlite");
+  expect(snapshotName(new Date(when.getTime() + 1))).not.toBe(snapshotName(when));
+  expect(snapshotName(when)).toBe("whiskerfile-20261118T030007000Z.sqlite");
   expect(snapshotTime(snapshotName(when))).toEqual(when);
   expect(snapshotTime("notes.txt")).toBeNull();
 });
@@ -51,7 +53,7 @@ test("a backup snapshots the database, copies new uploads and prunes old snapsho
   const earlier = await runBackup(ctx, new Date("2026-11-18T03:00:00Z"));
   expect(earlier.status).toBe("ok");
   const later = await runBackup(ctx, new Date("2026-11-18T15:00:00Z"));
-  expect(later).toMatchObject({ status: "ok", error: null, file: "whiskerfile-20261118T150000Z.sqlite" });
+  expect(later).toMatchObject({ status: "ok", error: null, file: "whiskerfile-20261118T150000000Z.sqlite" });
   expect(later.sizeBytes).toBeGreaterThan(0);
 
   expect(await readdir(join(backupDir, "db"))).toEqual([later.file!]);
@@ -60,6 +62,40 @@ test("a backup snapshots the database, copies new uploads and prunes old snapsho
 
   const snapshot = new Database(join(backupDir, "db", later.file!), { readonly: true });
   expect(snapshot.query("SELECT email FROM users").all()).toEqual([{ email: "a@example.com" }]);
+});
+
+test("half-written files from a cut-off run are never kept or counted", async () => {
+  const root = await mkdtemp(join(tmpdir(), "whiskerfile-backup-"));
+  const dataDir = join(root, "data");
+  const backupDir = join(root, "backups");
+  const { sqlite, db } = openDb(dataDir);
+  await mkdir(join(dataDir, "uploads"));
+  await writeFile(join(dataDir, "uploads", "abc123"), "photo");
+  const ctx = { sqlite, db, dataDir, backupDir };
+
+  const good = await runBackup(ctx, new Date("2026-11-18T03:00:00Z"));
+  // A later run on the same day died mid-write.
+  await writeFile(join(backupDir, "db", snapshotName(new Date("2026-11-18T15:00:00Z")) + ".partial"), "trunc");
+  await writeFile(join(backupDir, "uploads", "def456.partial"), "trunc");
+  await writeFile(join(dataDir, "uploads", "def456"), "scan");
+
+  const next = await runBackup(ctx, new Date("2026-11-19T03:00:00Z"));
+  expect(next.status).toBe("ok");
+  expect((await readdir(join(backupDir, "db"))).sort()).toEqual([good.file!, next.file!]);
+  expect((await readdir(join(backupDir, "uploads"))).sort()).toEqual(["abc123", "def456"]);
+  expect(await Bun.file(join(backupDir, "uploads", "def456")).text()).toBe("scan");
+});
+
+test("a snapshot that fails its integrity check is discarded", async () => {
+  const root = await mkdtemp(join(tmpdir(), "whiskerfile-backup-"));
+  const { db } = openDb(join(root, "data"));
+  // VACUUM INTO from this stand-in writes a file that is not a database.
+  const sqlite = {
+    query: () => ({ run: (path: string) => writeFileSync(path, "not a database") }),
+  } as unknown as Database;
+  const run = await runBackup({ sqlite, db, dataDir: join(root, "data"), backupDir: join(root, "backups") });
+  expect(run.status).toBe("failed");
+  expect(await readdir(join(root, "backups", "db"))).toEqual([]);
 });
 
 test("a failed backup is recorded with its error", async () => {

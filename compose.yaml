@@ -4,6 +4,8 @@ services:
   app:
     build: .
     restart: unless-stopped
+    # Must own ./data and the backup folder on the host.
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
     environment:
       CF_ACCESS_TEAM_DOMAIN: ${CF_ACCESS_TEAM_DOMAIN:?}
       CF_ACCESS_AUD: ${CF_ACCESS_AUD:?}

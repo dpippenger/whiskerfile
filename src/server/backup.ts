@@ -1,22 +1,25 @@
 import { Database } from "bun:sqlite";
 import { eq, inArray } from "drizzle-orm";
-import { copyFile, mkdir, readdir, stat, unlink } from "node:fs/promises";
+import { copyFile, mkdir, readdir, rename, rm, stat, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import type { Db } from "./db";
 import { backupRuns, type BackupRun } from "./db/schema";
 
-const SNAPSHOT_RE = /^whiskerfile-(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z\.sqlite$/;
+// Millisecond precision keeps two runs in the same second from colliding.
+const SNAPSHOT_RE = /^whiskerfile-(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(\d{3})Z\.sqlite$/;
+// Files are written under this suffix and renamed once complete, so a file with
+// a final name is always whole.
+const PARTIAL = ".partial";
 
 export function snapshotName(at: Date): string {
-  const stamp = at.toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
-  return `whiskerfile-${stamp}.sqlite`;
+  return `whiskerfile-${at.toISOString().replace(/[-:.]/g, "")}.sqlite`;
 }
 
 export function snapshotTime(name: string): Date | null {
   const m = SNAPSHOT_RE.exec(name);
   if (!m) return null;
-  const [y, mo, d, h, mi, s] = m.slice(1).map(Number) as [number, number, number, number, number, number];
-  return new Date(Date.UTC(y, mo - 1, d, h, mi, s));
+  const [y, mo, d, h, mi, s, ms] = m.slice(1).map(Number) as [number, number, number, number, number, number, number];
+  return new Date(Date.UTC(y, mo - 1, d, h, mi, s, ms));
 }
 
 const DAY_MS = 86_400_000;
@@ -51,9 +54,12 @@ export function snapshotsToKeep(names: string[]): Set<string> {
   return keep;
 }
 
+/** Lists a directory, creating it if missing and clearing files a cut-off run left half-written. */
 async function listDir(dir: string): Promise<string[]> {
   await mkdir(dir, { recursive: true });
-  return readdir(dir);
+  const names = await readdir(dir);
+  for (const name of names) if (name.endsWith(PARTIAL)) await rm(join(dir, name));
+  return names.filter((name) => !name.endsWith(PARTIAL));
 }
 
 export type BackupContext = { sqlite: Database; db: Db; dataDir: string; backupDir: string };
@@ -79,19 +85,21 @@ async function backup({ sqlite, db, dataDir, backupDir }: BackupContext, now: Da
       .returning()
       .get();
 
+  const dbDir = join(backupDir, "db");
+  const target = join(dbDir, file);
+  const partial = target + PARTIAL;
   try {
-    const dbDir = join(backupDir, "db");
     const existing = await listDir(dbDir);
-    const target = join(dbDir, file);
-    sqlite.query("VACUUM INTO ?").run(target);
+    sqlite.query("VACUUM INTO ?").run(partial);
 
-    const copy = new Database(target, { readonly: true });
+    const copy = new Database(partial, { readonly: true });
     try {
       const check = copy.query("PRAGMA integrity_check").get() as { integrity_check: string };
       if (check.integrity_check !== "ok") throw new Error(`Snapshot failed integrity check: ${check.integrity_check}`);
     } finally {
       copy.close();
     }
+    await rename(partial, target);
 
     // Uploads are named by content hash and never change, so copying the ones
     // the backup lacks is a complete incremental backup.
@@ -99,7 +107,10 @@ async function backup({ sqlite, db, dataDir, backupDir }: BackupContext, now: Da
     const uploadsBackup = join(backupDir, "uploads");
     const have = new Set(await listDir(uploadsBackup));
     for (const name of await listDir(uploadsDir)) {
-      if (!have.has(name)) await copyFile(join(uploadsDir, name), join(uploadsBackup, name));
+      if (have.has(name)) continue;
+      const dest = join(uploadsBackup, name);
+      await copyFile(join(uploadsDir, name), dest + PARTIAL);
+      await rename(dest + PARTIAL, dest);
     }
 
     const all = [...existing, file];
@@ -110,6 +121,7 @@ async function backup({ sqlite, db, dataDir, backupDir }: BackupContext, now: Da
 
     return finish({ status: "ok", file, sizeBytes: (await stat(target)).size });
   } catch (err) {
+    await rm(partial, { force: true }).catch(() => {});
     return finish({ status: "failed", error: err instanceof Error ? err.message : String(err) });
   }
 }
