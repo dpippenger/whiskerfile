@@ -15,12 +15,13 @@ import { useState, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import type { Condition, Medication, Pet, Vaccination } from "../../server/db/schema";
 import { formatAge, formatDate, localToday } from "../../shared/dates";
-import { CHIP_LOOKUP_URL, reproductiveLabel, SPECIES_LABEL } from "../../shared/pets";
+import { CHIP_LOOKUP_URL, reproductiveLabel, SEX_LABEL, SPECIES_LABEL } from "../../shared/pets";
 import { Page } from "../components/page";
 import { PetPhoto } from "../components/pet-photo";
 import { FileForm, FilesTab } from "../components/attachments";
 import { ConditionForm, MedicationForm, VaccinationForm } from "../components/health-forms";
 import { HealthTab } from "../components/health-tab";
+import { ReportButton } from "../components/report-dialog";
 import { LabReportView, LabsTab } from "../components/labs";
 import { TrendsTab } from "../components/trends-tab";
 import { EntryForm, WeightForm } from "../components/record-forms";
@@ -33,8 +34,6 @@ import { Card } from "../components/ui/card";
 import { useHealth, useLabs, usePet, useRecords, useRegistries, useWeights } from "../lib/queries";
 import { useUnits } from "../lib/units";
 import { cn } from "../lib/utils";
-
-const SEX_LABEL = { female: "Female", male: "Male", unknown: "Unknown" } as const;
 
 function Detail({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -300,13 +299,16 @@ export function PetProfile({ id, tab = "timeline", reportId }: { id: number; tab
     <Page
       title={pet.name}
       actions={
-        <Link
-          href={`/pets/${pet.id}/edit`}
-          className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border-strong bg-elevated px-4 text-sm font-medium hover:bg-card-hover md:min-h-9"
-        >
-          <Pencil className="size-4" aria-hidden />
-          Edit
-        </Link>
+        <div className="flex gap-2">
+          <ReportButton petId={pet.id} />
+          <Link
+            href={`/pets/${pet.id}/edit`}
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border-strong bg-elevated px-4 text-sm font-medium hover:bg-card-hover md:min-h-9"
+          >
+            <Pencil className="size-4" aria-hidden />
+            Edit
+          </Link>
+        </div>
       }
     >
       <div className="grid gap-4 lg:grid-cols-[minmax(280px,360px)_1fr] lg:items-start">
