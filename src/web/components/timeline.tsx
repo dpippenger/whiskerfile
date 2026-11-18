@@ -1,49 +1,28 @@
-import { FileText, House, Pencil, Scale, Stethoscope } from "lucide-react";
+import { FileText, HeartPulse, House, Pencil, Pill, Scale, Stethoscope, Syringe } from "lucide-react";
+import type { ReactNode } from "react";
+import type { PetHealth } from "../../server/routes/health";
+import type { LabReportWithResults } from "../../server/routes/labs";
 import type {
   AttachmentWithFile,
   EntryWithVitals,
   MeasurementWithAuthor,
   PetRecords,
 } from "../../server/routes/records";
-import { formatDate } from "../../shared/dates";
+import { formatDate, localToday } from "../../shared/dates";
+import { CONDITION_KIND_LABEL } from "../../shared/health";
 import { ENTRY_KIND_LABEL, formatVital, VITAL_LABEL, VITALS, type Units } from "../../shared/records";
 import { FileChip, fileRef } from "./attachments";
+import type { HealthEditing } from "./health-tab";
+import { LabReportRow } from "./labs";
+import { medicationDates, timelineItems, type TimelineItem } from "../lib/timeline-items";
 import { Badge } from "./ui/badge";
 import { Card } from "./ui/card";
 
 export type Editing =
   | { type: "entry"; entry: EntryWithVitals }
   | { type: "weight"; measurement: MeasurementWithAuthor }
-  | { type: "file"; attachment: AttachmentWithFile };
-
-type Item =
-  | { type: "entry"; date: string; createdAt: number; entry: EntryWithVitals }
-  | { type: "measurement"; date: string; createdAt: number; measurement: MeasurementWithAuthor }
-  | { type: "file"; date: string; createdAt: number; attachment: AttachmentWithFile };
-
-/** Visits and standalone readings and files in one list, newest day first, newest entry first within a day. */
-export function timelineItems(records: PetRecords): Item[] {
-  return [
-    ...records.entries.map((entry) => ({
-      type: "entry" as const,
-      date: entry.date,
-      createdAt: entry.createdAt,
-      entry,
-    })),
-    ...records.measurements.map((measurement) => ({
-      type: "measurement" as const,
-      date: measurement.date,
-      createdAt: measurement.createdAt,
-      measurement,
-    })),
-    ...records.attachments.map((attachment) => ({
-      type: "file" as const,
-      date: attachment.date,
-      createdAt: attachment.createdAt,
-      attachment,
-    })),
-  ].sort((a, b) => (a.date === b.date ? b.createdAt - a.createdAt : a.date < b.date ? 1 : -1));
-}
+  | { type: "file"; attachment: AttachmentWithFile }
+  | HealthEditing;
 
 function EditButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
@@ -149,53 +128,141 @@ function FileRow({ attachment, onEdit }: { attachment: AttachmentWithFile; onEdi
   );
 }
 
+/** A vaccine dose, medication or condition: an icon, what it was, then when and by whom. */
+function HealthRow({
+  icon: Icon,
+  title,
+  detail,
+  author,
+  label,
+  onEdit,
+}: {
+  icon: typeof Syringe;
+  title: ReactNode;
+  detail: string;
+  author: string;
+  label: string;
+  onEdit: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-2">
+      <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+      <div className="min-w-0 flex-1">
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1">{title}</p>
+        <p className="text-xs text-muted-foreground">
+          {detail} · {author}
+        </p>
+      </div>
+      <EditButton label={label} onClick={onEdit} />
+    </div>
+  );
+}
+
+function itemRow(item: TimelineItem, units: Units, onEdit: (editing: Editing) => void): [string, ReactNode] {
+  switch (item.type) {
+    case "entry":
+      return [
+        `e${item.entry.id}`,
+        <EntryCard entry={item.entry} units={units} onEdit={() => onEdit({ type: "entry", entry: item.entry })} />,
+      ];
+    case "measurement":
+      return [
+        `m${item.measurement.id}`,
+        <MeasurementRow
+          measurement={item.measurement}
+          units={units}
+          onEdit={() => onEdit({ type: "weight", measurement: item.measurement })}
+        />,
+      ];
+    case "file":
+      return [
+        `f${item.attachment.id}`,
+        <FileRow attachment={item.attachment} onEdit={() => onEdit({ type: "file", attachment: item.attachment })} />,
+      ];
+    case "lab":
+      return [`l${item.report.id}`, <LabReportRow report={item.report} />];
+    case "vaccination": {
+      const v = item.record;
+      return [
+        `v${v.id}`,
+        <HealthRow
+          icon={Syringe}
+          title={<span className="font-medium">{v.vaccine}</span>}
+          detail={["Vaccinated " + formatDate(v.dateGiven), v.clinic].filter(Boolean).join(" · ")}
+          author={v.author}
+          label={`Edit ${v.vaccine} of ${formatDate(v.dateGiven)}`}
+          onEdit={() => onEdit({ type: "vaccination", record: v })}
+        />,
+      ];
+    }
+    case "medication": {
+      const m = item.record;
+      return [
+        `d${m.id}`,
+        <HealthRow
+          icon={Pill}
+          title={
+            <>
+              <span className="font-medium">{m.drug}</span>
+              {m.dose && <span className="text-foreground-secondary">{m.dose}</span>}
+            </>
+          }
+          detail={medicationDates(m, localToday())}
+          author={m.author}
+          label={`Edit ${m.drug}`}
+          onEdit={() => onEdit({ type: "medication", record: m })}
+        />,
+      ];
+    }
+    case "condition": {
+      const c = item.record;
+      return [
+        `c${c.id}`,
+        <HealthRow
+          icon={HeartPulse}
+          title={
+            <>
+              <span className="font-medium">{c.title}</span>
+              <Badge>{CONDITION_KIND_LABEL[c.kind]}</Badge>
+            </>
+          }
+          detail={`${formatDate(c.date)}${c.resolvedOn ? `, resolved ${formatDate(c.resolvedOn)}` : ""}`}
+          author={c.author}
+          label={`Edit ${c.title}`}
+          onEdit={() => onEdit({ type: "condition", record: c })}
+        />,
+      ];
+    }
+  }
+}
+
 export function Timeline({
   records,
+  labs,
+  health,
   units,
   onEdit,
 }: {
   records: PetRecords;
+  labs: LabReportWithResults[];
+  health: PetHealth;
   units: Units;
   onEdit: (editing: Editing) => void;
 }) {
-  const items = timelineItems(records);
+  const items = timelineItems(records, labs, health);
   if (items.length === 0) {
     return (
       <Card className="py-12 text-center text-muted-foreground">
-        No records yet. Use “Add record” to log a vet visit, a home exam, a weight or a file.
+        No records yet. Use “Add record” to log a vet visit, a weight, lab results, a vaccination and more.
       </Card>
     );
   }
   return (
     <ol className="space-y-3">
-      {items.map((item) => (
-        <li
-          key={
-            item.type === "entry"
-              ? `e${item.entry.id}`
-              : item.type === "file"
-                ? `f${item.attachment.id}`
-                : `m${item.measurement.id}`
-          }
-        >
-          {item.type === "entry" && (
-            <EntryCard entry={item.entry} units={units} onEdit={() => onEdit({ type: "entry", entry: item.entry })} />
-          )}
-          {item.type === "measurement" && (
-            <MeasurementRow
-              measurement={item.measurement}
-              units={units}
-              onEdit={() => onEdit({ type: "weight", measurement: item.measurement })}
-            />
-          )}
-          {item.type === "file" && (
-            <FileRow
-              attachment={item.attachment}
-              onEdit={() => onEdit({ type: "file", attachment: item.attachment })}
-            />
-          )}
-        </li>
-      ))}
+      {items.map((item) => {
+        const [key, row] = itemRow(item, units, onEdit);
+        return <li key={key}>{row}</li>;
+      })}
     </ol>
   );
 }

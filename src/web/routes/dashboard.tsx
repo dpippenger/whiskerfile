@@ -9,6 +9,7 @@ import { PetPhoto } from "../components/pet-photo";
 import { Sparkline } from "../components/sparkline";
 import { Badge } from "../components/ui/badge";
 import { Card } from "../components/ui/card";
+import { petAlerts } from "../lib/alerts";
 import { usePets } from "../lib/queries";
 import { useUnits } from "../lib/units";
 
@@ -41,6 +42,44 @@ function WeightLine({ pet, units }: { pet: PetSummary; units: Units }) {
   );
 }
 
+/** Vaccines overdue or due soon, then the results outside their range on the latest lab report. */
+function Alerts({ pet, today }: { pet: PetSummary; today: string }) {
+  const { due, lab } = petAlerts(pet, today);
+  if (due.length === 0 && !lab) return null;
+  return (
+    <div className="space-y-2 border-t border-border pt-3">
+      {due.length > 0 && (
+        <ul aria-label="Vaccines due" className="flex flex-wrap gap-1.5">
+          {due.map(({ dose, status }) => (
+            <li key={dose.id}>
+              <Badge tone={status === "overdue" ? "danger" : "warning"}>
+                {dose.vaccine} {status === "overdue" ? "overdue" : `due ${formatDate(dose.dueDate!)}`}
+              </Badge>
+            </li>
+          ))}
+        </ul>
+      )}
+      {lab && (
+        <div>
+          <p className="mb-1 text-xs text-muted-foreground">Out of range on the labs of {formatDate(lab.date)}</p>
+          <ul className="flex flex-wrap gap-1.5">
+            {lab.flagged.map((r) => (
+              <li key={r.code}>
+                <Badge tone={r.flag === "high" ? "danger" : "warning"} title={r.name} className="gap-1.5">
+                  <span className="font-mono tabular-nums">
+                    {r.code} {r.valueText}
+                  </span>
+                  {r.flag === "high" ? "High" : "Low"}
+                </Badge>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PetCard({ pet, today, units }: { pet: PetSummary; today: string; units: Units }) {
   const age = pet.dob ? formatAge(pet.dob, pet.deceasedOn ?? today, pet.dobEstimated) : null;
   const kind = [SPECIES_LABEL[pet.species], pet.breed].filter(Boolean).join(" · ");
@@ -68,6 +107,7 @@ function PetCard({ pet, today, units }: { pet: PetSummary; today: string; units:
           )}
         </div>
       </div>
+      <Alerts pet={pet} today={today} />
       <WeightLine pet={pet} units={units} />
     </Link>
   );

@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { attachments, files, labReports, labResults } from "../db/schema";
 import { startApi } from "../test-support";
 import type { LabReportWithResults } from "./labs";
+import type { PetSummary } from "./pets";
 import type { PetRecords } from "./records";
 
 const PET = {
@@ -229,4 +230,45 @@ test("the household can add, rename and remove tests, but not one with results",
       })
     ).status,
   ).toBe(404);
+});
+
+test("the pet list carries the results outside their range on each pet's latest report only", async () => {
+  const { call, json, analyte, petId } = await setup();
+  const crea = (valueText: string) => ({
+    analyteId: analyte("CREA"),
+    valueText,
+    unit: "mg/dL",
+    refLow: 0.6,
+    refHigh: 2.4,
+  });
+  // Two reports on the same day: the one added last is the latest.
+  await call(`/api/pets/${petId}/labs`, { method: "POST", body: report([crea("2.9")], { date: "2026-11-06" }) });
+  const latest = await json<{ id: number }>(
+    call(`/api/pets/${petId}/labs`, {
+      method: "POST",
+      body: report([
+        crea("0.4"),
+        { analyteId: analyte("SDMA"), valueText: "<0.5", unit: "µg/dL", refLow: null, refHigh: 14 },
+        { analyteId: analyte("GLU"), valueText: "520", unit: "mg/dL", refLow: 71, refHigh: 159 },
+        { analyteId: analyte("FELV"), valueText: "Negative", unit: "", refLow: null, refHigh: null },
+        { analyteId: analyte("ALT"), valueText: "<10", unit: "U/L", refLow: 12, refHigh: 130 },
+      ]),
+    }),
+  );
+  // An older report entered afterwards, as when filling in past results, is not the latest.
+  await call(`/api/pets/${petId}/labs`, { method: "POST", body: report([crea("3.1")], { date: "2026-05-01" }) });
+  await call("/api/pets", { method: "POST", body: { ...PET, name: "Tofu" } });
+
+  const [miso, tofu] = await json<PetSummary[]>(call("/api/pets"));
+  expect(miso!.latestLab).toEqual({
+    id: latest.id,
+    date: "2026-11-06",
+    // In catalog order; in-range, unranged and undecidable results are left out.
+    flagged: [
+      { code: "GLU", name: "Glucose", valueText: "520", unit: "mg/dL", flag: "high" },
+      { code: "CREA", name: "Creatinine", valueText: "0.4", unit: "mg/dL", flag: "low" },
+      { code: "ALT", name: "ALT", valueText: "<10", unit: "U/L", flag: "low" },
+    ],
+  });
+  expect(tofu!.latestLab).toBeNull();
 });

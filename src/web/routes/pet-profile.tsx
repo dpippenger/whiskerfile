@@ -164,7 +164,9 @@ function Records({
         ? { mode: "entry", kind: editing.entry.kind, entry: editing.entry }
         : editing.type === "weight"
           ? { mode: "weight", measurement: editing.measurement }
-          : { mode: "file", attachment: editing.attachment },
+          : editing.type === "file"
+            ? { mode: "file", attachment: editing.attachment }
+            : ({ mode: editing.type, record: editing.record } as DialogState),
     );
 
   const error = records.error ?? weights.error ?? labs.error ?? health.error;
@@ -195,18 +197,14 @@ function Records({
       </div>
 
       {error && <p className="text-danger">{error.message}</p>}
-      {records.data && tab === "timeline" && <Timeline records={records.data} units={units} onEdit={edit} />}
+      {records.data && labs.data && health.data && tab === "timeline" && (
+        <Timeline records={records.data} labs={labs.data} health={health.data} units={units} onEdit={edit} />
+      )}
       {records.data && weights.data && tab === "weight" && (
         <WeightTab weights={weights.data} records={records.data} units={units} color={color} />
       )}
       {labs.data && tab === "labs" && !reportId && <LabsTab petId={petId} reports={labs.data} />}
-      {health.data && tab === "health" && (
-        <HealthTab
-          health={health.data}
-          deceasedOn={deceasedOn}
-          onEdit={(e) => setDialog({ mode: e.type, record: e.record } as DialogState)}
-        />
-      )}
+      {health.data && tab === "health" && <HealthTab health={health.data} deceasedOn={deceasedOn} onEdit={edit} />}
       {labs.data && weights.data && tab === "trends" && (
         <TrendsTab reports={labs.data} weights={weights.data} units={units} color={color} />
       )}
