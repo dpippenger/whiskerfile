@@ -4,7 +4,7 @@ import { writeFileSync } from "node:fs";
 import { mkdtemp, readdir, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runBackup, snapshotName, snapshotsToKeep, snapshotTime } from "./backup";
+import { failInterruptedRuns, runBackup, snapshotName, snapshotsToKeep, snapshotTime } from "./backup";
 import { openDb } from "./db";
 import { backupRuns, users } from "./db/schema";
 
@@ -132,4 +132,21 @@ test("a failed backup is recorded with its error", async () => {
   const run = await runBackup({ sqlite, db, dataDir: join(root, "data"), backupDir: join(root, "blocked") });
   expect(run.status).toBe("failed");
   expect(run.error).toBeTruthy();
+});
+
+test("a run cut off by a restart is marked failed at startup; finished runs are left alone", () => {
+  const { db } = openDb(":memory:");
+  const [done, cutOff] = db
+    .insert(backupRuns)
+    .values([
+      { startedAt: 1000, finishedAt: 2000, status: "ok", file: at("2026-11-18T03:00:00Z"), sizeBytes: 4096 },
+      { startedAt: 3000, status: "running" },
+    ])
+    .returning()
+    .all();
+  failInterruptedRuns(db);
+  const runs = db.select().from(backupRuns).all();
+  expect(runs[0]).toEqual(done!);
+  expect(runs[1]).toMatchObject({ id: cutOff!.id, status: "failed", error: "Interrupted by a restart" });
+  expect(runs[1]!.finishedAt).not.toBeNull();
 });

@@ -103,3 +103,15 @@ test("without an API key, importing says what to set", async () => {
     error: "Reading documents needs an Anthropic API key; set ANTHROPIC_API_KEY",
   });
 });
+
+test("the missing key is reported before the upload is looked at", async () => {
+  const { call } = await startApi();
+  // Each of these is a 400 or 413 once a key is set; without one, none is read that far.
+  const empty = new FormData();
+  empty.append("note", "no file field");
+  const jpeg = new Uint8Array(8 * 1024 * 1024);
+  jpeg.set([0xff, 0xd8, 0xff]);
+  for (const body of [form("hello", "notes.txt"), form("", "empty.pdf"), empty, form(jpeg, "photo.jpg")]) {
+    expect((await call("/api/labs/import", { method: "POST", body })).status).toBe(501);
+  }
+});

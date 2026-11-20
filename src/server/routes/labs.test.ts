@@ -287,6 +287,16 @@ test("the household can add, rename and remove tests, but not one with results",
     body: { code: "SYMM", name: "SDMA (in-house)", category: "chemistry", defaultUnit: "µg/dL" },
   });
   expect(await json(renamed)).toMatchObject({ name: "SDMA (in-house)" });
+  // Renaming onto a code the catalog already has is refused like adding it twice.
+  const clash = await call(`/api/analytes/${custom.id}`, {
+    method: "PUT",
+    body: { code: "crea", name: "SDMA (in-house)", category: "chemistry", defaultUnit: "µg/dL" },
+  });
+  expect(clash.status).toBe(400);
+  expect((await json<{ fields: object }>(clash)).fields).toEqual({ code: "Already in the catalog" });
+  expect(await json<{ code: string }[]>(call("/api/analytes"))).toContainEqual(
+    expect.objectContaining({ id: custom.id, code: "SYMM" }),
+  );
 
   await call(`/api/pets/${petId}/labs`, {
     method: "POST",

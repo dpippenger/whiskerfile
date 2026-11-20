@@ -155,6 +155,24 @@ test("registries come seeded, can be edited, and cannot be removed while in use"
     body: { name: "Shelter", website: "", phone: "" },
   });
   expect(await edited.json()).toEqual({ id: shelter.id, name: "Shelter", website: null, phone: null });
+  // Renaming onto another registry's name is refused the same way as adding it twice.
+  const taken = await call(`/api/chip-registries/${shelter.id}`, {
+    method: "PUT",
+    body: { name: "AKC Reunite", website: "", phone: "" },
+  });
+  expect(taken.status).toBe(409);
+  expect(await taken.json()).toEqual({
+    error: "A registry with that name already exists",
+    fields: { name: "Already exists" },
+  });
+  for (const id of ["99999", "abc"]) {
+    const unknown = await call(`/api/chip-registries/${id}`, {
+      method: "PUT",
+      body: { name: "Nowhere", website: "", phone: "" },
+    });
+    expect(unknown.status).toBe(404);
+  }
+  expect((await call("/api/chip-registries/abc", { method: "DELETE" })).status).toBe(404);
 
   const cat = (await (
     await call("/api/pets", { method: "POST", body: pet({ chipRegistryId: shelter.id }) })
