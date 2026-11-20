@@ -313,6 +313,35 @@ test("while a document is being read, reading and saving wait for it", async () 
   expect(form.readButton().disabled).toBe(false);
 });
 
+test("while a report is being attached, reading and saving wait for it", async () => {
+  const form = await open(reader().readLab);
+  // Hold the upload open until the test lets it through.
+  const api = globalThis.fetch;
+  let finish!: () => void;
+  const held = new Promise<void>((resolve) => (finish = resolve));
+  globalThis.fetch = (async (path: string, init?: RequestInit) => {
+    if (path === "/api/files") await held;
+    return api(path, init);
+  }) as unknown as typeof fetch;
+  rtl.fireEvent.change(form.container.querySelector('input[type="file"]:not([accept])')!, {
+    target: { files: [pdf("scan.pdf")] },
+  });
+
+  const save = form.container.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+  await rtl.waitFor(() => expect(save.textContent).toBe("Uploading…"));
+  expect(save.disabled).toBe(true);
+  expect(form.readButton().disabled).toBe(true);
+  // A submit now would save the report without the document still on its way.
+  rtl.fireEvent.submit(form.container.querySelector("form")!);
+  expect(page.queryByText("Check the highlighted fields.")).toBeNull();
+  expect(form.db.select().from(labReports).all()).toEqual([]);
+
+  finish();
+  expect(await page.findByLabelText("Remove scan.pdf")).toBeTruthy();
+  expect(page.getByRole<HTMLButtonElement>("button", { name: "Save results" }).disabled).toBe(false);
+  expect(form.readButton().disabled).toBe(false);
+});
+
 test("a failed reading says why under the picker and keeps the original attached", async () => {
   const form = await open(async () => {
     throw new ReadLabError("Claude declined to read this document. Enter the results by hand.", 422);

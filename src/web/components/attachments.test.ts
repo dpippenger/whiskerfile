@@ -60,6 +60,8 @@ test("a file is uploaded exactly as picked", async () => {
 });
 
 test("a small image, or one that already has a preview, needs no preview made", async () => {
+  // With a working decoder, a preview made by mistake would show up as a second request.
+  decodeImages();
   for (const answer of [stored({ sizeBytes: 512 * 1024 }), stored({ previewId: 3 })]) {
     const calls = server(() => Response.json(answer, { status: 201 }));
     expect(await uploadOriginal(photo)).toEqual(answer);
