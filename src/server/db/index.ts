@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { reparseLabResults } from "./reparse";
 import * as schema from "./schema";
 
-export function openDb(dataDir: string | ":memory:") {
+export function openDb(dataDir: string) {
   let sqlite: Database;
   if (dataDir === ":memory:") {
     sqlite = new Database(":memory:");

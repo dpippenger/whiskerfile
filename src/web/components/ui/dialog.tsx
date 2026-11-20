@@ -30,6 +30,8 @@ export function Dialog({
   }, [open]);
 
   return (
+    // Only a click on the backdrop closes it; the keyboard closes a dialog natively (Escape).
+    // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions
     <dialog
       ref={ref}
       onClose={onClose}

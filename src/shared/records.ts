@@ -128,8 +128,6 @@ export const entryInput = z.object({
   fileIds: z.array(z.number().int().positive()).max(50).optional(),
 });
 
-export type EntryInput = z.input<typeof entryInput>;
-
 /** A measurement taken on its own, such as a weigh-in at home. */
 export const measurementInput = z.object({ date, kind: z.enum(VITALS), value: z.number() }).superRefine((m, ctx) => {
   const result = vitalValue(m.kind).safeParse(m.value);

@@ -101,7 +101,5 @@ export const chipRegistryInput = z.object({
   phone: optionalText(40),
 });
 
-export type ChipRegistryInput = z.input<typeof chipRegistryInput>;
-
 /** AAHA's tool searches the participating US registries for a chip number. */
 export const CHIP_LOOKUP_URL = "https://www.aaha.org/petmicrochiplookup";

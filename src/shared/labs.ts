@@ -172,8 +172,6 @@ export const labReportInput = z
     });
   });
 
-export type LabReportInput = z.input<typeof labReportInput>;
-
 type ResultLike = {
   analyteId: number;
   valueText: string;
@@ -227,14 +225,12 @@ export const analyteInput = z.object({
     .trim()
     .min(1, "Code is required")
     .max(16)
-    .regex(/^[A-Za-z0-9/+\-]+$/, "Letters, digits, / + and - only")
+    .regex(/^[A-Za-z0-9/+-]+$/, "Letters, digits, / + and - only")
     .transform((s) => s.toUpperCase()),
   name: z.string().trim().min(1, "Name is required").max(80),
   category: z.enum(ANALYTE_CATEGORIES),
   defaultUnit: optionalText(20),
 });
-
-export type AnalyteInput = z.input<typeof analyteInput>;
 
 type PrefillSource = {
   lab: string | null;

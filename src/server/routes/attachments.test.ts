@@ -154,7 +154,7 @@ test("files can be filed on their own, relabelled and removed", async () => {
 });
 
 test("a visit's files can only be relabelled with the visit, but can be removed directly", async () => {
-  const { call, json, upload, records, petId } = await setup();
+  const { call, upload, records, petId } = await setup();
   const lab = await upload(pdf("x"), "lab.pdf");
   await call(`/api/pets/${petId}/entries`, { method: "POST", body: visit({ fileIds: [lab.id] }) });
   const attached = (await records()).entries[0]!.attachments[0]!;
