@@ -107,6 +107,24 @@ test("a snapshot that fails its integrity check is discarded", async () => {
   expect(await readdir(join(root, "backups", "db"))).toEqual([]);
 });
 
+test("a failure after the snapshot is written records the snapshot with the run", async () => {
+  const root = await mkdtemp(join(tmpdir(), "whiskerfile-backup-"));
+  const dataDir = join(root, "data");
+  const backupDir = join(root, "backups");
+  const { sqlite, db } = openDb(dataDir);
+  // The uploads copy fails: the backup's uploads folder is blocked by a file.
+  await mkdir(backupDir, { recursive: true });
+  await writeFile(join(backupDir, "uploads"), "");
+
+  const run = await runBackup({ sqlite, db, dataDir, backupDir }, new Date("2026-11-18T03:00:00Z"));
+  expect(run.status).toBe("failed");
+  expect(run.error).toBeTruthy();
+  // The snapshot had already passed its check and been renamed; it stays listed and downloadable.
+  expect(run.file).toBe("whiskerfile-20261118T030000000Z.sqlite");
+  expect(run.sizeBytes).toBeGreaterThan(0);
+  expect(await readdir(join(backupDir, "db"))).toEqual([run.file!]);
+});
+
 test("a failed backup is recorded with its error", async () => {
   const root = await mkdtemp(join(tmpdir(), "whiskerfile-backup-"));
   const { sqlite, db } = openDb(join(root, "data"));

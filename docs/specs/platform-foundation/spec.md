@@ -102,7 +102,7 @@ Pets, records, labs, trends, health records, PDF reports and AI lab import have 
 
 1. WHEN the server starts, THE System SHALL create Data_Dir if missing and open `<Data_Dir>/whiskerfile.sqlite`, creating it if absent (src/server/backup.test.ts)
 2. THE System SHALL set `journal_mode = WAL` and `synchronous = NORMAL` on the file database, and `foreign_keys = ON` on every connection (manual)
-3. WHEN the database is opened, THE System SHALL apply every pending Drizzle migration from `./drizzle` before serving, then re-read stored lab results under the current parsing rule (src/server/db/reparse.test.ts)
+3. WHEN the database is opened, THE System SHALL apply every pending Drizzle migration from the repository's `drizzle/` folder, resolved from the source file rather than the working directory, before serving, then re-read stored lab results under the current parsing rule (src/server/db/reparse.test.ts; src/server/db/index.test.ts for the resolution)
 4. THE schema SHALL hold `users` (unique email) and `backup_runs`, with timestamps stored as epoch milliseconds (manual)
 5. WHERE the data directory is `:memory:`, THE System SHALL open an in-memory database with the same migrations, used by tests (src/server/app.test.ts)
 
@@ -116,7 +116,7 @@ Pets, records, labs, trends, health records, PDF reports and AI lab import have 
 2. WHEN a signed-in user sends `POST /api/backups`, THE System SHALL run a backup with no request idle timeout and return the finished Backup_Run (src/server/app.test.ts; timeout manual)
 3. WHEN a backup runs, THE System SHALL record a `running` Backup_Run, write the Snapshot with `VACUUM INTO` as a Partial_File, run `PRAGMA integrity_check` on it, and rename it to its final name only when the check returns `ok` (src/server/backup.test.ts)
 4. WHEN the Snapshot is kept, THE System SHALL copy each upload in `<Data_Dir>/uploads/` that `<Backup_Dir>/uploads/` lacks, through a Partial_File, skipping uploads that are themselves Partial_Files (src/server/backup.test.ts)
-5. WHEN a backup finishes, THE System SHALL mark it `ok` with `file`, `sizeBytes` and `finishedAt`; IF any step fails, THE System SHALL mark it `failed` with the error message and delete the Partial_File (src/server/backup.test.ts)
+5. WHEN a backup finishes, THE System SHALL mark it `ok` with `file`, `sizeBytes` and `finishedAt`; IF any step fails, THE System SHALL mark it `failed` with the error message and delete the Partial_File, keeping `file` and `sizeBytes` on the run WHEN the Snapshot had already been renamed, so the kept Snapshot stays listed and downloadable (src/server/backup.test.ts)
 6. WHEN a backup is requested while another is in flight, THE System SHALL return the in-flight run instead of starting a second (manual)
 7. WHEN the server starts, THE System SHALL mark every `running` Backup_Run `failed` with `Interrupted by a restart` (manual)
 8. WHEN a backup starts, THE System SHALL delete Partial_Files left in `<Backup_Dir>/db/` and `<Backup_Dir>/uploads/` by a cut-off run (src/server/backup.test.ts)
@@ -195,7 +195,7 @@ flowchart LR
     vacuum --> check{"integrity_check ok?"}
     check -->|No| fail["Delete .partial<br/>mark failed"]
     check -->|Yes| rename["Rename to final name"]
-    rename --> uploads["Copy missing uploads"]
+    rename --> uploads["Copy missing uploads<br/>(a failure from here marks the run<br/>failed but keeps its file)"]
     uploads --> prune["Prune outside Retention<br/>null their file"]
     prune --> ok["Mark ok with file and size"]
 ```

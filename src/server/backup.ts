@@ -93,6 +93,9 @@ async function backup({ sqlite, db, dataDir, backupDir }: BackupContext, now: Da
   const dbDir = join(backupDir, "db");
   const target = join(dbDir, file);
   const partial = target + PARTIAL;
+  // Set once the snapshot is renamed, so a later failure still records it:
+  // the run is listed with its file and the snapshot stays downloadable.
+  let kept: { file: string; sizeBytes: number } | null = null;
   try {
     const existing = await listBackupDir(dbDir);
     sqlite.query("VACUUM INTO ?").run(partial);
@@ -105,6 +108,7 @@ async function backup({ sqlite, db, dataDir, backupDir }: BackupContext, now: Da
       copy.close();
     }
     await rename(partial, target);
+    kept = { file, sizeBytes: (await stat(target)).size };
 
     // Uploads are named by content hash and never change, so copying the ones
     // the backup lacks is a complete incremental backup.
@@ -124,10 +128,10 @@ async function backup({ sqlite, db, dataDir, backupDir }: BackupContext, now: Da
     for (const name of pruned) await unlink(join(dbDir, name));
     if (pruned.length) db.update(backupRuns).set({ file: null }).where(inArray(backupRuns.file, pruned)).run();
 
-    return finish({ status: "ok", file, sizeBytes: (await stat(target)).size });
+    return finish({ status: "ok", ...kept });
   } catch (err) {
     await rm(partial, { force: true }).catch(() => {});
-    return finish({ status: "failed", error: err instanceof Error ? err.message : String(err) });
+    return finish({ status: "failed", error: err instanceof Error ? err.message : String(err), ...kept });
   }
 }
 

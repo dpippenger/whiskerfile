@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite";
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
 import { mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { reparseLabResults } from "./reparse";
 import * as schema from "./schema";
 
@@ -18,7 +18,8 @@ export function openDb(dataDir: string) {
   }
   sqlite.run("PRAGMA foreign_keys = ON");
   const db = drizzle(sqlite, { schema, casing: "snake_case" });
-  migrate(db, { migrationsFolder: "./drizzle" });
+  // Resolved from this file, not the working directory, so the server starts from anywhere.
+  migrate(db, { migrationsFolder: resolve(import.meta.dir, "../../../drizzle") });
   reparseLabResults(db);
   return { sqlite, db };
 }
