@@ -66,6 +66,7 @@ test("the request carries the document before the instruction, the catalog, the 
   expect(new URL(url).pathname).toBe("/v1/messages");
   expect(headers.get("anthropic-beta")).toBe("server-side-fallback-2026-07-01");
   expect(body.model).toBe(MODEL);
+  expect(body.max_tokens).toBe(16000);
   expect(body.fallbacks).toBe("default");
   // Thinking can't be disabled on this model, and forced tool use is refused: neither is sent.
   expect(body).not.toHaveProperty("thinking");
@@ -133,6 +134,11 @@ test("API errors become messages, and a failed request is not retried", async ()
     502,
     "The Anthropic API key was refused. Check ANTHROPIC_API_KEY.",
   ]);
+  // A key without permission for the model is the same advice as a wrong key.
+  expect(await outcome(counted(() => apiFailure(403, "permission_error", "not allowed")))).toEqual([
+    502,
+    "The Anthropic API key was refused. Check ANTHROPIC_API_KEY.",
+  ]);
   expect(await outcome(counted(() => apiFailure(400, "invalid_request_error", "PDF is password protected")))).toEqual([
     400,
     "Claude couldn't read this file: PDF is password protected",
@@ -142,7 +148,21 @@ test("API errors become messages, and a failed request is not retried", async ()
   expect(await statusOf(counted(() => apiFailure(529, "overloaded_error", "busy")))).toBe(503);
   expect(await statusOf(counted(() => apiFailure(500, "api_error", "oops")))).toBe(502);
   // Each failure was a single request: a retry would outlast the route's deadline.
-  expect(calls).toBe(6);
+  expect(calls).toBe(7);
+});
+
+test("a connection that fails before any reply is a message too, after one attempt", async () => {
+  let attempts = 0;
+  // What fetch does when the host can't be reached: it rejects, with no response at all.
+  const unreachable = () => {
+    attempts++;
+    throw new TypeError("fetch failed");
+  };
+  expect(await outcome(unreachable)).toEqual([
+    502,
+    "The Anthropic API couldn't be reached or failed. Try again later.",
+  ]);
+  expect(attempts).toBe(1);
 });
 
 test("the reading's deadline reaches the SDK, which gives up once and says so", async () => {
