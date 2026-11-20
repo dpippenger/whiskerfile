@@ -1,6 +1,9 @@
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
+import { chmod } from "node:fs/promises";
+import { join } from "node:path";
 import { chromiumPdf, type RenderPdf } from "../report/pdf";
 import { startApi } from "../test-support";
+import { cacheOnSuccess } from "./reports";
 
 const PET = {
   name: 'Tom & "Jerry" <b>',
@@ -125,7 +128,46 @@ test("an unknown pet is 404, and without Chromium or when printing fails the rea
   expect(res.status).toBe(500);
 });
 
-// Prints with a real Chromium only when one is configured (see DEVELOPMENT.md).
+test("a failed font read is retried on the next report instead of being cached", async () => {
+  let calls = 0;
+  const load = cacheOnSuccess(async () => {
+    calls += 1;
+    if (calls === 1) throw new Error("missing font file");
+    return "fonts";
+  });
+  await expect(load()).rejects.toThrow("missing font file");
+  expect(await load()).toBe("fonts");
+  // A success stays cached; only the failure was forgotten.
+  expect(await load()).toBe("fonts");
+  expect(calls).toBe(2);
+});
+
+// chmod 000 doesn't stop root from reading the file.
+test.skipIf(process.getuid?.() === 0)(
+  "a failure while building the page answers and logs like a printing failure",
+  async () => {
+    const { call, json, petId, dataDir } = await setup(fakePrinter().renderPdf);
+    // A pet photo whose stored file can't be read makes the build fail before printing.
+    const body = new FormData();
+    body.append("file", new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1])], "photo.png"));
+    const stored = await json<{ id: number; sha256: string }>(call("/api/files", { method: "POST", body }));
+    expect((await call(`/api/pets/${petId}`, { method: "PUT", body: { ...PET, photoFileId: stored.id } })).status).toBe(
+      200,
+    );
+    await chmod(join(dataDir, "uploads", stored.sha256), 0o000);
+    const logged = spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const res = await call(`/api/pets/${petId}/report.pdf?${QUERY}`);
+      expect(res.status).toBe(500);
+      expect(await json(res)).toEqual({ error: "The PDF couldn't be made. The server log says why." });
+      expect(logged.mock.calls[0]?.[0]).toBe(`Report for pet ${petId} failed:`);
+    } finally {
+      logged.mockRestore();
+    }
+  },
+);
+
+// Prints with a real Chromium only when one is configured (see README.md's Development section).
 test.skipIf(!process.env.CHROMIUM_PATH)("Chromium prints the report to a real PDF", async () => {
   const { call, petId } = await setup(chromiumPdf(process.env.CHROMIUM_PATH!));
   const res = await call(`/api/pets/${petId}/report.pdf?${QUERY}`);

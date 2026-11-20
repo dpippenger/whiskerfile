@@ -26,17 +26,28 @@ export const reportQuery = z
 
 const dataUrl = (bytes: Uint8Array, mime: string) => `data:${mime};base64,${Buffer.from(bytes).toString("base64")}`;
 
-let fonts: Promise<ReportAssets["fonts"]> | null = null;
+/** Caches `load`'s result once it succeeds; a failure is forgotten, so the next call retries. */
+export function cacheOnSuccess<T>(load: () => Promise<T>): () => Promise<T> {
+  let cached: Promise<T> | null = null;
+  return () => {
+    cached ??= load().catch((err: unknown) => {
+      cached = null;
+      throw err;
+    });
+    return cached;
+  };
+}
+
 /** The app's own fonts, read once, so the PDF looks the same on any machine. */
-function reportFonts() {
+const reportFonts = cacheOnSuccess(async (): Promise<ReportAssets["fonts"]> => {
   const read = async (spec: string) =>
     dataUrl(await Bun.file(Bun.resolveSync(spec, import.meta.dir)).bytes(), "font/woff2");
-  fonts ??= Promise.all([
+  const [sans, mono] = await Promise.all([
     read("@fontsource-variable/inter/files/inter-latin-wght-normal.woff2"),
     read("@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2"),
-  ]).then(([sans, mono]) => ({ sans, mono }));
-  return fonts;
-}
+  ]);
+  return { sans, mono };
+});
 
 /** The pet's photo as a data URL, using the small preview when there is one. */
 async function photo(db: Db, dataDir: string, fileId: number | null): Promise<string | null> {
@@ -87,29 +98,31 @@ export function reportRoutes({ db, dataDir, renderPdf }: AppContext, authed: Aut
         }
         if (!renderPdf) return error(503, "PDF reports need Chromium; set CHROMIUM_PATH");
 
-        const model = reportModel(
-          {
-            pet: { ...pet.pet, registry: pet.registry },
-            weights: db
-              .select({ date: measurements.date, value: measurements.value })
-              .from(measurements)
-              .where(and(eq(measurements.petId, pet.pet.id), eq(measurements.kind, "weight")))
-              .orderBy(asc(measurements.date), asc(measurements.id))
-              .all(),
-            labs: petLabReports(db, pet.pet.id),
-            health: petHealth(db, pet.pet.id),
-          },
-          query.data,
-        );
-        const color = pet.pet.chartColor;
-        const html = reportHtml(model, {
-          weightChart: model.weights.length > 1 ? weightChart(model.weights, color, model.weightUnit) : null,
-          trendCharts: model.trends.map((t) => trendChart(t, color)),
-          photo: await photo(db, dataDir, pet.pet.photoFileId),
-          fonts: await reportFonts(),
-        });
+        // One catch for the whole build: a failure in the fonts, photo, charts or
+        // HTML answers like a printing failure instead of a bare, unlogged 500.
         let pdf: Uint8Array<ArrayBuffer>;
         try {
+          const model = reportModel(
+            {
+              pet: { ...pet.pet, registry: pet.registry },
+              weights: db
+                .select({ date: measurements.date, value: measurements.value })
+                .from(measurements)
+                .where(and(eq(measurements.petId, pet.pet.id), eq(measurements.kind, "weight")))
+                .orderBy(asc(measurements.date), asc(measurements.id))
+                .all(),
+              labs: petLabReports(db, pet.pet.id),
+              health: petHealth(db, pet.pet.id),
+            },
+            query.data,
+          );
+          const color = pet.pet.chartColor;
+          const html = reportHtml(model, {
+            weightChart: model.weights.length > 1 ? weightChart(model.weights, color, model.weightUnit) : null,
+            trendCharts: model.trends.map((t) => trendChart(t, color)),
+            photo: await photo(db, dataDir, pet.pet.photoFileId),
+            fonts: await reportFonts(),
+          });
           pdf = await renderPdf(html);
         } catch (err) {
           console.error(`Report for pet ${pet.pet.id} failed:`, err);

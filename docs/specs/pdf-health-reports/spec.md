@@ -57,7 +57,7 @@ Integration points owned by other specs: pet profiles (pet fields, photo and its
 
 1. IF the id is not a positive integer or no pet has it, THE Report_Route SHALL answer 404 "Pet not found" before validating the query. (`src/server/routes/reports.test.ts`)
 2. IF no Printer is configured, THE Report_Route SHALL answer 503 with `{ error: "PDF reports need Chromium; set CHROMIUM_PATH" }`, after validating the query. (`src/server/routes/reports.test.ts`)
-3. IF the Printer throws, THE Report_Route SHALL log `Report for pet <id> failed:` with the error and answer 500 with `{ error: "The PDF couldn't be made. The server log says why." }`. (`src/server/routes/reports.test.ts` checks the status; the message is manual)
+3. IF the Printer throws, or building the page fails before printing (the model, charts, photo, fonts or HTML), THE Report_Route SHALL log `Report for pet <id> failed:` with the error and answer 500 with `{ error: "The PDF couldn't be made. The server log says why." }`. (`src/server/routes/reports.test.ts`)
 
 ### Requirement 4: Report period
 
@@ -124,7 +124,7 @@ Integration points owned by other specs: pet profiles (pet fields, photo and its
 
 1. THE Report_Page SHALL escape all typed text, including the pet's name in the `<title>` ("<name>: health report") and in the body. (`src/server/routes/reports.test.ts`)
 2. THE Report_Page SHALL carry `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; font-src data:; style-src 'unsafe-inline'">`. (`src/server/routes/reports.test.ts`)
-3. THE Report_Page SHALL embed Inter Variable and JetBrains Mono (Latin subsets, read once per process from `node_modules`) and the pet's photo as data URLs, using the photo's preview when one exists and leaving the photo out when its file is missing. (manual)
+3. THE Report_Page SHALL embed Inter Variable and JetBrains Mono (Latin subsets, read from `node_modules` and cached once the read succeeds, so one failed read is retried on the next report instead of breaking every later one) and the pet's photo as data URLs, using the photo's preview when one exists and leaving the photo out when its file is missing. (the retry: `src/server/routes/reports.test.ts`; the rest is manual)
 4. THE Report_Page SHALL insert charts as raw SVG strings drawn only from the app's own chart options. (manual)
 
 ### Requirement 10: Charts
@@ -170,8 +170,8 @@ Integration points owned by other specs: pet profiles (pet fields, photo and its
 1. THE pet profile page SHALL show a **Report** button beside **Edit**, which opens a "Health report" dialog with optional From and To date inputs, each limiting the other with `min` and `max`. (manual)
 2. WHEN the owner submits, THE Report_Dialog SHALL request the report with `today` from `localToday()`, `weightUnit` from the owner's display unit (`useUnits`), and `from` and `to` only when filled in. (manual)
 3. WHEN the PDF arrives, THE Report_Dialog SHALL download it under the server's file name (`health-report.pdf` if none is given) and close. (manual)
-4. WHILE the request is pending, THE Report_Dialog SHALL label the submit button "Preparing…", disable Cancel and submit, and ignore backdrop clicks; the header close button and Escape still close it, and the download still completes. (manual)
-5. IF the request fails, THE Report_Dialog SHALL highlight the From or To field the server names and say "Check the highlighted fields.", or otherwise show the server's error message (such as the 503 message); reopening the dialog SHALL clear the error. (manual)
+4. WHILE the request is pending, THE Report_Dialog SHALL label the submit button "Preparing…", disable Cancel and submit, and ignore backdrop clicks; closing with the header close button or Escape cancels the request, so no download finishes behind a closed dialog. (manual)
+5. IF the request fails, THE Report_Dialog SHALL highlight the From or To field the server names and say "Check the highlighted fields."; when the server names neither (such as `today` or `weightUnit` from an old client), or on any other failure, it SHALL show the server's error message (such as the 503 message); reopening the dialog SHALL clear the error. (manual)
 6. THE Report_Dialog SHALL fill the screen on phone widths, stack its date inputs and buttons there, and set them side by side from the `sm` breakpoint. (manual)
 
 ## Diagrams
@@ -209,7 +209,7 @@ flowchart TD
     D -->|Yes| F{"CHROMIUM_PATH set?"}
     F -->|No| E503["503"]
     F -->|Yes| G["Build model, charts, HTML"]
-    G --> H{"Printed?"}
+    G --> H{"Built and printed?"}
     H -->|No| E500["500, error logged"]
     H -->|Yes| OK["200 application/pdf"]
 ```
