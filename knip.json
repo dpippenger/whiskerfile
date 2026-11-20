@@ -3,10 +3,10 @@
   "entry": ["src/web/main.tsx", "scripts/*.ts"],
   "project": ["src/**/*.{ts,tsx}", "scripts/*.ts"],
   "ignoreExportsUsedInFile": true,
+  "ignoreBinaries": ["lint"],
   "ignoreDependencies": [
     "tailwindcss",
     "bun-plugin-tailwind",
-    "oxlint-tsgolint",
     "@fontsource-variable/inter",
     "@fontsource/jetbrains-mono"
   ]

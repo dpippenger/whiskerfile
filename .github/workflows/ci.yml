@@ -30,8 +30,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # `bun lint` is only in the canary build so far; every other job, and the
+      # image, stay on the release in .bun-version. Canary moves daily and has no
+      # per-build pin, so move this job to .bun-version once a release has it.
       - uses: ./.github/actions/setup
-      - run: bun run lint
+        with:
+          bun-version: canary
+      - run: bun lint
 
   typecheck:
     timeout-minutes: 5

@@ -7,7 +7,6 @@
     "start": "NODE_ENV=production bun src/server/index.ts",
     "test": "bun test",
     "typecheck": "bun check",
-    "lint": "oxlint --report-unused-disable-directives",
     "check:unused": "knip",
     "check:migrations": "drizzle-kit check && drizzle-kit generate && test -z \"$(git status --porcelain drizzle)\"",
     "db:generate": "drizzle-kit generate",
@@ -23,8 +22,6 @@
     "bun-plugin-tailwind": "^0.1.2",
     "drizzle-kit": "^0.31.11",
     "knip": "6.46.1",
-    "oxlint": "1.94.0",
-    "oxlint-tsgolint": "7.0.2007",
     "prettier": "3.10.1"
   },
   "peerDependencies": {

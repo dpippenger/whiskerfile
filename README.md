@@ -60,7 +60,7 @@ Every pull request runs the CI workflow (`.github/workflows/ci.yml`), and `main`
 
 ```sh
 bun run format:check
-bun run lint             # oxlint, with type-aware rules (.oxlintrc.json)
+bun lint                 # type-aware rules from .oxlintrc.json; needs the canary build (bun upgrade --canary)
 bun check
 bun test
 bun run check:unused     # knip: files, exports and dependencies nothing uses

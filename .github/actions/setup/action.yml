@@ -1,12 +1,18 @@
 name: Setup
-description: Installs the pinned Bun and the locked dependencies. The repository must be checked out first.
+description: Installs Bun and the locked dependencies. The repository must be checked out first.
+
+inputs:
+  bun-version:
+    description: A Bun release to install instead of the one in .bun-version.
+    default: ""
 
 runs:
   using: composite
   steps:
     - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
       with:
-        bun-version-file: .bun-version
+        bun-version: ${{ inputs.bun-version }}
+        bun-version-file: ${{ inputs.bun-version == '' && '.bun-version' || '' }}
     - name: Install dependencies
       shell: bash
       run: bun install --frozen-lockfile
