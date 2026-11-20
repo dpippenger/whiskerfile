@@ -129,16 +129,52 @@ test("a report naming an unknown test, file or another pet's visit is refused an
     return (await json<{ fields: object }>(res)).fields;
   };
 
+  const homeExam = await json<{ id: number }>(
+    call(`/api/pets/${petId}/entries`, {
+      method: "POST",
+      body: { kind: "home", date: "2026-11-01", clinic: "", vet: "", reason: "", notes: "", vitals: {} },
+    }),
+  );
+
   expect(await fields(report([crea, { ...crea, analyteId: 99999 }]))).toEqual({
     "results.1.analyteId": "Unknown test",
   });
   expect(await fields(report([crea], { entryId: otherVisit.id }))).toEqual({ entryId: "Not a visit of this pet" });
+  // A home exam, even this pet's own, is not a visit a sample is taken at.
+  expect(await fields(report([crea], { entryId: homeExam.id }))).toEqual({ entryId: "Not a visit of this pet" });
   expect(await fields(report([crea], { fileIds: [99999] }))).toEqual({ fileIds: "Unknown file" });
+  // The sample was already taken.
+  expect(await fields(report([crea], { date: "2999-01-01" }))).toEqual({ date: "Can't be in the future" });
   expect(await fields(report([crea, crea]))).toHaveProperty(["results.1.analyteId"]);
   expect(await fields(report([]))).toHaveProperty("results");
   expect(db.select().from(labReports).all()).toEqual([]);
   expect((await call("/api/pets/999/labs", { method: "POST", body: report([crea]) })).status).toBe(404);
   expect((await call("/api/labs/999", { method: "PUT", body: report([crea]) })).status).toBe(404);
+});
+
+test("a report can't attach another pet's file, but keeps its own across an edit", async () => {
+  const { call, json, analyte, upload, petId } = await setup();
+  const otherPet = (await json<{ id: number }>(call("/api/pets", { method: "POST", body: { ...PET, name: "Other" } })))
+    .id;
+  const theirDoc = await upload("their chem", "their.pdf");
+  const crea = { analyteId: analyte("CREA"), valueText: "2.6", unit: "mg/dL", refLow: 0.6, refHigh: 2.4 };
+  await call(`/api/pets/${otherPet}/labs`, { method: "POST", body: report([crea], { fileIds: [theirDoc] }) });
+
+  const refused = await call(`/api/pets/${petId}/labs`, {
+    method: "POST",
+    body: report([crea], { fileIds: [theirDoc] }),
+  });
+  expect(refused.status).toBe(400);
+  expect((await json<{ fields: object }>(refused)).fields).toEqual({ fileIds: "Not this pet's file" });
+
+  // A fresh upload is fine, and an edit may name the report's own document again.
+  const myDoc = await upload("chem", "chem.pdf");
+  const { id } = await json<{ id: number }>(
+    call(`/api/pets/${petId}/labs`, { method: "POST", body: report([crea], { fileIds: [myDoc] }) }),
+  );
+  expect((await call(`/api/labs/${id}`, { method: "PUT", body: report([crea], { fileIds: [myDoc] }) })).status).toBe(
+    200,
+  );
 });
 
 test("deleting a visit unlinks its report; deleting the report keeps the stored files", async () => {

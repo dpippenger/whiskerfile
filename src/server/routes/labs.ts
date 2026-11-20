@@ -33,8 +33,13 @@ const isUniqueViolation = (err: unknown) => err instanceof Error && /UNIQUE cons
 /** Checks the ids a report refers to; returns a 400 response naming the first bad one. */
 function checkReferences(db: Db, petId: number, input: Input): Response | null {
   if (input.entryId) {
-    const entry = db.select({ petId: entries.petId }).from(entries).where(eq(entries.id, input.entryId)).get();
-    if (entry?.petId !== petId) return invalid({ entryId: "Not a visit of this pet" });
+    const entry = db
+      .select({ petId: entries.petId, kind: entries.kind })
+      .from(entries)
+      .where(eq(entries.id, input.entryId))
+      .get();
+    // Only a vet visit of this pet; the form offers nothing else.
+    if (entry?.petId !== petId || entry.kind !== "vet") return invalid({ entryId: "Not a visit of this pet" });
   }
   const ids = input.results.map((r) => r.analyteId);
   const known = new Set(
@@ -47,7 +52,20 @@ function checkReferences(db: Db, petId: number, input: Input): Response | null {
   );
   const unknown = ids.findIndex((id) => !known.has(id));
   if (unknown >= 0) return invalid({ [`results.${unknown}.analyteId`]: "Unknown test" });
-  if (unknownFiles(db, input.fileIds ?? []).length) return unknownFileError("fileIds");
+  const fileIds = input.fileIds ?? [];
+  if (unknownFiles(db, fileIds).length) return unknownFileError("fileIds");
+  if (fileIds.length) {
+    // A document must be a fresh upload or already one of this pet's files;
+    // naming another pet's file would leak it onto this report.
+    const attached = db
+      .select({ fileId: attachments.fileId, petId: attachments.petId })
+      .from(attachments)
+      .where(inArray(attachments.fileId, fileIds))
+      .all();
+    const otherPets = new Set(attached.filter((a) => a.petId !== petId).map((a) => a.fileId));
+    for (const a of attached) if (a.petId === petId) otherPets.delete(a.fileId);
+    if (otherPets.size) return invalid({ fileIds: "Not this pet's file" });
+  }
   return null;
 }
 

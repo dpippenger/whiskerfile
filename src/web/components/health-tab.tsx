@@ -108,7 +108,8 @@ export function HealthTab({
           >
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span className="font-medium">{dose.vaccine}</span>
-              <DueBadge status={status} dueDate={dose.dueDate} />
+              {/* Nothing is due for a pet that has passed away, not even as plain text. */}
+              <DueBadge status={status} dueDate={deceasedOn ? null : dose.dueDate} />
             </div>
             <p className={sub}>
               Given {formatDate(dose.dateGiven)}

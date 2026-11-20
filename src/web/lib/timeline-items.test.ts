@@ -46,4 +46,9 @@ test("a medication's dates are worded for whether each has passed", () => {
   expect(medicationDates({ startDate: "2026-12-01", endDate: "2026-12-10" }, today)).toBe(
     "Starts Dec 1, 2026, until Dec 10, 2026",
   );
+  // Once the pet has passed away every course is past: it reads as ended, never ongoing.
+  expect(medicationDates({ startDate: "2026-11-06", endDate: "2026-12-06" }, today, "2026-11-10")).toBe(
+    "Started Nov 6, 2026, stopped Dec 6, 2026",
+  );
+  expect(medicationDates({ startDate: "2026-12-01", endDate: null }, today, "2026-11-10")).toBe("Started Dec 1, 2026");
 });

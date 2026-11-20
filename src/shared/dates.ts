@@ -51,13 +51,13 @@ export function elapsed(from: string, to: string): { years: number; months: numb
   return { years: Math.floor(months / 12), months: months % 12, days };
 }
 
-/** Short age such as "6 wk", "4 mo" or "12 yr 3 mo", prefixed with "~" when the birth date is a guess. */
+/** Short age such as "3 d", "6 wk", "4 mo" or "12 yr 3 mo", prefixed with "~" when the birth date is a guess. */
 export function formatAge(dob: string, today: string, estimated = false): string | null {
   const age = elapsed(dob, today);
   if (!age) return null;
   const { years, months, days } = age;
   let text: string;
-  if (years === 0 && months === 0) text = `${Math.floor(days / 7)} wk`;
+  if (years === 0 && months === 0) text = days < 7 ? `${days} d` : `${Math.floor(days / 7)} wk`;
   else if (years === 0) text = `${months} mo`;
   else if (months === 0) text = `${years} yr`;
   else text = `${years} yr ${months} mo`;
@@ -82,4 +82,14 @@ export function addDays(date: string, days: number): string {
   const next = new Date(Date.UTC(y, m - 1, d + days));
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${next.getUTCFullYear()}-${pad(next.getUTCMonth() + 1)}-${pad(next.getUTCDate())}`;
+}
+
+/**
+ * Whether a date lies in the future everywhere on Earth: later than tomorrow
+ * in UTC. The server doesn't know the browser's time zone, and tomorrow in
+ * UTC covers every zone's "today", so this is the bound the shared validators
+ * enforce; the forms refuse anything after the user's own local today first.
+ */
+export function isFutureDate(date: string, todayUtc = new Date().toISOString().slice(0, 10)): boolean {
+  return date > addDays(todayUtc, 1);
 }

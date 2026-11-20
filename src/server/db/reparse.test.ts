@@ -35,16 +35,18 @@ function seedReport(db: ReturnType<typeof openDb>["db"]) {
 test("results stored under an older reading rule are read again, once", () => {
   const { db } = openDb(":memory:");
   const reportId = seedReport(db);
-  // As phase 3 stored them: "-1" with no number, "≤0.5" as a strict comparator.
+  // As older rules stored them: "-1" with no number, "≤0.5" as a strict
+  // comparator, "1 035" read as 1035 before inner spaces counted as ambiguous.
   db.insert(labResults)
     .values([
       { reportId, analyteId: 1, valueText: "-1", value: null, comparator: null },
       { reportId, analyteId: 2, valueText: "≤0.5", value: 0.5, comparator: "<" },
       { reportId, analyteId: 3, valueText: "2.6", value: 2.6, comparator: null },
+      { reportId, analyteId: 4, valueText: "1 035", value: 1035, comparator: null },
     ])
     .run();
 
-  expect(reparseLabResults(db)).toBe(2);
+  expect(reparseLabResults(db)).toBe(3);
   expect(
     db
       .select()
@@ -55,6 +57,7 @@ test("results stored under an older reading rule are read again, once", () => {
     ["-1", -1, null],
     ["≤0.5", 0.5, "<="],
     ["2.6", 2.6, null],
+    ["1 035", null, null],
   ]);
   expect(reparseLabResults(db)).toBe(0);
 });
