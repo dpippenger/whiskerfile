@@ -99,12 +99,14 @@ export function EntryForm({
   units: unitsAtOpen,
   entry,
   initialKind = "vet",
+  onKindChange,
   onDone,
 }: {
   petId: number;
   units: Units;
   entry?: EntryWithVitals;
   initialKind?: "vet" | "home";
+  onKindChange?: (kind: "vet" | "home") => void;
   onDone: () => void;
 }) {
   const id = useId();
@@ -219,7 +221,10 @@ export function EntryForm({
             type="button"
             role="radio"
             aria-checked={form.kind === kind}
-            onClick={() => setForm((f) => ({ ...f, kind }))}
+            onClick={() => {
+              setForm((f) => ({ ...f, kind }));
+              onKindChange?.(kind);
+            }}
             className={cn(
               "min-h-11 rounded-md text-sm font-medium text-muted-foreground transition md:min-h-9",
               form.kind === kind && "bg-elevated text-foreground shadow-sm",
@@ -229,6 +234,10 @@ export function EntryForm({
           </button>
         ))}
       </div>
+      {/* A home exam has no clinic or vet; warn before they are silently cleared on save. */}
+      {form.kind === "home" && !!(form.clinic.trim() || form.vet.trim()) && (
+        <p className="text-sm text-warning">Saving as a home exam removes the clinic and vet.</p>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Date" htmlFor={`${id}-date`} error={errors.date}>

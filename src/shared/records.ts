@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isIsoDate } from "./dates";
+import { isFutureDate, isIsoDate } from "./dates";
 
 // Measurements are stored in one canonical unit each and converted only for
 // display and input: weight in grams, temperature in °C.
@@ -94,7 +94,12 @@ const vitalValue = (kind: Vital) => {
   return integer ? number.int() : number;
 };
 
-const date = z.string().refine(isIsoDate, "Use a valid date");
+// Every record date here is a day that has already happened; the forms refuse
+// anything after the user's local today first, so this catches direct API calls.
+const date = z
+  .string()
+  .refine(isIsoDate, "Use a valid date")
+  .refine((s) => !isIsoDate(s) || !isFutureDate(s), "Can't be in the future");
 
 const optionalText = (max: number) =>
   z

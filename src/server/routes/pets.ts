@@ -89,21 +89,24 @@ export function petRoutes({ db }: AppContext, authed: Authed) {
           const flag = flagResult(r);
           return flag === "high" || flag === "low" ? [{ code, name, valueText, unit, flag }] : [];
         });
-    return db
-      .select()
-      .from(pets)
-      .orderBy(asc(pets.name))
-      .all()
-      .map((pet) => {
-        const lab = latestLabs.find((l) => l.petId === pet.id);
-        return {
-          ...pet,
-          weights: weights.filter((w) => w.petId === pet.id).map(({ date, value }) => ({ date, value })),
-          lastVetVisit: visits.find((v) => v.petId === pet.id)?.date ?? null,
-          vaccinations: doses.filter((d) => d.petId === pet.id).map(({ petId: _, ...dose }) => dose),
-          latestLab: lab ? { id: lab.id, date: lab.date, flagged: flagged(lab.id) } : null,
-        };
-      });
+    return (
+      db
+        .select()
+        .from(pets)
+        // NOCASE, so "bella" sorts before "Zeus".
+        .orderBy(asc(sql`${pets.name} collate nocase`))
+        .all()
+        .map((pet) => {
+          const lab = latestLabs.find((l) => l.petId === pet.id);
+          return {
+            ...pet,
+            weights: weights.filter((w) => w.petId === pet.id).map(({ date, value }) => ({ date, value })),
+            lastVetVisit: visits.find((v) => v.petId === pet.id)?.date ?? null,
+            vaccinations: doses.filter((d) => d.petId === pet.id).map(({ petId: _, ...dose }) => dose),
+            latestLab: lab ? { id: lab.id, date: lab.date, flagged: flagged(lab.id) } : null,
+          };
+        })
+    );
   }
 
   /** Checks the ids a pet refers to; returns a 400 response when one is wrong. */

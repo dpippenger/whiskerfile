@@ -35,21 +35,29 @@ export const chipRegistries = sqliteTable("chip_registries", {
   phone: text(),
 });
 
-/** Uploaded files, stored on disk as uploads/<sha256> and never modified. */
-export const files = sqliteTable("files", {
-  id: integer().primaryKey({ autoIncrement: true }),
-  sha256: text().notNull().unique(),
-  // Detected from the file's contents, never taken from the client.
-  mime: text().notNull(),
-  sizeBytes: integer().notNull(),
-  originalName: text().notNull(),
-  // A small image shown in its place in lists, so they don't load the original.
-  previewId: integer().references((): AnySQLiteColumn => files.id),
-  uploadedBy: integer()
-    .notNull()
-    .references(() => users.id),
-  createdAt: integer().notNull(),
-});
+/**
+ * Uploaded files, stored on disk as uploads/<sha256> and never modified. One
+ * content can have several rows (same bytes uploaded under another name or by
+ * another member), all naming the same stored copy.
+ */
+export const files = sqliteTable(
+  "files",
+  {
+    id: integer().primaryKey({ autoIncrement: true }),
+    sha256: text().notNull(),
+    // Detected from the file's contents, never taken from the client.
+    mime: text().notNull(),
+    sizeBytes: integer().notNull(),
+    originalName: text().notNull(),
+    // A small image shown in its place in lists, so they don't load the original.
+    previewId: integer().references((): AnySQLiteColumn => files.id),
+    uploadedBy: integer()
+      .notNull()
+      .references(() => users.id),
+    createdAt: integer().notNull(),
+  },
+  (t) => [index("files_sha256").on(t.sha256)],
+);
 
 export const pets = sqliteTable("pets", {
   id: integer().primaryKey({ autoIncrement: true }),

@@ -57,9 +57,33 @@ test("images and PDFs are shown inline; anything else, whatever it claims to be,
 test("the same bytes are stored once, under their hash, with no leftovers", async () => {
   const { upload, dataDir } = await setup();
   const first = (await (await upload(PNG, "a.png")).json()) as { id: number; sha256: string };
-  const second = (await (await upload(PNG, "b.png")).json()) as { id: number };
-  expect(second.id).toBe(first.id);
+  const repeat = (await (await upload(PNG, "a.png")).json()) as { id: number };
+  expect(repeat.id).toBe(first.id);
   expect(first.sha256).toBe(new Bun.CryptoHasher("sha256").update(PNG).digest("hex"));
+  expect(await readdir(join(dataDir, "uploads"))).toEqual([first.sha256]);
+});
+
+test("the same bytes uploaded under another name or by another member keep that name and uploader", async () => {
+  const { call, token, upload, dataDir } = await setup();
+  const first = (await (await upload(PNG, "scan.png")).json()) as { id: number; sha256: string };
+
+  const renamed = (await (await upload(PNG, "vaccine-certificate.png")).json()) as {
+    id: number;
+    originalName: string;
+    uploadedBy: number;
+  };
+  expect(renamed.id).not.toBe(first.id);
+  expect(renamed.originalName).toBe("vaccine-certificate.png");
+
+  const form = new FormData();
+  form.append("file", new File([PNG], "scan.png"));
+  const other = (await (
+    await call("/api/files", { method: "POST", body: form, jwt: await token({ email: "b@example.com" }) })
+  ).json()) as { id: number; uploadedBy: number };
+  expect(other.id).not.toBe(first.id);
+  expect(other.uploadedBy).not.toBe(renamed.uploadedBy);
+
+  // Still one stored copy for all three rows.
   expect(await readdir(join(dataDir, "uploads"))).toEqual([first.sha256]);
 });
 
@@ -102,10 +126,13 @@ test("a large image can be given a small preview; nothing else can", async () =>
   expect((await call(`/api/files/${updated.previewId}`)).headers.get("content-type")).toBe("image/webp");
 
   // Rejected previews are not stored.
+  const smallImage = (await (await upload(JPEG, "icon.jpg")).json()) as { id: number };
   const stored = await readdir(join(dataDir, "uploads"));
   expect((await preview(new Uint8Array([...small, 9]), lab.id)).status).toBe(400);
   expect((await preview(bytes("%PDF-1.7 not an image"), photo.id)).status).toBe(400);
   expect((await preview(big, photo.id)).status).toBe(400);
+  // An image at or under the preview limit is its own preview.
+  expect((await preview(new Uint8Array([...small, 9]), smallImage.id)).status).toBe(400);
   expect((await preview(small, 9999)).status).toBe(404);
   expect(await readdir(join(dataDir, "uploads"))).toEqual(stored);
 });

@@ -160,7 +160,12 @@ function HealthRow({
 
 // Each row is returned with its key; the caller sets it on the wrapper it renders.
 /* oxlint-disable react/jsx-key */
-function itemRow(item: TimelineItem, units: Units, onEdit: (editing: Editing) => void): [string, ReactNode] {
+function itemRow(
+  item: TimelineItem,
+  units: Units,
+  deceasedOn: string | null,
+  onEdit: (editing: Editing) => void,
+): [string, ReactNode] {
   switch (item.type) {
     case "entry":
       return [
@@ -209,7 +214,7 @@ function itemRow(item: TimelineItem, units: Units, onEdit: (editing: Editing) =>
               {m.dose && <span className="text-foreground-secondary">{m.dose}</span>}
             </>
           }
-          detail={medicationDates(m, localToday())}
+          detail={medicationDates(m, localToday(), deceasedOn)}
           author={m.author}
           label={`Edit ${m.drug}`}
           onEdit={() => onEdit({ type: "medication", record: m })}
@@ -244,12 +249,14 @@ export function Timeline({
   labs,
   health,
   units,
+  deceasedOn,
   onEdit,
 }: {
   records: PetRecords;
   labs: LabReportWithResults[];
   health: PetHealth;
   units: Units;
+  deceasedOn: string | null;
   onEdit: (editing: Editing) => void;
 }) {
   const items = timelineItems(records, labs, health);
@@ -263,7 +270,7 @@ export function Timeline({
   return (
     <ol className="space-y-3">
       {items.map((item) => {
-        const [key, row] = itemRow(item, units, onEdit);
+        const [key, row] = itemRow(item, units, deceasedOn, onEdit);
         return <li key={key}>{row}</li>;
       })}
     </ol>

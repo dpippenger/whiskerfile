@@ -225,6 +225,10 @@ export function recordRoutes({ db }: AppContext, authed: Authed) {
         if (!petId || !petExists(db, petId)) return error(404, "Pet not found");
         const parsed = await parseJson(req, measurementInput);
         if ("response" in parsed) return parsed.response;
+        // Other vitals are recorded with a visit; the app can only edit weights on their own.
+        if (parsed.data.kind !== "weight") {
+          return error(400, "Some fields are invalid", { kind: "Only weight can be recorded on its own" });
+        }
         const row = db
           .insert(measurements)
           .values({ ...parsed.data, petId, entryId: null, createdBy: user.id, createdAt: Date.now() })
@@ -297,10 +301,17 @@ export function recordRoutes({ db }: AppContext, authed: Authed) {
           db.update(attachments).set(parsed.data).where(eq(attachments.id, existing.id)).returning().get(),
         );
       }),
-      // Removes the attachment; the stored file stays (it may be attached elsewhere).
+      // Removes a file filed on its own; the stored file stays (it may be attached
+      // elsewhere). A visit's files change with the visit, a report's with the report.
       DELETE: authed<"/api/attachments/:id">((req) => {
         const id = idParam(req.params.id);
-        const row = id ? db.delete(attachments).where(eq(attachments.id, id)).returning().get() : undefined;
+        const row = id
+          ? db
+              .delete(attachments)
+              .where(and(eq(attachments.id, id), isNull(attachments.entryId), isNull(attachments.labReportId)))
+              .returning()
+              .get()
+          : undefined;
         return row ? new Response(null, { status: 204 }) : error(404, "Attachment not found");
       }),
     },
@@ -313,6 +324,10 @@ export function recordRoutes({ db }: AppContext, authed: Authed) {
         if (!existing) return error(404, "Measurement not found");
         const parsed = await parseJson(req, measurementInput);
         if ("response" in parsed) return parsed.response;
+        // The kind is fixed once recorded; only the date and value change.
+        if (parsed.data.kind !== existing.kind) {
+          return error(400, "Some fields are invalid", { kind: "The kind can't be changed" });
+        }
         return Response.json(
           db.update(measurements).set(parsed.data).where(eq(measurements.id, existing.id)).returning().get(),
         );

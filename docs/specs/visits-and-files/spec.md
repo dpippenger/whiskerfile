@@ -17,7 +17,7 @@ The spec describes the system as built. Where a criterion is proven by a test, t
 - **Measurement**: one reading of a Vital in `measurements`. A Visit_Reading has an `entryId`; a Standalone_Reading (such as a weigh-in) does not.
 - **Stored_Unit**: grams for weight, °C for temperature, per minute for heart and respiratory rate, a 1–9 score for body condition.
 - **Display_Units**: a person's weight unit (`lb`/`kg`) and temperature unit (`f`/`c`). A null preference falls back to the browser locale.
-- **Stored_File**: a row in `files` whose bytes live at `uploads/<sha256>` in the data directory and never change.
+- **Stored_File**: a row in `files` whose bytes live at `uploads/<sha256>` in the data directory and never change; rows with the same content share one stored copy.
 - **Attachment**: a row in `attachments` that files a Stored_File under a pet: on an Entry (Visit_File), on a lab report (Lab_Document, see the lab-results spec), or on its own (Standalone_File, which has a label and its own date).
 - **Preview**: a small image Stored_File linked from a large image's `previewId`. Lists show it in place of the original.
 - **Inline_Type**: JPEG, PNG, WebP, GIF or PDF. These are the only types the browser is allowed to display.
@@ -57,12 +57,12 @@ The spec describes the system as built. Where a criterion is proven by a test, t
 
 #### Acceptance Criteria
 
-1. WHEN `POST /api/pets/:id/measurements` receives a valid `{ date, kind, value }`, THE System SHALL store a Standalone_Reading with the caller as author and answer 201. (`src/server/routes/records.test.ts`)
-2. THE System SHALL let `PUT` and `DELETE` on `/api/measurements/:id` change or remove only Standalone_Readings. A Visit_Reading SHALL answer 404 and stay unchanged. (`src/server/routes/records.test.ts`)
+1. WHEN `POST /api/pets/:id/measurements` receives a valid `{ date, kind: "weight", value }`, THE System SHALL store a Standalone_Reading with the caller as author and answer 201. (`src/server/routes/records.test.ts`)
+2. THE System SHALL let `PUT` and `DELETE` on `/api/measurements/:id` change or remove only Standalone_Readings. A Visit_Reading SHALL answer 404 and stay unchanged. A `PUT` SHALL keep the reading's kind: a body with a different kind answers 400 and changes nothing. (`src/server/routes/records.test.ts`)
 3. WHEN `GET /api/pets/:id/measurements?kind=<Vital>` is called, THE System SHALL return every reading of that kind, from visits or standalone, oldest date first and then oldest id first. (`src/server/routes/records.test.ts`)
 4. IF `kind` is not a Vital, THE System SHALL answer 400. (`src/server/routes/records.test.ts`)
 5. THE records response SHALL list only Standalone_Readings under `measurements` (`src/server/routes/records.test.ts`), each with its author's name. (manual)
-6. THE API SHALL accept any Vital as a standalone `kind`, while the UI creates and edits only weights. (manual)
+6. THE API SHALL accept only `weight` as a standalone `kind` and answer 400 for any other Vital, matching the UI, which creates and edits only weights. (`src/server/routes/records.test.ts`)
 
 ### Requirement 4: Units, conversion and rounding
 
@@ -85,10 +85,10 @@ The spec describes the system as built. Where a criterion is proven by a test, t
 #### Acceptance Criteria
 
 1. THE System SHALL accept a Vital only within these limits, in Stored_Units: weight from 1 to 200,000 g (whole), temperature from 25 to 45 °C, heart rate from 10 to 400 (whole), respiratory rate from 2 to 200 (whole), body condition from 1 to 9 (whole). (`src/shared/records.test.ts`, `src/server/routes/records.test.ts`)
-2. THE System SHALL accept only real calendar dates in `YYYY-MM-DD` form. (`src/shared/records.test.ts`, `src/server/routes/attachments.test.ts`)
+2. THE System SHALL accept only real calendar dates in `YYYY-MM-DD` form, and SHALL refuse an Entry, measurement or Standalone_File date later than tomorrow in UTC with "Can't be in the future" (`isFutureDate`, `src/shared/dates.ts`: the server doesn't know the browser's time zone, and tomorrow in UTC covers every zone's today). (`src/shared/records.test.ts`, `src/server/routes/records.test.ts`, `src/server/routes/attachments.test.ts`)
 3. THE System SHALL limit clinic and vet to 120 characters, reason to 200, notes to 8,000, a Standalone_File label to 120, and an Entry's `fileIds` to 50 positive integers. (manual)
 4. IF a body is invalid, THE System SHALL answer 400 `Some fields are invalid` with a message per field, keyed by path (such as `vitals.temperature`), and SHALL write nothing. (`src/server/routes/records.test.ts`)
-5. WHEN a form is submitted, THE web app SHALL run the same schema first and SHALL also reject a date after today with "Can't be in the future". (manual)
+5. WHEN a form is submitted, THE web app SHALL run the same schema first and SHALL also reject a date after the browser's local today with "Can't be in the future", a stricter bound than the schema's own UTC one. (manual)
 
 ### Requirement 6: Uploading and storing files
 
@@ -97,7 +97,7 @@ The spec describes the system as built. Where a criterion is proven by a test, t
 #### Acceptance Criteria
 
 1. WHEN `POST /api/files` receives a multipart `file` field, THE System SHALL store its bytes unchanged and answer 201 with the Stored_File row. (`src/server/routes/files.test.ts`, `src/server/routes/attachments.test.ts`)
-2. THE System SHALL name each stored copy by the SHA-256 of its bytes and SHALL keep one row and one copy per distinct content, so that a repeat upload returns the existing row. (`src/server/routes/files.test.ts`) That row SHALL keep the first upload's name and uploader. (manual)
+2. THE System SHALL name each stored copy by the SHA-256 of its bytes and SHALL keep one copy per distinct content, with one row per distinct (content, name, uploader): an exact repeat upload returns the existing row, while the same bytes uploaded under another name or by another member get their own row carrying that name and uploader. (`src/server/routes/files.test.ts`)
 3. THE System SHALL write each copy under a `.partial` name and rename it once complete. (`src/server/routes/files.test.ts` checks that nothing is left over)
 4. WHEN the stored copy is missing or a different size, THE System SHALL write the bytes again on the next upload of the same content. (`src/server/routes/files.test.ts`)
 5. THE System SHALL set the type from the file's first bytes (JPEG, PNG, WebP, GIF or PDF, and `application/octet-stream` for anything else) and SHALL never take it from the client. (`src/server/routes/files.test.ts`)
@@ -121,8 +121,8 @@ The spec describes the system as built. Where a criterion is proven by a test, t
 
 #### Acceptance Criteria
 
-1. WHEN `PUT /api/files/:id/preview` receives an image of at most 512 KB for an image original, THE System SHALL store it and set the original's `previewId`, answering with the updated original. (`src/server/routes/files.test.ts`)
-2. IF the original is not an image, or the preview is larger than 512 KB, or its first bytes are not an image, THE System SHALL answer 400 and store nothing. IF the original does not exist, it SHALL answer 404. (`src/server/routes/files.test.ts`)
+1. WHEN `PUT /api/files/:id/preview` receives an image of at most 512 KB for an image original larger than 512 KB, THE System SHALL store it and set the original's `previewId`, answering with the updated original. (`src/server/routes/files.test.ts`)
+2. IF the original is not an image or is itself at most 512 KB (it is its own preview), or the preview is larger than 512 KB, or its first bytes are not an image, THE System SHALL answer 400 and store nothing. IF the original does not exist, it SHALL answer 404. (`src/server/routes/files.test.ts`)
 3. WHEN the browser uploads an image larger than 512 KB that has no Preview, THE web app SHALL re-encode it at most 640 px on its longer side (WebP, or JPEG when the browser cannot encode WebP) and upload that as its Preview. If this fails, the original SHALL remain and lists SHALL show an icon. (manual)
 4. THE web app SHALL show a file in lists as its Preview if it has one, otherwise as the image itself when it is an image of at most 512 KB, otherwise as an icon. It SHALL never show the original of a large image. (manual)
 
@@ -137,7 +137,7 @@ The spec describes the system as built. Where a criterion is proven by a test, t
 3. IF `fileIds` names an unknown file, THE System SHALL answer 400 with `{ fileIds: "Unknown file" }` and change nothing. (`src/server/routes/attachments.test.ts`)
 4. WHEN `POST /api/pets/:id/attachments` receives `{ fileId, label, date }`, THE System SHALL file a Standalone_File and answer 201. An unknown file SHALL answer 400 `{ fileId: "Unknown file" }`, and an unknown pet 404. (`src/server/routes/attachments.test.ts`)
 5. THE System SHALL let `PUT /api/attachments/:id` change only the label and date of a Standalone_File. A Visit_File SHALL answer 404 (`src/server/routes/attachments.test.ts`), and so SHALL a Lab_Document. (manual)
-6. WHEN `DELETE /api/attachments/:id` is called on any Attachment, THE System SHALL remove it, answer 204 and keep the Stored_File. (`src/server/routes/attachments.test.ts`)
+6. WHEN `DELETE /api/attachments/:id` is called on a Standalone_File, THE System SHALL remove it, answer 204 and keep the Stored_File. A Visit_File or Lab_Document SHALL answer 404 and stay attached, as on `PUT`: a visit's files change with the visit, a report's documents with the report. (`src/server/routes/attachments.test.ts`)
 7. WHEN a pet is deleted, THE System SHALL delete its Attachments and keep the Stored_Files. (`src/server/routes/attachments.test.ts`)
 8. THE records response SHALL list under `attachments` only Standalone_Files, each with its author and the file's type, size, original name and `previewId`. (`src/server/routes/attachments.test.ts`)
 
@@ -175,7 +175,7 @@ The spec describes the system as built. Where a criterion is proven by a test, t
 
 1. WHEN "Add record" is pressed, THE web app SHALL offer Vet visit, Home exam, Weight, Lab results, Vaccination, Medication, Condition and File. Lab results SHALL open `/pets/:id/labs/new`; each of the others SHALL open its form in the dialog. (manual)
 2. THE dialog SHALL close on a backdrop click only while it shows the chooser, never while it shows a form. (manual)
-3. THE visit form SHALL switch between Vet visit and Home exam. It SHALL show clinic and vet only for a vet visit, and SHALL send them as empty for a home exam. (manual)
+3. THE visit form SHALL switch between Vet visit and Home exam, with the dialog title following the selected kind. It SHALL show clinic and vet only for a vet visit, and SHALL send them as empty for a home exam, warning first that saving as a home exam removes a clinic or vet already entered. (manual)
 4. THE visit form SHALL suggest clinics and vets from this pet's earlier Entries, label the weight and temperature fields with the reader's Display_Units, and offer body condition 1–9 with 5 marked "(ideal)". (manual)
 5. THE visit form SHALL upload picked files one after another, skip a file already attached, and refuse to save until every upload has finished. (manual)
 6. THE weight form SHALL require a weight. The file form SHALL require a file and fill the label from the file name without its extension. WHEN a form opens for a new record, its date SHALL default to today. (manual)
@@ -270,7 +270,7 @@ sequenceDiagram
 
 ### Property 6: Content addressing
 
-*For any* two uploads with identical bytes, the System returns the same Stored_File id and keeps exactly one copy, named by its SHA-256, with no `.partial` file left behind.
+*For any* two uploads with identical bytes, the System keeps exactly one copy, named by its SHA-256, with no `.partial` file left behind; the second upload returns the existing row when its name and uploader match the first's, and otherwise a new row naming the same copy.
 
 **Validates: Requirements 6.2, 6.3**
 
@@ -289,8 +289,7 @@ sequenceDiagram
 ## Out of Scope
 
 - Deleting a Stored_File. Removing an Attachment or a pet leaves the bytes and the row in place, and nothing cleans up unused files or replaced Previews.
-- Server-side rejection of future dates (only the forms check this).
-- Editing standalone readings other than weight, and creating them, in the UI.
+- Standalone readings other than weight: the API refuses to create them, and rows that predate that rule can only be changed or removed through the API.
 - Labels on Visit_Files, and dates for them independent of the visit.
 - Image resizing or format conversion of originals on the server. Previews are made only by the uploading browser.
 - Types beyond the five Inline_Types (such as HEIC, SVG or Office documents) being recognised or displayed.

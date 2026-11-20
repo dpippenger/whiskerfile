@@ -70,7 +70,17 @@ function RegistryForm({ registry, onDone }: { registry: ChipRegistry | null; onD
       )}
       <div className="flex flex-wrap items-center gap-2">
         {registry && (
-          <Button variant="ghost" className="text-danger" onClick={() => remove.mutate()} disabled={remove.isPending}>
+          <Button
+            variant="ghost"
+            className="text-danger"
+            // Earlier field errors belong to the save; they must not hide the delete's error.
+            onClick={() => {
+              save.reset();
+              setErrors({});
+              remove.mutate();
+            }}
+            disabled={remove.isPending}
+          >
             Delete
           </Button>
         )}

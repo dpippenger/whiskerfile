@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import {
+  attachmentInput,
   editedValue,
   entryInput,
   formatVital,
@@ -53,6 +54,15 @@ test("implausible readings are refused", () => {
   expect(measurementInput.safeParse({ date: "2026-11-01", kind: "weight", value: 4649 }).success).toBe(true);
   expect(measurementInput.safeParse({ date: "2026-11-01", kind: "weight", value: 4649.5 }).success).toBe(false);
   expect(measurementInput.safeParse({ date: "2026-11-31", kind: "weight", value: 4649 }).success).toBe(false);
+});
+
+test("record dates can't be in the future", () => {
+  const entry = { kind: "vet", date: "2999-01-01", clinic: "", vet: "", reason: "", notes: "", vitals: {} };
+  expect(entryInput.safeParse(entry).error?.issues.map((i) => [i.path.join("."), i.message])).toEqual([
+    ["date", "Can't be in the future"],
+  ]);
+  expect(measurementInput.safeParse({ date: "2999-01-01", kind: "weight", value: 4649 }).success).toBe(false);
+  expect(attachmentInput.safeParse({ fileId: 1, label: "", date: "2999-01-01" }).success).toBe(false);
 });
 
 test("a reading left as shown keeps its stored value; an edited one is converted", () => {

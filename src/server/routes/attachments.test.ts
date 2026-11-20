@@ -145,6 +145,15 @@ test("files can be filed on their own, relabelled and removed", async () => {
       })
     ).status,
   ).toBe(400);
+  // A file is filed under a day that has already happened.
+  expect(
+    (
+      await call(`/api/pets/${petId}/attachments`, {
+        method: "POST",
+        body: { fileId: scan.id, label: "", date: "2999-01-01" },
+      })
+    ).status,
+  ).toBe(400);
 
   expect((await call(`/api/attachments/${id}`, { method: "DELETE" })).status).toBe(204);
   expect((await records()).attachments).toEqual([]);
@@ -153,16 +162,38 @@ test("files can be filed on their own, relabelled and removed", async () => {
   expect((await call(`/api/files/${scan.id}`)).status).toBe(200);
 });
 
-test("a visit's files can only be relabelled with the visit, but can be removed directly", async () => {
-  const { call, upload, records, petId } = await setup();
+test("a visit's or a report's files change only with the visit or the report", async () => {
+  const { call, json, upload, records, petId } = await setup();
   const lab = await upload(pdf("x"), "lab.pdf");
   await call(`/api/pets/${petId}/entries`, { method: "POST", body: visit({ fileIds: [lab.id] }) });
   const attached = (await records()).entries[0]!.attachments[0]!;
   expect(
     (await call(`/api/attachments/${attached.id}`, { method: "PUT", body: { label: "x", date: "2020-01-01" } })).status,
   ).toBe(404);
-  expect((await call(`/api/attachments/${attached.id}`, { method: "DELETE" })).status).toBe(204);
-  expect((await records()).entries[0]!.attachments).toEqual([]);
+  expect((await call(`/api/attachments/${attached.id}`, { method: "DELETE" })).status).toBe(404);
+  expect((await records()).entries[0]!.attachments.map((a) => a.id)).toEqual([attached.id]);
+
+  // A lab report's original document is just as protected.
+  const catalog = await json<{ id: number }[]>(call("/api/analytes"));
+  const doc = await upload(pdf("chem"), "chem.pdf");
+  await call(`/api/pets/${petId}/labs`, {
+    method: "POST",
+    body: {
+      date: "2026-11-06",
+      source: "reference_lab",
+      lab: "",
+      accession: "",
+      notes: "",
+      entryId: null,
+      fileIds: [doc.id],
+      results: [{ analyteId: catalog[0]!.id, valueText: "1.0", unit: "", refLow: null, refHigh: null }],
+    },
+  });
+  const [report] = await json<{ attachments: { id: number }[] }[]>(call(`/api/pets/${petId}/labs`));
+  const document = report!.attachments[0]!;
+  expect((await call(`/api/attachments/${document.id}`, { method: "DELETE" })).status).toBe(404);
+  const [after] = await json<{ attachments: { id: number }[] }[]>(call(`/api/pets/${petId}/labs`));
+  expect(after!.attachments.map((a) => a.id)).toEqual([document.id]);
 });
 
 test("deleting a pet removes its attachments but not the stored files", async () => {
