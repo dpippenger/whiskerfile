@@ -55,3 +55,18 @@ PDF reports need Chromium: set `CHROMIUM_PATH` (in `.env` or the shell) to a Chr
 `bun run read:lab <file>` reads one lab PDF or photo with Claude and prints what the form would be filled with, which is the way to check the reading on real reports. It needs `ANTHROPIC_API_KEY` and is billed; `bun test` never calls the API.
 
 Database schema lives in `src/server/db/schema.ts`. After changing it, run `bun run db:generate` and commit the new migration; migrations apply on startup.
+
+Every pull request runs the CI workflow (`.github/workflows/ci.yml`), and `main` requires its `ci-gate` check. To run the same checks before pushing:
+
+```sh
+bun run format:check
+bun run lint             # oxlint, with type-aware rules (.oxlintrc.json)
+bun check
+bun test
+bun run check:unused     # knip: files, exports and dependencies nothing uses
+bun run check:migrations # the migrations match the schema
+bun audit --audit-level=high
+docker build -t whiskerfile:ci . && .github/scripts/image-smoke.sh whiskerfile:ci
+```
+
+The last one boots the production image and checks that the front end is bundled and a report prints. CI installs the Bun named in `.bun-version`, which must match the `Dockerfile`.

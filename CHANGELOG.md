@@ -6,6 +6,10 @@
 
 - Lab form: **Read results from a document** sends the lab's PDF or a photo of the report to Claude, attaches it to the report, and fills in each result, unit and range as printed for you to check before saving. Typed values are never replaced, unmatched results are listed, and ranges come only from the document. Needs `ANTHROPIC_API_KEY`.
 
+### Development
+
+- Pull requests are gated by CI: formatting, lint (oxlint), type check, tests (with a real PDF print), unused code (knip), migration drift, a dependency audit, and a smoke test of the built image. CodeQL scans each pull request and `main`.
+
 ## Phase 6: PDF health reports (2026-11-18)
 
 ### Added
