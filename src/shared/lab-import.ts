@@ -59,23 +59,20 @@ export function draftFromExtraction(extraction: Extraction, catalog: { id: numbe
   for (const r of extraction.results) {
     const valueText = r.value.trim();
     const unit = r.unit?.trim() || null;
+    const refLow = r.rangeLow?.trim() ?? "";
+    const refHigh = r.rangeHigh?.trim() ?? "";
     const miss = (reason: string) => unmatched.push({ printedName: r.printedName.trim(), valueText, unit, reason });
     const analyteId = r.code ? byCode.get(r.code.trim().toUpperCase()) : undefined;
 
     if (!valueText) miss("No result printed");
     else if (valueText.length > 40) miss("The result is longer than the form allows");
     else if (unit && unit.length > 20) miss("The unit is longer than the form allows");
+    else if (refLow.length > 20 || refHigh.length > 20) miss("The range is longer than the form allows");
     else if (analyteId == null) miss("Not in your list of tests");
     else if (seen.has(analyteId)) miss("This test appears more than once");
     else {
       seen.add(analyteId);
-      results.push({
-        analyteId,
-        valueText,
-        unit: unit ?? "",
-        refLow: text(r.rangeLow, 20) ?? "",
-        refHigh: text(r.rangeHigh, 20) ?? "",
-      });
+      results.push({ analyteId, valueText, unit: unit ?? "", refLow, refHigh });
     }
   }
 
