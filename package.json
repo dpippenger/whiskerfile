@@ -7,13 +7,15 @@
     "start": "NODE_ENV=production bun src/server/index.ts",
     "test": "bun test",
     "typecheck": "bun check",
+    "lint": "sh scripts/lint.sh",
     "check:unused": "knip",
     "check:migrations": "drizzle-kit check && drizzle-kit generate && test -z \"$(git status --porcelain drizzle)\"",
     "db:generate": "drizzle-kit generate",
     "seed:dev": "bun scripts/seed-dev.ts",
     "read:lab": "bun scripts/read-lab.ts",
     "format": "prettier --write src scripts",
-    "format:check": "prettier --check src scripts"
+    "format:check": "prettier --check src scripts",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@types/bun": "latest",
@@ -21,7 +23,9 @@
     "@types/react-dom": "^19.3.0",
     "bun-plugin-tailwind": "^0.1.2",
     "drizzle-kit": "^0.31.11",
+    "husky": "9.1.7",
     "knip": "6.46.1",
+    "lint-staged": "17.6.1",
     "prettier": "3.10.1"
   },
   "peerDependencies": {
@@ -43,5 +47,9 @@
     "tailwindcss": "^4.3.5",
     "wouter": "^3.13.0",
     "zod": "^4.6.7"
+  },
+  "lint-staged": {
+    "{src,scripts}/**": "prettier --write --ignore-unknown",
+    "*.{ts,tsx}": "sh scripts/lint.sh"
   }
 }
