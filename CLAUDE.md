@@ -12,7 +12,7 @@ Self-hosted pet medical records app. One Bun process serves the JSON API and the
 - Every screen must work on both desktop and phone widths; check both before finishing UI work.
 - The production image runs from source (`development: false` bundles the frontend at first request) because the `bun build` CLI does not apply the Tailwind plugin from `bunfig.toml`.
 - Client routing uses `wouter`. TanStack Router crashes under Bun's hot-reload module format (a circular import inside router-core), so do not switch back without checking `bun run dev` in a browser.
-- `bun run dev` starts a local server with `AUTH_MODE=dev`; `make check` must pass before pushing (format, lint, type check, tests, knip, migrations); `make ci` adds the audit and the image smoke test.
+- `bun run dev` starts a local server with `AUTH_MODE=dev`; `make check` must pass before pushing (format, lint, type check, tests, knip, migrations); `make ci` adds commitlint, the audit and the image smoke test. Husky hooks run on commit and push; never skip them with `--no-verify`.
 - CI (`.github/workflows/ci.yml`) gates every pull request on the `ci-gate` check; the README lists the commands behind each job. Pin actions to a commit SHA, and bump `.bun-version` together with the `Dockerfile`. Lint is `bun run lint`: `bun lint` from the canary pinned in `.bun-canary-version`, with rules in `.oxlintrc.json`.
 
 Default to using Bun instead of Node.js.

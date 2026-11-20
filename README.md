@@ -60,7 +60,7 @@ Every pull request runs the CI workflow (`.github/workflows/ci.yml`), and `main`
 
 ```sh
 make check # before pushing: format check, lint, type check, tests, unused code (knip), migration drift
-make ci    # everything CI gates on: check, plus the dependency audit and the image smoke test (needs docker)
+make ci    # everything CI gates on: check, plus commit messages, the dependency audit and the image smoke test (needs docker)
 make help  # each check as its own target
 ```
 
@@ -68,4 +68,4 @@ make help  # each check as its own target
 
 Lint is `bun lint` with the rules in `.oxlintrc.json`. Only canary builds of Bun have it so far, so `scripts/lint.sh` installs the canary pinned in `.bun-canary-version` beside your own Bun (under `~/.bun/canary`) the first time it runs.
 
-`bun install` sets up a pre-commit hook (husky) that formats and lints the staged files.
+`bun install` sets up the git hooks (husky): pre-commit formats and lints the staged files, commit-msg checks the message is a [Conventional Commit](https://www.conventionalcommits.org/) (commitlint), and pre-push runs `make check`. CI checks the pull request's title and commits the same way. Dependabot (`.github/dependabot.yml`) proposes updates weekly for the packages, the actions and the Docker images.
