@@ -119,6 +119,10 @@ test("files can be filed on their own, relabelled and removed", async () => {
     body: { label: "Adoption contract", date: "2019-05-02" },
   });
   expect(await json(renamed)).toMatchObject({ label: "Adoption contract", date: "2019-05-02", fileId: scan.id });
+  // An id that isn't a number is no attachment, not an error.
+  const edit = { method: "PUT", body: { label: "x", date: "2019-05-02" } };
+  expect((await call("/api/attachments/abc", edit)).status).toBe(404);
+  expect((await call("/api/attachments/abc", { method: "DELETE" })).status).toBe(404);
   const { attachments: own, entries } = await records();
   expect(own.map((a) => [a.label, a.file.originalName])).toEqual([["Adoption contract", "adoption.pdf"]]);
   expect(entries).toEqual([]);

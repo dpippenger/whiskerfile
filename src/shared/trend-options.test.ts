@@ -86,6 +86,39 @@ test("a single result still shows its range, within the padded axis", () => {
   expect(opt.xAxis).toMatchObject({ min: day - 30 * 86_400_000, max: day + 30 * 86_400_000 });
 });
 
+test("results with no printed range are drawn with no band", () => {
+  const bare = labSeries([
+    {
+      date: "2026-05-02",
+      order: 1,
+      valueText: "1.9",
+      ...parseLabValue("1.9"),
+      unit: null,
+      refLow: null,
+      refHigh: null,
+    },
+    {
+      date: "2026-11-06",
+      order: 2,
+      valueText: "2.1",
+      ...parseLabValue("2.1"),
+      unit: null,
+      refLow: null,
+      refHigh: null,
+    },
+  ]);
+  const opt = labTrendOption(bare.points, { color: "#a855f7", unit: null, name: "T4" });
+  const heights = (id: string) =>
+    ((opt.series as Series[]).find((s) => s.id === id)!.data as [number, number | null][]).map(([, y]) => y);
+  expect(heights("range-low")).toEqual([null, null, null, null]);
+  expect(heights("range")).toEqual([null, null, null, null]);
+  expect((opt.series as Series[]).find((s) => s.id === "values")!.data).toHaveLength(2);
+
+  // And a test with nothing to draw yet gives an empty chart, not an error.
+  const empty = labTrendOption([], { color: "#a855f7", unit: null, name: "T4" });
+  expect((empty.series as Series[]).map((s) => s.data)).toEqual([[], [], []]);
+});
+
 test("points are coloured by flag and hollow for limit values", () => {
   const items = byId("values").data as Item[];
   expect(items.map((i) => i.value)).toEqual([

@@ -38,6 +38,7 @@ test("vitals are shown in the reader's units", () => {
   expect(formatVital("temperature", 38.61, imperial)).toBe("101.5 °F");
   expect(formatVital("temperature", 38.61, metric)).toBe("38.6 °C");
   expect(formatVital("heart_rate", 180, metric)).toBe("180 bpm");
+  expect(formatVital("respiratory_rate", 28, metric)).toBe("28 /min");
   expect(formatVital("body_condition", 5, metric)).toBe("5/9");
 });
 

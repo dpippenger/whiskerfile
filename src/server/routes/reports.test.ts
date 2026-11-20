@@ -1,6 +1,7 @@
 import { expect, spyOn, test } from "bun:test";
 import { chmod } from "node:fs/promises";
 import { join } from "node:path";
+import { formatDate } from "../../shared/dates";
 import { chromiumPdf, type RenderPdf } from "../report/pdf";
 import { startApi } from "../test-support";
 import { cacheOnSuccess } from "./reports";
@@ -98,6 +99,99 @@ test("a pet's report comes back as a PDF download named after the pet", async ()
   expect(html).toContain("12 yr 8 mo");
   // Each health record's notes travel with it.
   for (const note of ["Sleepy for a day", "Give with food", "Itchy skin"]) expect(html).toContain(note);
+});
+
+test("the page carries the pet's details, flagged results with trends, and what is due", async () => {
+  const printer = fakePrinter();
+  const { call, json, petId } = await setup(printer.renderPdf);
+  const [registry] = await json<{ id: number; name: string }[]>(call("/api/chip-registries"));
+  const details = {
+    ...PET,
+    name: "Miso",
+    breed: "Siamese",
+    dobEstimated: true,
+    coatColor: "Seal point",
+    eyeColor: "Blue",
+    microchip: "985112003456789",
+    chipRegistryId: registry!.id,
+  };
+  expect((await call(`/api/pets/${petId}`, { method: "PUT", body: details })).status).toBe(200);
+
+  const catalog = await json<{ id: number; code: string }[]>(call("/api/analytes"));
+  const crea = catalog.find((a) => a.code === "CREA")!.id;
+  const lab = (date: string, valueText: string, unit: string, fields: object) => ({
+    date,
+    source: "in_house",
+    lab: "",
+    accession: "",
+    notes: "",
+    entryId: null,
+    results: [{ analyteId: crea, valueText, unit, refLow: 0.6, refHigh: 2.4 }],
+    ...fields,
+  });
+  for (const body of [
+    lab("2026-01-15", "150", "µmol/L", {}),
+    lab("2026-03-01", "0.4", "mg/dL", {}),
+    lab("2026-06-01", "2.9", "mg/dL", { lab: "IDEXX", accession: "A-77", notes: "Fasted sample" }),
+  ]) {
+    expect((await call(`/api/pets/${petId}/labs`, { method: "POST", body })).status).toBe(201);
+  }
+  const dose = (vaccine: string, dateGiven: string, dueDate: string | null) => ({
+    vaccine,
+    dateGiven,
+    dueDate,
+    lot: "L-42",
+    clinic: "Elm Street Vets",
+    notes: null,
+  });
+  for (const body of [
+    dose("Rabies", "2024-10-01", "2025-10-01"),
+    dose("Rabies", "2025-10-01", "2026-10-01"),
+    dose("FVRCP", "2025-11-25", "2026-11-25"),
+  ]) {
+    expect((await call(`/api/pets/${petId}/vaccinations`, { method: "POST", body })).status).toBe(201);
+  }
+
+  expect((await call(`/api/pets/${petId}/report.pdf?${QUERY}&from=2024-01-01`)).status).toBe(200);
+  const html = printer.pages[0]!;
+  expect(html).toContain("Cat · Siamese");
+  expect(html).toContain(`About ${formatDate("2014-03-15")}`);
+  for (const fact of ["<dt>Coat</dt><dd>Seal point</dd>", "<dt>Eyes</dt><dd>Blue</dd>"]) expect(html).toContain(fact);
+  expect(html).toContain(`<span class="mono">985112003456789</span> (${registry!.name})`);
+  expect(html).toContain(`<dd>Since ${formatDate("2024-01-01")}</dd>`);
+  expect(html).not.toContain("Passed away");
+  expect(html).toContain("No weights recorded.");
+
+  // Each result is flagged against its own printed range; a report with no lab named shows who tested it.
+  expect(html).toContain('<td class="mono low">0.4</td>');
+  expect(html).toContain('<span class="low">Low</span>');
+  expect(html).toContain('<td class="mono high">2.9</td>');
+  expect(html).toContain('<span class="high">High</span>');
+  expect(html).toContain("· In-clinic analyzer");
+  expect(html).toContain("· IDEXX");
+  expect(html).toContain(" · A-77");
+  expect(html).toContain('<p class="notes">Fasted sample</p>');
+  // The two latest results share a unit, so a trend is drawn; the older one is counted, not drawn.
+  expect(html).toContain("Lab trends");
+  expect(html).toContain("1 result in another unit not drawn.");
+
+  // Only the latest dose of a vaccine can be due.
+  expect(html).toContain('<span class="muted">Superseded</span>');
+  expect(html).toContain(`${formatDate("2026-10-01")}<span class="high"> · Overdue</span>`);
+  expect(html).toContain(`${formatDate("2026-11-25")}<span class="low"> · Due soon</span>`);
+  expect(html).toContain('<td>Elm Street Vets</td><td class="mono">L-42</td>');
+
+  // The period is named whichever ends it has, and a pet that has died says when.
+  await call(`/api/pets/${petId}`, { method: "PUT", body: { ...details, deceasedOn: "2026-11-10" } });
+  await call(`/api/pets/${petId}/report.pdf?${QUERY}&to=2026-06-30`);
+  await call(`/api/pets/${petId}/report.pdf?${QUERY}&from=2026-02-01&to=2026-06-30`);
+  expect(printer.pages[1]).toContain(`<dd>Up to ${formatDate("2026-06-30")}</dd>`);
+  expect(printer.pages[1]).toContain(`<dt>Passed away</dt><dd>${formatDate("2026-11-10")}</dd>`);
+  expect(printer.pages[1]).not.toContain("Overdue");
+  expect(printer.pages[2]).toContain(`<dd>${formatDate("2026-02-01")} to ${formatDate("2026-06-30")}</dd>`);
+  // The January result falls outside the period, so no other-unit note remains.
+  expect(printer.pages[2]).toContain("Lab trends");
+  expect(printer.pages[2]).not.toContain("in another unit");
 });
 
 test("the reader's date and unit are required, and the period must make sense", async () => {
