@@ -8,7 +8,7 @@
 
 ### Development
 
-- Pull requests are gated by CI: formatting, lint (`bun lint`), type check, tests (with a real PDF print), unused code (knip), migration drift, commit messages, a dependency audit, and a smoke test of the built image. CodeQL scans each pull request and `main`. `make check` and `make ci` run the same checks locally, and git hooks format and lint staged files, check commit messages (commitlint) and run `make check` before a push. Dependabot proposes dependency updates weekly.
+- Pull requests are gated by CI: formatting, lint (`bun lint`), type check, tests, unused code (knip), migration drift, commit messages, a dependency audit, and a smoke test of the built image, which prints a real report. `make check` and `make ci` run the same checks locally, and git hooks format and lint staged files, check commit messages (commitlint) and run `make check` before a push. Dependabot proposes dependency updates weekly.
 
 ## Phase 6: PDF health reports (2026-11-18)
 
