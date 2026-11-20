@@ -33,7 +33,7 @@ function labMetrics(reports: LabReportWithResults[]) {
   return [...byAnalyte.values()].sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
-/** Weight, plus whatever the latest report flagged (or its first two tests). */
+/** Weight, plus up to three tests the latest report flagged (or its first three with a number). */
 function defaultSelection(reports: LabReportWithResults[], hasWeight: boolean): string[] {
   const latest = reports[0];
   const flagged = (latest?.results ?? []).filter((r) => {

@@ -58,7 +58,7 @@ The PDF health report reuses these chart options with a print theme; its layout 
 1. THE `rangeBand` function SHALL return, per point, its x (`dateToUtc` of its date), `low` = `refLow` and `height` = `refHigh - refLow` WHEN both limits are present and `refHigh >= refLow`. (`src/shared/series.test.ts`)
 2. IF a point has only one limit, no limits, or `refHigh < refLow`, THE `rangeBand` function SHALL return null `low` and `height` for it, so the band breaks there. (`src/shared/series.test.ts`)
 3. THE lab chart SHALL draw the band as two series, `range-low` and `range`, stacked in stack `range` with `stackStrategy: "all"`, so a range with a negative lower limit (such as -2 to 2) is drawn from that limit rather than from zero. (`src/shared/trend-options.test.ts`)
-4. THE band series SHALL be stepped (`step: "end"`), silent, without symbols or visible lines, with `connectNulls: false`, and only `range` SHALL be filled, in the theme's band colour. With `step: "end"` each stretch between two results is shaded with the earlier result's range, and the band runs from the first result to the last. (manual)
+4. THE band series SHALL be stepped (`step: "middle"`), silent, without symbols or visible lines, with `connectNulls: false`, and only `range` SHALL be filled, in the theme's band colour. With `step: "middle"` the band splits at the midpoint between results, so each result — the latest included — sits over the range printed on its own report, and the band SHALL be stretched half a neighbouring gap past the first and last results (30 days either side when there is no gap, within the padded axis), so a single result shows its range. (`src/shared/trend-options.test.ts`)
 5. THE Trends tab SHALL caption each lab chart: "Shaded: the reference range printed on each report. Hollow points are results given as a limit, such as <0.5." (manual)
 
 ### Requirement 4: Ages and multi-pet comparison series
@@ -75,6 +75,7 @@ The PDF health report reuses these chart options with a print theme; its layout 
 6. IF a placeable pet has no result in the Series_Unit, THE `compareSeries` function SHALL leave it out as `other-unit`. (`src/shared/series.test.ts`)
 7. THE `compareSeries` function SHALL give each plotted pet its Series_Unit points, oldest first, with x = `dateToUtc(date)` on the date axis or `ageInYears(dob, date)` on the age axis, and SHALL keep plotted pets in input order. (`src/shared/series.test.ts`)
 8. THE `compareSeries` function SHALL sort Left_Out pets by name (`localeCompare`). (`src/shared/series.test.ts`)
+9. THE `compareSeries` function SHALL count, on each plotted pet, the results not drawn: `unread` (no number), `otherUnits` (another unit) and, on the age axis, `beforeBirth` (dated before the birth date). (`src/shared/series.test.ts`)
 
 ### Requirement 5: Chart layout, themes, padding and zoom
 
@@ -111,7 +112,7 @@ The PDF health report reuses these chart options with a print theme; its layout 
 #### Acceptance Criteria
 
 1. THE `EChart` component SHALL register only the line chart, grid, tooltip and slider-zoom components and the SVG renderer, and SHALL draw with `renderer: "svg"`. (manual)
-2. WHEN the option or `animation` prop changes, THE `EChart` component SHALL replace the chart's option (`notMerge: true`), with `animation` (default true) overriding the option's own. (manual)
+2. WHEN the option or `animation` prop changes, THE `EChart` component SHALL replace the chart's option (`notMerge: true`), with the `animation` prop, only when given, overriding the option's own. (manual)
 3. WHEN its container changes size, THE `EChart` component SHALL resize the chart. (manual)
 4. WHEN it unmounts, THE `EChart` component SHALL stop observing its container and dispose the chart. (manual)
 5. THE `EChart` component SHALL render a `role="img"` container with the given `aria-label`. (manual)
@@ -152,9 +153,10 @@ The PDF health report reuses these chart options with a print theme; its layout 
 5. WHEN the metric is weight, THE Compare page SHALL convert grams to the reader's weight unit and label points with two decimals; for a test it SHALL label points with the printed text. (manual)
 6. THE Compare page SHALL colour each pet with its chart colour (falling back to `#a855f7`) and head the chart with the metric's name, code and unit. (manual)
 7. WHEN any pet is Left_Out, THE Compare page SHALL list "Not shown: Name (reason), ..." with the reasons "no results", "results in another unit", "no birth date" and "results before its birth date". (manual)
-8. IF the data has loaded and no pet is plotted, THE Compare page SHALL show "No pet has results to show here."; WHILE loading or after an error it SHALL hold the chart's space empty, and an error SHALL be shown as its message. (manual)
-9. IF no metric exists, THE Compare page SHALL show "Nothing to compare yet. Record weights or lab results first." (manual)
-10. THE Compare page SHALL stack its controls above the chart at narrow widths and place them beside it at wide widths. (manual)
+8. WHEN a plotted pet has results that were not drawn, THE Compare page SHALL list "Not drawn: Name: N in another unit, M without a number, K before its birth date; ...", naming only the non-zero counts. (manual)
+9. IF the data has loaded and no pet is plotted, THE Compare page SHALL show "No pet has results to show here."; WHILE loading or after an error it SHALL hold the chart's space empty, and an error SHALL be shown as its message. (manual)
+10. IF no metric exists, THE Compare page SHALL show "Nothing to compare yet. Record weights or lab results first." (manual)
+11. THE Compare page SHALL stack its controls above the chart at narrow widths and place them beside it at wide widths. (manual)
 
 ### Requirement 11: Series API
 
@@ -270,7 +272,6 @@ flowchart TD
 
 - Converting between units (for example µmol/L to mg/dL) or matching units case-insensitively: results in another unit are counted or named, not converted.
 - A reference band on the Compare chart: ranges differ per pet.
-- Counting a plotted pet's dropped results on Compare (other unit, no number, or before birth); only whole pets are named.
 - A chart legend: the page's pet chips and the pet's colour identify lines.
 - Drag, wheel or pinch zoom inside the chart; only the Zoom_Slider zooms.
 - Remembering Trends selections or Compare choices across visits, or putting them in the URL.

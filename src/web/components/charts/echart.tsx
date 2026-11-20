@@ -14,11 +14,12 @@ echarts.use([LineChart, GridComponent, TooltipComponent, DataZoomSliderComponent
 export function EChart({
   option,
   className,
-  animation = true,
+  animation,
   label,
 }: {
   option: object;
   className?: string;
+  /** Overrides the option's own `animation` only when given. */
   animation?: boolean;
   label: string;
 }) {
@@ -39,7 +40,7 @@ export function EChart({
   }, []);
 
   useEffect(() => {
-    chart.current?.setOption({ ...option, animation }, { notMerge: true });
+    chart.current?.setOption({ ...option, ...(animation !== undefined && { animation }) }, { notMerge: true });
   }, [option, animation]);
 
   return <div ref={container} role="img" aria-label={label} className={className} />;

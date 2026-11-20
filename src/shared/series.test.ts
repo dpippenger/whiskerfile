@@ -119,6 +119,24 @@ test("the unit comes from pets that can be drawn, and pets with nothing placeabl
   expect(compareSeries(pets, "date").unit).toBe("µmol/L");
 });
 
+test("a plotted pet's results that can't be drawn are counted, never dropped silently", () => {
+  const pets = [
+    pet(1, "Miso", "2014-03-15", [
+      result("2013-01-01", "1.0"),
+      result("2025-01-01", "Negative", null, null, null),
+      result("2025-06-01", "141", "µmol/L", 71, 212),
+      result("2026-11-06", "2.6"),
+    ]),
+  ];
+  const byDate = compareSeries(pets, "date");
+  expect(byDate.plotted[0]).toMatchObject({ otherUnits: 1, unread: 1, beforeBirth: 0 });
+  expect(byDate.plotted[0]!.points).toHaveLength(2);
+
+  const byAge = compareSeries(pets, "age");
+  expect(byAge.plotted[0]).toMatchObject({ otherUnits: 1, unread: 1, beforeBirth: 1 });
+  expect(byAge.plotted[0]!.points).toHaveLength(1);
+});
+
 test("against age, a result before the birth date can't choose the unit", () => {
   const pets = [
     pet(1, "Miso", "2014-03-15", [result("2025-01-01", "1.6")]),
