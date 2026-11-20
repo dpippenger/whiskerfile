@@ -56,17 +56,16 @@ PDF reports need Chromium: set `CHROMIUM_PATH` (in `.env` or the shell) to a Chr
 
 Database schema lives in `src/server/db/schema.ts`. After changing it, run `bun run db:generate` and commit the new migration; migrations apply on startup.
 
-Every pull request runs the CI workflow (`.github/workflows/ci.yml`), and `main` requires its `ci-gate` check. To run the same checks before pushing:
+Every pull request runs the CI workflow (`.github/workflows/ci.yml`), and `main` requires its `ci-gate` check. The same checks run locally through `make`:
 
 ```sh
-bun run format:check
-bun lint                 # type-aware rules from .oxlintrc.json; needs the canary build (bun upgrade --canary)
-bun check
-bun test
-bun run check:unused     # knip: files, exports and dependencies nothing uses
-bun run check:migrations # the migrations match the schema
-bun audit --audit-level=high
-docker build -t whiskerfile:ci . && .github/scripts/image-smoke.sh whiskerfile:ci
+make check # before pushing: format check, lint, type check, tests, unused code (knip), migration drift
+make ci    # everything CI gates on: check, plus the dependency audit and the image smoke test (needs docker)
+make help  # each check as its own target
 ```
 
-The last one boots the production image and checks that the front end is bundled and a report prints. CI installs the Bun named in `.bun-version`, which must match the `Dockerfile`.
+`make image` boots the production image and checks that the front end is bundled and a report prints. CI installs the Bun named in `.bun-version`, which must match the `Dockerfile`.
+
+Lint is `bun lint` with the rules in `.oxlintrc.json`. Only canary builds of Bun have it so far, so `scripts/lint.sh` installs the canary pinned in `.bun-canary-version` beside your own Bun (under `~/.bun/canary`) the first time it runs.
+
+`bun install` sets up a pre-commit hook (husky) that formats and lints the staged files.

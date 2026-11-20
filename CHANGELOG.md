@@ -8,7 +8,7 @@
 
 ### Development
 
-- Pull requests are gated by CI: formatting, lint (`bun lint`), type check, tests (with a real PDF print), unused code (knip), migration drift, a dependency audit, and a smoke test of the built image. CodeQL scans each pull request and `main`.
+- Pull requests are gated by CI: formatting, lint (`bun lint`), type check, tests (with a real PDF print), unused code (knip), migration drift, a dependency audit, and a smoke test of the built image. CodeQL scans each pull request and `main`. `make check` and `make ci` run the same checks locally, and a pre-commit hook formats and lints staged files.
 
 ## Phase 6: PDF health reports (2026-11-18)
 

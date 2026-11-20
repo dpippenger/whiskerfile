@@ -1,0 +1,15 @@
+# Check policy for arc's /dev:* commands: `arc checks plan --stage <stage>`
+# prints the commands to run at each stage.
+#
+# The full suite runs before the push that opens a pull request and again after
+# a rebase; later pushes run lint and the tests, and CI is the full gate.
+checks:
+  scoped: make test
+  lint: make lint typecheck
+  full: make check
+  format: make format
+full_policy:
+  on_pr_create: true
+  on_respond: false
+  on_rebase: true
+  on_push: false
