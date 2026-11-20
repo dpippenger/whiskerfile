@@ -50,13 +50,40 @@ test("charts show dates in UTC on a time axis", () => {
 });
 
 test("results are drawn over a band of each result's own range, broken where one-sided", () => {
+  const [x0, x1, x2] = [dateToUtc("2026-05-02"), dateToUtc("2026-11-06"), dateToUtc("2026-12-01")];
+  // Half a gap past each end, so the first and latest results' ranges have width.
   expect(byId("range-low").data).toEqual([
-    [dateToUtc("2026-05-02"), 0.6],
-    [dateToUtc("2026-11-06"), 0.8],
-    [dateToUtc("2026-12-01"), null],
+    [x0 - (x1 - x0) / 2, 0.6],
+    [x0, 0.6],
+    [x1, 0.8],
+    [x2, null],
+    [x2 + (x2 - x1) / 2, null],
   ]);
   expect(byId("range").stack).toBe("range");
-  expect((byId("range").data[2] as [number, number | null])[1]).toBeNull();
+  // Split at midpoints: each result sits over its own range, the latest included.
+  expect((byId("range") as Series & { step?: string }).step).toBe("middle");
+  expect((byId("range").data[3] as [number, number | null])[1]).toBeNull();
+});
+
+test("a single result still shows its range, within the padded axis", () => {
+  const single = labSeries([
+    {
+      date: "2026-06-01",
+      order: 1,
+      valueText: "1.9",
+      ...parseLabValue("1.9"),
+      unit: "mg/dL",
+      refLow: 0.6,
+      refHigh: 2.4,
+    },
+  ]);
+  const opt = labTrendOption(single.points, { color: "#a855f7", unit: "mg/dL", name: "Creatinine" });
+  const day = dateToUtc("2026-06-01");
+  const data = (opt.series as Series[]).find((s) => s.id === "range")!.data as [number, number][];
+  expect(data.map(([x]) => x)).toEqual([day - 30 * 86_400_000, day, day + 30 * 86_400_000]);
+  for (const [, height] of data) expect(height).toBeCloseTo(1.8);
+  // The band's ends stay inside the padded axis.
+  expect(opt.xAxis).toMatchObject({ min: day - 30 * 86_400_000, max: day + 30 * 86_400_000 });
 });
 
 test("points are coloured by flag and hollow for limit values", () => {

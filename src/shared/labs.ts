@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isIsoDate } from "./dates";
+import { isFutureDate, isIsoDate } from "./dates";
 
 // A lab result is kept exactly as printed ("1.20", "<0.5", "Negative"), with
 // the number and comparator parsed from it for flags and trends. Reference
@@ -48,20 +48,18 @@ const PREFIXES: [string, Comparator][] = [
 /**
  * Reads a result as printed. "1.20" → 1.2; "<0.5" → < 0.5; "≤0.5" → <= 0.5;
  * ">2,000,000" → > 2000000; "4,5" → 4.5; "-1.5" or "−1.5" → -1.5 (base
- * excess can be negative). Anything else (e.g. "Negative", "2+", or the
- * ambiguous "1,035") has no number, and so no flag.
+ * excess can be negative). A space is allowed after a comparator ("< 0.5"),
+ * but a space inside the number ("1 035", "2 5") is ambiguous and, like the
+ * ambiguous "1,035" or "Negative", has no number, and so no flag.
  */
 export function parseLabValue(text: string): ParsedValue {
   // The Unicode minus sign that reports and word processors use reads as a hyphen.
-  let s = text
-    .trim()
-    .replace(/\s+/g, "")
-    .replace(/\u2212/g, "-");
+  let s = text.trim().replace(/\u2212/g, "-");
   let comparator: Comparator | null = null;
   for (const [prefix, c] of PREFIXES) {
     if (s.startsWith(prefix)) {
       comparator = c;
-      s = s.slice(prefix.length);
+      s = s.slice(prefix.length).trimStart();
       break;
     }
   }
@@ -151,7 +149,11 @@ export const labResultInput = z
 
 export const labReportInput = z
   .object({
-    date: z.string().refine(isIsoDate, "Use a valid date"),
+    // The sample was already taken; the form refuses after the user's local today first.
+    date: z
+      .string()
+      .refine(isIsoDate, "Use a valid date")
+      .refine((s) => !isIsoDate(s) || !isFutureDate(s), "Can't be in the future"),
     source: z.enum(LAB_SOURCES),
     lab: optionalText(80),
     accession: optionalText(60),

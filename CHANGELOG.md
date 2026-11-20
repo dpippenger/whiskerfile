@@ -6,6 +6,21 @@
 
 - Lab form: **Read results from a document** sends the lab's PDF or a photo of the report to Claude, attaches it to the report, and fills in each result, unit and range as printed for you to check before saving. Typed values are never replaced, unmatched results are listed, and ranges come only from the document. Needs `ANTHROPIC_API_KEY`.
 
+### Fixed
+
+- Pets: an address that isn't a pet number shows "Pet not found" instead of a blank page; a pet under a week old shows its age in days; the pet list sorts names without regard to case; a chip registry saved without a chip number shows on the Details card; deleting a registry that pets still use shows the "in use" message even after earlier form errors.
+- Files: uploading a file again under a new name, or by another household member, keeps that name and uploader. The API no longer deletes a visit's files or a lab report's documents through the standalone-file route, and refuses a preview for an image small enough to be its own.
+- Records: standalone readings are weights only, and a reading's kind is fixed once recorded. Switching a visit to a home exam warns that the clinic and vet will be removed, and the dialog title follows the kind chosen.
+- Labs: a value with a space inside the number, such as `1 035`, is kept as printed instead of being read as 1035 (stored values are re-read at startup). A lab report can no longer link a home exam as its visit or attach another pet's file. Deleting a test from the catalog asks for a confirming second click.
+- Health: a pet that has passed away no longer shows "Next due" dates, and its medication courses read as ended on the timeline; vaccines and medications now follow one rule for a date of passing.
+- Trends: the shaded reference range covers every result, including the latest, and a single result shows its range (also in PDF reports). Compare says how many of a pet's results were not drawn and why.
+- Reports: one failed font read no longer breaks every later PDF until restart; a failure before printing returns the usual error and is logged; closing the dialog while the PDF is being prepared cancels the download; the dialog shows the server's message when no field on screen is at fault.
+- Lab document import: a result whose printed range is too long for the form is listed as not filled in; a document that can't be read no longer stays attached, and the picker offers only PDFs and images; a PDF without a `.pdf` name is read as a PDF; the notice counts only the results it filled in; PNG and GIF documents small enough for the API are sent unmodified.
+- API: dates in the future (later than tomorrow in UTC, to allow for the browser's time zone) are refused for visits, weights, files, lab reports, a pet's birth and passing dates, vaccinations and conditions, as the forms already did.
+- Backups: a backup that fails after its database snapshot is written records the snapshot with the failed run, so it stays listed and downloadable.
+- The server finds its migrations wherever it is started from.
+- README: Cloudflare's signed header is checked on every `/api` request, not every request.
+
 ### Development
 
 - Pull requests are gated by CI: formatting, lint (`bun lint`), type check, tests, unused code (knip), migration drift, commit messages, a dependency audit, and a smoke test of the built image, which prints a real report. `make check` and `make ci` run the same checks locally, and git hooks format and lint staged files, check commit messages (commitlint) and run `make check` before a push. Dependabot proposes dependency updates weekly.

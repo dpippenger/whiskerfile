@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { FileDown } from "lucide-react";
-import { useId, useState, type FormEvent } from "react";
+import { useId, useRef, useState, type FormEvent } from "react";
 import { localToday } from "../../shared/dates";
 import { ApiError } from "../lib/api";
 import { useUnits } from "../lib/units";
@@ -9,8 +9,8 @@ import { Dialog } from "./ui/dialog";
 import { Field, Input } from "./ui/field";
 
 /** Fetches the PDF and hands it to the browser as a download, keeping the server's file name. */
-async function download(petId: number, query: URLSearchParams) {
-  const res = await fetch(`/api/pets/${petId}/report.pdf?${query}`);
+async function download(petId: number, query: URLSearchParams, signal: AbortSignal) {
+  const res = await fetch(`/api/pets/${petId}/report.pdf?${query}`, { signal });
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: string; fields?: Record<string, string> } | null;
     throw new ApiError(body?.error ?? `Request failed (${res.status})`, res.status, body?.fields);
@@ -35,15 +35,22 @@ export function ReportButton({ petId, className }: { petId: number; className?: 
   const [open, setOpen] = useState(false);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const abort = useRef<AbortController | null>(null);
   const save = useMutation({
     mutationFn: () => {
       const query = new URLSearchParams({ today: localToday(), weightUnit: units.weight });
       if (from) query.set("from", from);
       if (to) query.set("to", to);
-      return download(petId, query);
+      abort.current = new AbortController();
+      return download(petId, query, abort.current.signal);
     },
     onSuccess: () => setOpen(false),
   });
+  // Closing while the PDF is being prepared cancels it, so nothing downloads unseen.
+  const close = () => {
+    abort.current?.abort();
+    setOpen(false);
+  };
   const fields = save.error instanceof ApiError ? save.error.fields : {};
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -62,7 +69,7 @@ export function ReportButton({ petId, className }: { petId: number; className?: 
         <FileDown className="size-4" aria-hidden />
         Report
       </Button>
-      <Dialog open={open} onClose={() => setOpen(false)} title="Health report" dismissible={!save.isPending}>
+      <Dialog open={open} onClose={close} title="Health report" dismissible={!save.isPending}>
         <form onSubmit={submit} noValidate className="space-y-5">
           <p className="text-muted-foreground">
             A PDF of this pet's details, weight, lab results with trend charts, vaccinations, medications and
@@ -92,11 +99,12 @@ export function ReportButton({ petId, className }: { petId: number; className?: 
           </div>
           {save.error && (
             <p className="text-danger">
-              {Object.keys(fields).length ? "Check the highlighted fields." : save.error.message}
+              {/* Only From and To are on screen; an error naming other fields shows its own message. */}
+              {fields.from || fields.to ? "Check the highlighted fields." : save.error.message}
             </p>
           )}
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button type="button" onClick={() => setOpen(false)} disabled={save.isPending}>
+            <Button type="button" onClick={close} disabled={save.isPending}>
               Cancel
             </Button>
             <Button type="submit" variant="primary" disabled={save.isPending}>

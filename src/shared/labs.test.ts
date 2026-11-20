@@ -29,6 +29,10 @@ test("results are read as printed", () => {
   expect(parseLabValue("\u22122.5")).toEqual({ value: -2.5, comparator: null });
   expect(parseLabValue("<-3")).toEqual({ value: -3, comparator: "<" });
   expect(parseLabValue("-0,5")).toEqual({ value: -0.5, comparator: null });
+  // A space inside the number ("1 035" could be 1035 or 1.035) is as ambiguous as the comma.
+  for (const spaced of ["1 035", "2 5", "> 2 000"]) {
+    expect(parseLabValue(spaced)).toEqual({ value: null, comparator: null });
+  }
   for (const qualitative of ["Negative", "2+", "Trace", "1.2.3", "", "-", "--1", "1e3", "1,035", ">2,000", "0,5,0"]) {
     expect(parseLabValue(qualitative)).toEqual({ value: null, comparator: null });
   }
@@ -103,6 +107,8 @@ test("a report needs results, valid ranges and no analyte twice", () => {
 
   expect(paths(report([result()]))).toBeUndefined();
   expect(paths(report([]))).toEqual(["results"]);
+  // The sample was already taken.
+  expect(paths({ ...report([result()]), date: "2999-01-01" })).toEqual(["date"]);
   expect(paths(report([result({ valueText: " " })]))).toEqual(["results.0.valueText"]);
   expect(paths(report([result({ refLow: 3 })]))).toEqual(["results.0.refHigh"]);
   expect(paths(report([result(), result({ analyteId: 2 }), result()]))).toEqual(["results.2.analyteId"]);

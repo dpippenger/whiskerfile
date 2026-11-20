@@ -31,6 +31,9 @@ test("invalid pets are rejected with the offending field", () => {
   expect(errors({ species: "dragon" })).toEqual(["species"]);
   expect(errors({ deceasedOn: "2018-01-01" })).toEqual(["deceasedOn"]);
   expect(errors({ chartColor: "#123456" })).toEqual(["chartColor"]);
+  // Birth and passing dates have already happened.
+  expect(errors({ dob: "2999-01-01" })).toEqual(["dob"]);
+  expect(errors({ deceasedOn: "2999-01-01" })).toEqual(["deceasedOn"]);
 });
 
 test("new pets get the least used chart colour", () => {

@@ -75,6 +75,7 @@ export function FilePicker({
   label = "Add files",
   busyLabel = "Uploading…",
   icon: Icon = Upload,
+  accept,
 }: {
   onPick: (files: File[]) => void;
   busy: boolean;
@@ -82,6 +83,8 @@ export function FilePicker({
   label?: string;
   busyLabel?: string;
   icon?: typeof Upload;
+  /** Narrows the browser's file picker, like the input attribute; dropped files are not filtered. */
+  accept?: string;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -117,6 +120,7 @@ export function FilePicker({
         ref={input}
         type="file"
         multiple={multiple}
+        accept={accept}
         className="hidden"
         onChange={(e) => {
           pick(e.target.files);

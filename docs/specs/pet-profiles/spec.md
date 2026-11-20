@@ -56,7 +56,7 @@ Criteria name the test that proves them. Criteria marked "(manual)" are checked 
 5. IF both dates are set and `deceasedOn` is before `dob`, THE System SHALL reject the pet on `deceasedOn` with "Must be on or after the birth date"; the same day is accepted. (`src/shared/pets.test.ts`; message text and same-day case manual)
 6. IF the body is not JSON, THE System SHALL answer 400 "Request body must be JSON"; IF it fails Pet_Input, THE System SHALL answer 400 "Some fields are invalid" with a `fields` map holding the first message for each bad field. (`src/server/routes/pets.test.ts`)
 7. IF `chipRegistryId` names no Chip_Registry, THE System SHALL answer 400 with `fields.chipRegistryId` "Unknown registry"; IF `photoFileId` names no file or a file that is not JPEG, PNG, WebP or GIF, THE System SHALL answer 400 with `fields.photoFileId`. (`src/server/routes/pets.test.ts`)
-8. THE System SHALL NOT reject a future `dob` or `deceasedOn`; only the Pet_Form does (Requirement 8.5). (manual)
+8. THE System SHALL refuse a `dob` or `deceasedOn` later than tomorrow in UTC with "Can't be in the future" (`isFutureDate`, `src/shared/dates.ts`: the server doesn't know the browser's time zone, and tomorrow in UTC covers every zone's today); the Pet_Form refuses anything after the user's own local today first (Requirement 8.5). (`src/shared/pets.test.ts`, `src/server/routes/pets.test.ts`)
 
 ### Requirement 3: Species, sex and spay/neuter labels
 
@@ -74,7 +74,7 @@ Criteria name the test that proves them. Criteria marked "(manual)" are checked 
 #### Acceptance Criteria
 
 1. THE System SHALL count elapsed whole years, months and days the way birthdays are counted, clamping to the end of shorter months, and return null when either date is invalid or the end is before the start. (`src/shared/dates.test.ts`)
-2. THE System SHALL format Age as `N wk` under one month, `N mo` under one year, `N yr` on a whole year, and `N yr M mo` otherwise, prefixed with `~` for an Estimated_DOB, and SHALL show no age when the Date_Of_Birth is after the end date. (`src/shared/dates.test.ts`)
+2. THE System SHALL format Age as `N d` under one week, `N wk` under one month, `N mo` under one year, `N yr` on a whole year, and `N yr M mo` otherwise, prefixed with `~` for an Estimated_DOB, and SHALL show no age when the Date_Of_Birth is after the end date. (`src/shared/dates.test.ts`)
 3. WHILE a pet is a Deceased_Pet, THE System SHALL measure its Age to the Date_Of_Passing instead of today, on the Dashboard_Card, the profile header and the PDF report. (`src/server/report/model.test.ts` for the report; the UI is manual)
 4. WHERE a pet has no Date_Of_Birth, THE System SHALL show no Age. (manual)
 5. WHEN a Date_Of_Passing is cleared in the Pet_Form, THE System SHALL treat the pet as living again. (manual)
@@ -102,8 +102,8 @@ Criteria name the test that proves them. Criteria marked "(manual)" are checked 
 3. THE System SHALL require a registry `name` of 1 to 80 characters, accept an optional `website` (200 max) only when it parses as an `http:` or `https:` URL with a host name, and an optional `phone` (40 max), storing blanks as null. (`src/shared/pets.test.ts` for the website rules and blanks; name and phone limits manual)
 4. WHEN a registry is posted or updated, THE System SHALL answer 201 or 200 with the row; IF its name is already used, THE System SHALL answer 409 "A registry with that name already exists" with `fields.name` "Already exists". (`src/server/routes/pets.test.ts` for 201, the updated row and the 409 on POST; the message, `fields.name` and a duplicate on PUT are manual)
 5. IF a registry being deleted is set on any pet, THE System SHALL answer 409 "`<pet name>`'s microchip uses this registry. Change it first."; otherwise THE System SHALL delete it (204), or answer 404 for an unknown id. (`src/server/routes/pets.test.ts`)
-6. THE Settings page SHALL list registries with their website host and phone, add one through an "Add registry" dialog, and edit or delete one through its pencil button; delete has no extra confirmation. (manual)
-7. WHERE a pet has a chip number, THE Details card SHALL show it in monospace, then, when a registry is set, the registry name (a new-tab link when it has a website) and its phone (when set), then a "Look up registry (AAHA)" link to `https://www.aaha.org/petmicrochiplookup`; WHERE it has none, THE card SHALL show "None recorded". (manual)
+6. THE Settings page SHALL list registries with their website host and phone, add one through an "Add registry" dialog, and edit or delete one through its pencil button; delete has no extra confirmation, and a failed delete (such as the 409 while in use) SHALL show its message even when earlier field errors are still displayed. (manual)
+7. THE Details card's Microchip row SHALL show the chip number in monospace (when set), then, when a registry is set, the registry name (a new-tab link when it has a website) and its phone (when set) — a registry saved without a chip number still shows — then, when a chip number is set, a "Look up registry (AAHA)" link to `https://www.aaha.org/petmicrochiplookup`; WHERE neither is set, THE card SHALL show "None recorded". (manual)
 
 ### Requirement 7: Pet photo
 
@@ -144,6 +144,7 @@ Criteria name the test that proves them. Criteria marked "(manual)" are checked 
 3. THE Details card SHALL list Breed (when set), Sex, Spayed / neutered, Born ("About" before the date for an Estimated_DOB, when set), Passed away (when set), Coat and Eyes (when set), and Microchip (Requirement 6.7). (manual)
 4. WHERE the pet has notes, THE profile SHALL show them above the records with their line breaks kept. (manual)
 5. WHILE the screen is narrower than the `lg` breakpoint, THE profile SHALL show a small photo with the badges above the records and move the Details card below them; on wider screens the card sits on the left with a large photo. (manual)
+6. IF the address names no pet — an unknown id, or one that is not an integer (`/pets/abc`, `/pets/1.5`) — THE profile and the edit page SHALL show "Pet not found" instead of an empty content area. (manual)
 
 ### Requirement 10: Dashboard pet list
 
@@ -151,7 +152,7 @@ Criteria name the test that proves them. Criteria marked "(manual)" are checked 
 
 #### Acceptance Criteria
 
-1. WHEN `GET /api/pets` is called, THE System SHALL return a Pet_Summary for every pet in name order (SQLite's default collation): the Pet's fields plus `weights` (its 12 most recent weights in grams, oldest first), `lastVetVisit` (the latest vet visit date, home exams excluded, or null), `vaccinations` (every dose's `id`, `vaccine`, `dateGiven`, `dueDate`, newest first) and `latestLab` (`{ id, date, flagged }` for its latest report by date then id, where `flagged` lists the high or low results as `{ code, name, valueText, unit, flag }` in catalog order, or null). (`src/server/routes/records.test.ts`, `src/server/routes/health.test.ts`, `src/server/routes/labs.test.ts`)
+1. WHEN `GET /api/pets` is called, THE System SHALL return a Pet_Summary for every pet in case-insensitive name order (SQLite's NOCASE collation, so "bella" sorts before "Zeus"): the Pet's fields plus `weights` (its 12 most recent weights in grams, oldest first), `lastVetVisit` (the latest vet visit date, home exams excluded, or null), `vaccinations` (every dose's `id`, `vaccine`, `dateGiven`, `dueDate`, newest first) and `latestLab` (`{ id, date, flagged }` for its latest report by date then id, where `flagged` lists the high or low results as `{ code, name, valueText, unit, flag }` in catalog order, or null). (`src/server/routes/records.test.ts`, `src/server/routes/health.test.ts`, `src/server/routes/labs.test.ts`)
 2. THE dashboard SHALL list living pets first and Deceased_Pets last, keeping name order within each group. (manual)
 3. THE Dashboard_Card SHALL link to the pet's profile and show the Pet_Photo, Chart_Color dot, name, species and breed, and badges for Age, sex (unless unknown), spay/neuter (unless unknown) and "In memory · `<date>`" for a Deceased_Pet. (manual)
 4. WHERE the pet has a vet visit, THE Dashboard_Card SHALL show "Last vet visit `<date>`". (manual)
@@ -270,7 +271,6 @@ stateDiagram-v2
 
 ## Out of Scope
 
-- Server-side rejection of future birth or passing dates; only the Pet_Form checks.
 - Chip number format checks (such as 15-digit ISO chips) and any registry lookup beyond the AAHA link.
 - Removing files: replacing or removing a photo, or deleting a pet, leaves the stored file and its bytes.
 - A separate small preview for pet photos, cropping, or more than one photo per pet.

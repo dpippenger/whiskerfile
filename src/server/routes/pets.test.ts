@@ -66,6 +66,15 @@ test("each new pet gets its own chart colour unless one is chosen", async () => 
   expect(await chosen.json()).toMatchObject({ chartColor: CHART_COLORS[5] });
 });
 
+test("the pet list sorts names without regard to case", async () => {
+  const { call } = await startApi();
+  for (const name of ["Zeus", "bella"]) {
+    await call("/api/pets", { method: "POST", body: pet({ name }) });
+  }
+  const list = (await (await call("/api/pets")).json()) as { name: string }[];
+  expect(list.map((p) => p.name)).toEqual(["bella", "Zeus"]);
+});
+
 test("invalid pets get a 400 naming each bad field", async () => {
   const { call } = await startApi();
   const res = await call("/api/pets", { method: "POST", body: pet({ name: "", dob: "2019-02-30" }) });
@@ -74,6 +83,10 @@ test("invalid pets get a 400 naming each bad field", async () => {
     name: "Name is required",
     dob: "Use a valid date",
   });
+
+  const future = await call("/api/pets", { method: "POST", body: pet({ deceasedOn: "2999-01-01" }) });
+  expect(future.status).toBe(400);
+  expect(((await future.json()) as { fields: object }).fields).toEqual({ deceasedOn: "Can't be in the future" });
 
   const notJson = await call("/api/pets", { method: "POST", raw: "{not json" });
   expect(notJson.status).toBe(400);

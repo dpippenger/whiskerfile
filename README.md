@@ -22,7 +22,7 @@ You need Docker, a domain on Cloudflare, and a Cloudflare Zero Trust team (the f
 
    The app runs as user 1000. If `id -u` prints something else, set `APP_UID` and `APP_GID` in `.env`. A custom `BACKUP_PATH` must exist and be writable by that user.
 
-The app container publishes no port on the host, so the tunnel is the only way in. The app also verifies Cloudflare's signed header on every request and rejects anything without it.
+The app container publishes no port on the host, so the tunnel is the only way in. The app also verifies Cloudflare's signed header on every `/api` request and rejects anything without it; the health check, icons and the app page itself hold no data and are served without one.
 
 ## Health reports
 

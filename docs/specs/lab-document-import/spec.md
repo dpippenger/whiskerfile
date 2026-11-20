@@ -29,8 +29,8 @@ The feature is optional. It is enabled only when `ANTHROPIC_API_KEY` is set, and
 
 1. THE System SHALL read the key from `ANTHROPIC_API_KEY` (`src/server/config.ts`), defaulting to empty; `compose.yaml` passes it through as optional and `.env.example` documents that documents read this way are sent to Anthropic's API. (manual)
 2. WHERE the key is set, THE System SHALL create the Reader with an Anthropic client using that key (`src/server/index.ts`). (manual)
-3. IF the key is not set, WHEN `POST /api/labs/import` is called by a signed-in user, THE System SHALL answer 503 `"Reading documents needs an Anthropic API key; set ANTHROPIC_API_KEY"`, before the upload is read. (`src/server/routes/lab-import.test.ts`; the ordering is manual)
-4. WHILE the key is not set, THE lab form SHALL still show **Read results from a document**, and SHALL show the 503 message when it is used. (manual)
+3. IF the key is not set, WHEN `POST /api/labs/import` is called by a signed-in user, THE System SHALL answer 501 `"Reading documents needs an Anthropic API key; set ANTHROPIC_API_KEY"`, before the upload is read. (`src/server/routes/lab-import.test.ts`; the ordering is manual)
+4. WHILE the key is not set, THE lab form SHALL still show **Read results from a document**, and SHALL show the 501 message when it is used. (manual)
 
 ### Requirement 2: Import endpoint
 
@@ -113,8 +113,8 @@ Criteria 4.1 to 4.6 are checked by reading `INSTRUCTIONS` in `src/server/import/
 
 1. THE mapping SHALL match a result's code to the Catalog after trimming, ignoring case. (`src/shared/lab-import.test.ts`)
 2. THE mapping SHALL trim the value and unit, pass the value through as printed (`<0.5`, `Negative`), and use `""` for a missing unit or range side. (`lab-import.test.ts`)
-3. THE mapping SHALL list a result as unmatched, with its printed name, value, unit and the first reason that applies: `No result printed` (blank value), `The result is longer than the form allows` (over 40 characters), `The unit is longer than the form allows` (over 20), `Not in your list of tests` (null or unknown code), `This test appears more than once` (an analyte already taken; the first occurrence wins). (`lab-import.test.ts`)
-4. THE mapping SHALL keep a range side only when it is non-blank and at most 20 characters; otherwise it becomes `""` with no unmatched entry. (manual; no test)
+3. THE mapping SHALL list a result as unmatched, with its printed name, value, unit and the first reason that applies: `No result printed` (blank value), `The result is longer than the form allows` (over 40 characters), `The unit is longer than the form allows` (over 20), `The range is longer than the form allows` (a side over 20), `Not in your list of tests` (null or unknown code), `This test appears more than once` (an analyte already taken; the first occurrence wins). (`lab-import.test.ts`)
+4. THE mapping SHALL pass each range side through trimmed, with `""` for a side the document doesn't print; a side longer than 20 characters makes the whole result unmatched (6.3), never a silent blank. (`lab-import.test.ts`)
 5. THE mapping SHALL keep the date only when it is a real `YYYY-MM-DD` date (`06/11/2026` and `2026-02-30` become null). (`lab-import.test.ts`)
 6. THE mapping SHALL keep the lab only up to 80 characters and the accession up to 60, after trimming; blank or longer text becomes null. The source passes through as validated by the schema. (`lab-import.test.ts`)
 
@@ -124,11 +124,11 @@ Criteria 4.1 to 4.6 are checked by reading `INSTRUCTIONS` in `src/server/import/
 
 #### Acceptance Criteria
 
-1. WHEN the user picks a file with **Read results from a document**, THE form SHALL first upload the Original unchanged through `/api/files` and add it to the report's attachments, then send the document for reading. The Original stays attached in the form even if the reading fails. (manual)
-2. THE form SHALL send a file whose type is `application/pdf` or whose name ends in `.pdf` as is, and SHALL re-encode any other file to at most 2576 px on its long edge as WebP (or JPEG where WebP cannot be encoded), which drops the photo's metadata from the copy sent for reading. IF the browser cannot decode the image, THE form SHALL show `"This image format can't be used here. Try a JPEG or PNG."`. (manual)
+1. WHEN the user picks a file with **Read results from a document** (a picker whose `accept` offers only PDFs and images), THE form SHALL first prepare the copy to send (7.2) — a file that can't be prepared is refused with nothing uploaded or attached — then upload the Original unchanged through `/api/files`, add it to the report's attachments and send the prepared copy for reading. The Original stays attached when a reading that started fails, but a 501 (no API key) removes it again, since nothing was read; a busy API (503) keeps it. (manual)
+2. THE form SHALL identify the file by its first bytes, never its name or declared type: a PDF is sent as is, and so is a PNG or GIF within the API's base64 size limit and at most 2576 px on its long edge, so re-encoding never softens a screenshot's text; any other image is re-encoded to at most 2576 px on its long edge as WebP (or JPEG where WebP cannot be encoded), which drops the photo's metadata from the copy sent for reading. IF the browser cannot decode the image, THE form SHALL show `"This image format can't be used here. Try a JPEG or PNG."`. (manual)
 3. WHEN the Draft arrives, THE form SHALL fill date, source, lab and accession only where the Draft has a value and the user has not edited that field; on a new report it replaces the untouched defaults, and on an existing report it fills only empty fields. A Draft date later than today is not used. Notes and visit are never filled. (manual)
 4. WHEN results arrive, THE form SHALL apply them with `applyDraftResults`: a test not on the form is added as a new row with the document's value, unit and range; a row with a blank value takes the document's value, unit and range, replacing any unit or range pre-filled from an earlier report, even when the document prints none; a row with a typed value is never changed, and a typed value that differs (after trimming) is reported as a Kept_Value. (`src/web/lib/lab-rows.test.ts`)
-5. THE form SHALL show the Import_Notice: `Read N results from <file name>`, the instruction to check every value and range against the document before saving, the Kept_Values (`CODE: you typed X, the document says Y`), and the unmatched results with their reasons. It can be dismissed. (manual)
+5. THE form SHALL show the Import_Notice: `Read N results from <file name>`, where N counts only the results filled in (rows added or previously blank), not those kept as typed, the instruction to check every value and range against the document before saving, the Kept_Values (`CODE: you typed X, the document says Y`), and the unmatched results with their reasons. It can be dismissed. (manual)
 6. IF reading fails, THE form SHALL show the error message under the picker. (manual)
 7. WHILE an upload or reading is in progress, THE form SHALL disable the read picker and the Save button (labelled `Reading…` while reading), and a submit SHALL do nothing. (manual)
 8. THE form SHALL save no lab report until the user presses Save; the read results are then validated and saved like typed ones. (manual)
@@ -156,9 +156,9 @@ sequenceDiagram
     participant R as "/api/labs/import"
     participant C as Claude API
     U->>B: Pick PDF or photo
+    B->>B: Prepare the copy: PDF or small PNG/GIF as is, else downsize to 2576 px
     B->>F: Upload Original as picked
     F-->>B: Stored file, attached in form
-    B->>B: Downsize photo to 2576 px, PDF unchanged
     B->>R: POST multipart file
     R->>R: Auth, key check, sniff type, size check
     R->>C: messages.create, 180 s, no retries

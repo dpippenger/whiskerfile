@@ -1,4 +1,5 @@
 import { formatDate } from "../../shared/dates";
+import { medicationState } from "../../shared/health";
 import type { PetHealth } from "../../server/routes/health";
 import type { LabReportWithResults } from "../../server/routes/labs";
 import type {
@@ -68,9 +69,18 @@ export function timelineItems(records: PetRecords, labs: LabReportWithResults[],
   return items.sort((a, b) => (a.date === b.date ? b.createdAt - a.createdAt : a.date < b.date ? 1 : -1));
 }
 
-/** "Started Nov 6, 2026, until Dec 6, 2026", worded for whether each date has passed. */
-export function medicationDates(m: { startDate: string; endDate: string | null }, today: string): string {
-  const start = `${m.startDate > today ? "Starts" : "Started"} ${formatDate(m.startDate)}`;
+/**
+ * "Started Nov 6, 2026, until Dec 6, 2026", worded for the course's state: a
+ * past course (ended, or the pet has passed away) reads "Started … stopped",
+ * never "Starts" or "until".
+ */
+export function medicationDates(
+  m: { startDate: string; endDate: string | null },
+  today: string,
+  deceasedOn: string | null = null,
+): string {
+  const state = medicationState(m, today, deceasedOn);
+  const start = `${state === "upcoming" ? "Starts" : "Started"} ${formatDate(m.startDate)}`;
   if (!m.endDate) return start;
-  return `${start}, ${m.endDate < today ? "stopped" : "until"} ${formatDate(m.endDate)}`;
+  return `${start}, ${state === "past" ? "stopped" : "until"} ${formatDate(m.endDate)}`;
 }

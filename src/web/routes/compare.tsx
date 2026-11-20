@@ -61,6 +61,19 @@ export function Compare() {
     );
   }, [result, pets.data, isWeight, units.weight, axis]);
 
+  // A plotted pet's results that couldn't be drawn, counted as on the Trends tab.
+  const dropped =
+    result?.plotted
+      .map((p) => ({
+        name: p.name,
+        parts: [
+          p.otherUnits && `${p.otherUnits} in another unit`,
+          p.unread && `${p.unread} without a number`,
+          p.beforeBirth && `${p.beforeBirth} before its birth date`,
+        ].filter(Boolean),
+      }))
+      .filter((d) => d.parts.length > 0) ?? [];
+
   const error = metrics.error ?? pets.error ?? series.error;
   const withData = pets.data?.filter((p) => option?.petIds.includes(p.id)) ?? [];
   const categories = [...new Set(metrics.data?.map((m) => m.category).filter(Boolean))] as AnalyteCategory[];
@@ -163,6 +176,11 @@ export function Compare() {
             {result && result.leftOut.length > 0 && (
               <p className="text-xs text-muted-foreground">
                 Not shown: {result.leftOut.map((l) => `${l.name} (${REASON[l.reason]})`).join(", ")}.
+              </p>
+            )}
+            {dropped.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Not drawn: {dropped.map((d) => `${d.name}: ${d.parts.join(", ")}`).join("; ")}.
               </p>
             )}
           </Card>

@@ -47,10 +47,11 @@ function Detail({ label, children }: { label: string; children: ReactNode }) {
 function Microchip({ pet }: { pet: Pet }) {
   const registries = useRegistries();
   const registry = registries.data?.find((r) => r.id === pet.chipRegistryId);
-  if (!pet.microchip) return <span className="text-muted-foreground">None recorded</span>;
+  // A registry saved without a chip number still shows.
+  if (!pet.microchip && !pet.chipRegistryId) return <span className="text-muted-foreground">None recorded</span>;
   return (
     <span className="flex flex-col items-end gap-1">
-      <span className="font-mono tabular-nums">{pet.microchip}</span>
+      {pet.microchip && <span className="font-mono tabular-nums">{pet.microchip}</span>}
       {registry &&
         (registry.website ? (
           <a
@@ -66,15 +67,17 @@ function Microchip({ pet }: { pet: Pet }) {
           <span className="text-foreground-secondary">{registry.name}</span>
         ))}
       {registry?.phone && <span className="text-foreground-secondary tabular-nums">{registry.phone}</span>}
-      <a
-        href={CHIP_LOOKUP_URL}
-        target="_blank"
-        rel="noreferrer"
-        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-      >
-        Look up registry (AAHA)
-        <ExternalLink className="size-3" aria-hidden />
-      </a>
+      {pet.microchip && (
+        <a
+          href={CHIP_LOOKUP_URL}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+        >
+          Look up registry (AAHA)
+          <ExternalLink className="size-3" aria-hidden />
+        </a>
+      )}
     </span>
   );
 }
@@ -197,7 +200,14 @@ function Records({
 
       {error && <p className="text-danger">{error.message}</p>}
       {records.data && labs.data && health.data && tab === "timeline" && (
-        <Timeline records={records.data} labs={labs.data} health={health.data} units={units} onEdit={edit} />
+        <Timeline
+          records={records.data}
+          labs={labs.data}
+          health={health.data}
+          units={units}
+          deceasedOn={deceasedOn}
+          onEdit={edit}
+        />
       )}
       {records.data && weights.data && tab === "weight" && (
         <WeightTab weights={weights.data} records={records.data} units={units} color={color} />
@@ -258,7 +268,15 @@ function Records({
           </div>
         )}
         {dialog?.mode === "entry" && (
-          <EntryForm petId={petId} units={units} entry={dialog.entry} initialKind={dialog.kind} onDone={close} />
+          <EntryForm
+            petId={petId}
+            units={units}
+            entry={dialog.entry}
+            initialKind={dialog.kind}
+            // Keeps the title in step when the form switches between vet visit and home exam.
+            onKindChange={(kind) => setDialog((d) => (d?.mode === "entry" ? { ...d, kind } : d))}
+            onDone={close}
+          />
         )}
         {dialog?.mode === "weight" && (
           <WeightForm petId={petId} units={units} measurement={dialog.measurement} onDone={close} />
@@ -276,10 +294,11 @@ export function PetProfile({ id, tab = "timeline", reportId }: { id: number; tab
   const query = usePet(id);
   const today = localToday();
 
-  if (query.error) {
+  // A non-integer address ("/pets/abc") never loads, so it would render nothing.
+  if (query.error || !Number.isInteger(id)) {
     return (
       <Page title="Pet">
-        <p className="text-danger">{query.error.message}</p>
+        <p className="text-danger">{query.error?.message ?? "Pet not found"}</p>
       </Page>
     );
   }

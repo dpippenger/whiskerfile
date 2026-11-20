@@ -59,6 +59,8 @@ test("anything the form can't take is listed with the reason, never dropped", ()
       result({ code: "SDMA", printedName: "SDMA", value: "  " }),
       result({ code: "SDMA", printedName: "SDMA", value: "x".repeat(41) }),
       result({ code: "SDMA", printedName: "SDMA", unit: "u".repeat(21) }),
+      result({ code: "SDMA", printedName: "SDMA", rangeLow: "r".repeat(21) }),
+      result({ code: "SDMA", printedName: "SDMA", rangeHigh: "r".repeat(21) }),
     ]),
     catalog,
   );
@@ -70,6 +72,8 @@ test("anything the form can't take is listed with the reason, never dropped", ()
     ["SDMA", "No result printed"],
     ["SDMA", "The result is longer than the form allows"],
     ["SDMA", "The unit is longer than the form allows"],
+    ["SDMA", "The range is longer than the form allows"],
+    ["SDMA", "The range is longer than the form allows"],
   ]);
 });
 

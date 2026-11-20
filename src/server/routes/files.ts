@@ -34,6 +34,8 @@ export function fileRoutes({ db, dataDir }: AppContext, authed: Authed) {
         const original = id ? db.select().from(files).where(eq(files.id, id)).get() : undefined;
         if (!original) return error(404, "File not found");
         if (!IMAGE_TYPES.includes(original.mime)) return error(400, "Only images have previews");
+        // A small image is shown as it is, so a separate preview makes no sense.
+        if (original.sizeBytes <= PREVIEW_MAX_BYTES) return error(400, "Images up to 512 KB are their own preview");
         const upload = await readUpload(req);
         if (upload instanceof Response) return upload;
         if (upload.size > PREVIEW_MAX_BYTES) return error(400, "A preview can be at most 512 KB");

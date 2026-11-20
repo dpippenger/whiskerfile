@@ -46,11 +46,39 @@ let nextKey = 1;
 /** The API reads images up to this many pixels on the long edge; more only costs more. */
 const READ_IMAGE_EDGE = 2576;
 
-/** Sends a document to be read: a PDF as it is, a photo scaled down (which also drops its metadata). */
-async function readDocument(file: File): Promise<LabDraft> {
-  const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+/** The server's limit for one image to read, measured after base64 encoding (see lab-import.ts). */
+const MAX_READ_IMAGE_BASE64_BYTES = 10 * 1024 * 1024;
+
+const startsWith = (head: Uint8Array, bytes: number[]) => bytes.every((b, i) => head[i] === b);
+
+/**
+ * The copy of a document to send for reading, identified by its first bytes,
+ * never its name or declared type. A PDF goes as it is; so does a PNG or GIF
+ * small enough for the API, since re-encoding a screenshot can soften its
+ * text; any other image is scaled down, which also drops its metadata.
+ * Throws before anything is uploaded when the file can't be read.
+ */
+async function readPayload(file: File): Promise<File> {
+  const head = new Uint8Array(await file.slice(0, 8).arrayBuffer());
+  if (startsWith(head, [0x25, 0x50, 0x44, 0x46, 0x2d])) return file; // %PDF-
+  const sharp = startsWith(head, [0x89, 0x50, 0x4e, 0x47]) || startsWith(head, [0x47, 0x49, 0x46, 0x38]); // PNG, GIF8
+  if (sharp && Math.ceil(file.size / 3) * 4 <= MAX_READ_IMAGE_BASE64_BYTES) {
+    try {
+      const bitmap = await createImageBitmap(file);
+      const edge = Math.max(bitmap.width, bitmap.height);
+      bitmap.close();
+      if (edge <= READ_IMAGE_EDGE) return file;
+    } catch {
+      // Fall through: downsizeImage explains an image the browser can't decode.
+    }
+  }
+  return downsizeImage(file, READ_IMAGE_EDGE);
+}
+
+/** Sends the prepared copy of a document to be read into a draft. */
+async function readDocument(payload: File): Promise<LabDraft> {
   const form = new FormData();
-  form.append("file", isPdf ? file : await downsizeImage(file, READ_IMAGE_EDGE));
+  form.append("file", payload);
   return api<LabDraft>("/labs/import", { method: "POST", body: form });
 }
 
@@ -187,9 +215,27 @@ function LabForm({
    */
   const read = useMutation({
     mutationFn: async (file: File) => {
+      // Prepare the copy to read first: a file that can't be read is refused
+      // before anything is uploaded or attached.
+      const payload = await readPayload(file);
       const stored = await uploadOriginal(file);
-      setFiles((list) => (list.some((f) => f.fileId === stored.id) ? list : [...list, storedRef(stored)]));
-      return readDocument(file);
+      let added = false;
+      setFiles((list) => {
+        if (list.some((f) => f.fileId === stored.id)) return list;
+        added = true;
+        return [...list, storedRef(stored)];
+      });
+      try {
+        return await readDocument(payload);
+      } catch (err) {
+        // 501 means the server has no API key and refused before reading
+        // started; don't keep a document attached that was never read. A busy
+        // API (503) is a reading that started, so the document stays.
+        if (added && err instanceof ApiError && err.status === 501) {
+          setFiles((list) => list.filter((f) => f.fileId !== stored.id));
+        }
+        throw err;
+      }
     },
     onSuccess: (draft, file) => {
       const fill = <K extends "date" | "source" | "lab" | "accession">(name: K, value: string | null) =>
@@ -203,7 +249,10 @@ function LabForm({
       }));
       const { rows: next, kept } = applyDraftResults(rows, draft.results, () => nextKey++);
       setRows(next);
-      setImported({ name: file.name, count: draft.results.length, unmatched: draft.unmatched, kept });
+      // Count only what was filled in: rows added or blank, not results kept as typed.
+      const typed = new Set(rows.filter((r) => r.valueText.trim()).map((r) => r.analyteId));
+      const filled = draft.results.filter((r) => !typed.has(r.analyteId)).length;
+      setImported({ name: file.name, count: filled, unmatched: draft.unmatched, kept });
     },
   });
 
@@ -365,6 +414,7 @@ function LabForm({
             label="Read results from a document"
             busyLabel="Reading…"
             icon={ScanText}
+            accept="application/pdf,image/*"
           />
           <p className="text-xs text-muted-foreground">
             A PDF or photo of the report is sent to Anthropic's API, which fills in the results for you to check.

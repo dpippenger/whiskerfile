@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isIsoDate } from "./dates";
+import { isFutureDate, isIsoDate } from "./dates";
 
 export const SPECIES = ["cat", "dog", "rabbit", "ferret", "bird", "reptile", "other"] as const;
 export const SEXES = ["female", "male", "unknown"] as const;
@@ -50,9 +50,12 @@ const optionalText = (max: number) =>
     .transform((s) => s || null)
     .nullable();
 
+// Birth and passing dates have already happened; the Pet_Form refuses anything
+// after the user's local today first.
 const optionalDate = z
   .string()
   .refine((s) => s === "" || isIsoDate(s), "Use a valid date")
+  .refine((s) => !isIsoDate(s) || !isFutureDate(s), "Can't be in the future")
   .transform((s) => s || null)
   .nullable();
 

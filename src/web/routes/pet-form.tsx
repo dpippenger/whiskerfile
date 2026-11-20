@@ -412,7 +412,10 @@ export function NewPet() {
 
 export function EditPet({ id }: { id: number }) {
   const pet = usePet(id);
-  if (pet.error) return <Page title="Edit pet">{<p className="text-danger">{pet.error.message}</p>}</Page>;
+  // A non-integer address ("/pets/abc/edit") never loads, so it would render nothing.
+  if (pet.error || !Number.isInteger(id)) {
+    return <Page title="Edit pet">{<p className="text-danger">{pet.error?.message ?? "Pet not found"}</p>}</Page>;
+  }
   if (!pet.data) return null;
   return (
     <Page title={`Edit ${pet.data.name}`}>

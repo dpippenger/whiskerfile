@@ -11,14 +11,12 @@ const SIGNED = /^[-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?$/i;
  * A typed range limit: "" is no limit. A plain number is that number,
  * including a negative one or the exponent form a stored limit can print as
  * ("-4", "1e-7"). Commas are read the same way as results ("0,5",
- * "1,500,000"). Anything else, including the ambiguous "150,000" or a "<"
- * limit, is NaN, which the form reports as an error rather than guess.
+ * "1,500,000"). Anything else, including the ambiguous "150,000" or "2 5"
+ * (a space inside the number) or a "<" limit, is NaN, which the form
+ * reports as an error rather than guess.
  */
 export function parseLimit(text: string): number | null {
-  const s = text
-    .trim()
-    .replace(/\s+/g, "")
-    .replace(/\u2212/g, "-");
+  const s = text.trim().replace(/\u2212/g, "-");
   if (s === "") return null;
   if (SIGNED.test(s)) return Number(s);
   if (!s.includes(",")) return Number.NaN;

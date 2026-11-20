@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { addDays, isIsoDate } from "./dates";
+import { addDays, isFutureDate, isIsoDate } from "./dates";
 
 // Vaccinations, medications and conditions. Due dates are typed from the
 // certificate or the vet's reminder; nothing here derives a schedule or dose.
@@ -8,6 +8,16 @@ const date = z.string().refine(isIsoDate, "Use a valid date");
 const optionalDate = z
   .string()
   .refine((s) => s === "" || isIsoDate(s), "Use a valid date")
+  .transform((s) => s || null)
+  .nullable();
+// A day that has already happened (a dose given, a condition seen or resolved).
+// A vaccine's next due date and a medication's dates may be in the future.
+const noFuture = (s: string) => !isIsoDate(s) || !isFutureDate(s);
+const pastDate = date.refine(noFuture, "Can't be in the future");
+const pastOptionalDate = z
+  .string()
+  .refine((s) => s === "" || isIsoDate(s), "Use a valid date")
+  .refine(noFuture, "Can't be in the future")
   .transform((s) => s || null)
   .nullable();
 const optionalText = (max: number) =>
@@ -22,7 +32,7 @@ const required = (max: number, message: string) => z.string().trim().min(1, mess
 export const vaccinationInput = z
   .object({
     vaccine: required(80, "Enter the vaccine"),
-    dateGiven: date,
+    dateGiven: pastDate,
     dueDate: optionalDate,
     lot: optionalText(40),
     clinic: optionalText(120),
@@ -61,8 +71,8 @@ export const conditionInput = z
   .object({
     kind: z.enum(CONDITION_KINDS),
     title: required(120, "Enter a title"),
-    date,
-    resolvedOn: optionalDate,
+    date: pastDate,
+    resolvedOn: pastOptionalDate,
     notes: optionalText(2000),
   })
   .refine((c) => !c.resolvedOn || c.resolvedOn >= c.date, {
@@ -129,14 +139,15 @@ export type MedicationState = "current" | "upcoming" | "past";
 
 /**
  * Where a medication course stands today: past once it has ended (or the pet
- * has died), upcoming before it starts, otherwise current.
+ * has a date of passing — any date, as vaccineStatus reads it), upcoming
+ * before it starts, otherwise current.
  */
 export function medicationState(
   m: { startDate: string; endDate: string | null },
   today: string,
   deceasedOn: string | null = null,
 ): MedicationState {
-  if ((deceasedOn && deceasedOn <= today) || (m.endDate != null && m.endDate < today)) return "past";
+  if (deceasedOn || (m.endDate != null && m.endDate < today)) return "past";
   return m.startDate > today ? "upcoming" : "current";
 }
 

@@ -16,7 +16,7 @@ export function labImportRoutes({ db, readLab }: AppContext, authed: Authed) {
     // saved; the reader checks the draft and saves it as usual.
     "/api/labs/import": {
       POST: authed(async (req, _user, server) => {
-        if (!readLab) return error(503, "Reading documents needs an Anthropic API key; set ANTHROPIC_API_KEY");
+        if (!readLab) return error(501, "Reading documents needs an Anthropic API key; set ANTHROPIC_API_KEY");
         const upload = await readUpload(req);
         if (upload instanceof Response) return upload;
         const bytes = new Uint8Array(await upload.arrayBuffer());

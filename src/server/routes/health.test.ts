@@ -95,6 +95,21 @@ test("records come back newest first, and invalid ones are refused", async () =>
   expect(
     (await call(`/api/pets/${petId}/conditions`, { method: "POST", body: condition({ kind: "rash" }) })).status,
   ).toBe(400);
+
+  // Doses and conditions have already happened; a course may be entered ahead of time.
+  const futureDose = await call(`/api/pets/${petId}/vaccinations`, {
+    method: "POST",
+    body: vaccine({ dateGiven: "2999-01-01", dueDate: null }),
+  });
+  expect(futureDose.status).toBe(400);
+  expect((await json<{ fields: object }>(futureDose)).fields).toEqual({ dateGiven: "Can't be in the future" });
+  expect(
+    (await call(`/api/pets/${petId}/conditions`, { method: "POST", body: condition({ date: "2999-01-01" }) })).status,
+  ).toBe(400);
+  expect(
+    (await call(`/api/pets/${petId}/medications`, { method: "POST", body: medication({ startDate: "2999-01-01" }) }))
+      .status,
+  ).toBe(201);
 });
 
 test("deleting a pet removes its vaccinations, medications and conditions", async () => {

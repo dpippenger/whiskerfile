@@ -1,8 +1,8 @@
-import { eq } from "drizzle-orm";
+import { and, eq, notExists } from "drizzle-orm";
 import { mkdir, rename, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { Db } from "./db";
-import { files, type StoredFile } from "./db/schema";
+import { attachments, files, type StoredFile } from "./db/schema";
 
 export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
@@ -38,9 +38,13 @@ export function isInline(mime: string): boolean {
 export const uploadPath = (dataDir: string, sha256: string) => join(dataDir, "uploads", sha256);
 
 /**
- * Stores an upload, reusing the existing row when the same bytes were
- * uploaded before. The file is written under a ".partial" name and renamed
- * once complete, so the backup never copies a half-written file.
+ * Stores an upload. The bytes are kept once per distinct content, but each
+ * (content, name, uploader) gets its own row, so uploading the same bytes
+ * under another name or as another member keeps that name and uploader; only
+ * an exact repeat of an upload not yet attached to a record returns the
+ * existing row. The file is written under a
+ * ".partial" name and renamed once complete, so the backup never copies a
+ * half-written file.
  */
 export async function storeUpload(db: Db, dataDir: string, upload: File, userId: number): Promise<StoredFile> {
   const bytes = new Uint8Array(await upload.arrayBuffer());
@@ -57,7 +61,21 @@ export async function storeUpload(db: Db, dataDir: string, upload: File, userId:
     await rename(partial, target);
   }
 
-  const existing = db.select().from(files).where(eq(files.sha256, sha256)).get();
+  const originalName = upload.name.slice(0, 200) || "upload";
+  const existing = db
+    .select()
+    .from(files)
+    .where(
+      and(
+        eq(files.sha256, sha256),
+        eq(files.originalName, originalName),
+        eq(files.uploadedBy, userId),
+        // A row already filed somewhere belongs to that record's pet, so a
+        // later upload of the same document gets a row of its own.
+        notExists(db.select().from(attachments).where(eq(attachments.fileId, files.id))),
+      ),
+    )
+    .get();
   if (existing) return existing;
   return db
     .insert(files)
@@ -65,11 +83,10 @@ export async function storeUpload(db: Db, dataDir: string, upload: File, userId:
       sha256,
       mime: sniffMime(bytes),
       sizeBytes: bytes.length,
-      originalName: upload.name.slice(0, 200) || "upload",
+      originalName,
       uploadedBy: userId,
       createdAt: Date.now(),
     })
-    .onConflictDoUpdate({ target: files.sha256, set: { sha256 } })
     .returning()
     .get();
 }

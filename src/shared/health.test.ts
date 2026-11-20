@@ -76,6 +76,10 @@ test("the same day's doses are ordered by entry; the boundaries are inclusive", 
 test("a pet that has died has nothing due and no current medications", () => {
   expect(vaccineStatus([dose(1, "Rabies", "2020-01-01", "2021-01-01")], today, "2022-01-12")[0]!.status).toBeNull();
   expect(isCurrentMedication({ startDate: "2021-06-01", endDate: null }, today, "2022-01-12")).toBe(false);
+  // One rule for both: a date of passing counts even when it is after today.
+  const future = addDays(today, 10);
+  expect(vaccineStatus([dose(1, "Rabies", "2020-01-01", "2021-01-01")], today, future)[0]!.status).toBeNull();
+  expect(medicationState({ startDate: "2021-06-01", endDate: null }, today, future)).toBe("past");
 });
 
 test("a course is upcoming before it starts and past once it ends", () => {
@@ -95,6 +99,45 @@ test("medications are current between their start and end dates", () => {
 test("conditions stay active until their resolved date", () => {
   expect(isActiveCondition({ resolvedOn: null }, today)).toBe(true);
   expect(isActiveCondition({ resolvedOn: today }, today)).toBe(false);
+});
+
+test("dates already lived through can't be in the future; planned dates can", () => {
+  const future = "2999-01-01";
+  const vac = vaccinationInput.safeParse({
+    vaccine: "Rabies",
+    dateGiven: future,
+    dueDate: "",
+    lot: "",
+    clinic: "",
+    notes: "",
+  });
+  expect(vac.error?.issues.map((i) => [i.path.join("."), i.message])).toEqual([
+    ["dateGiven", "Can't be in the future"],
+  ]);
+  const cond = conditionInput.safeParse({ kind: "diagnosis", title: "x", date: future, resolvedOn: future, notes: "" });
+  expect(cond.error?.issues.map((i) => i.path.join("."))).toEqual(["date", "resolvedOn"]);
+  // A course can be entered ahead of time, and a due date is always a plan.
+  expect(
+    medicationInput.safeParse({
+      drug: "x",
+      dose: "",
+      frequency: "",
+      startDate: future,
+      endDate: future,
+      reason: "",
+      notes: "",
+    }).success,
+  ).toBe(true);
+  expect(
+    vaccinationInput.safeParse({
+      vaccine: "Rabies",
+      dateGiven: "2026-01-01",
+      dueDate: future,
+      lot: "",
+      clinic: "",
+      notes: "",
+    }).success,
+  ).toBe(true);
 });
 
 test("inputs reject end dates before their start", () => {

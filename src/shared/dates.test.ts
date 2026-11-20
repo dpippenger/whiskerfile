@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { elapsed, formatAge, formatDate, isIsoDate, localToday } from "./dates";
+import { elapsed, formatAge, formatDate, isFutureDate, isIsoDate, localToday } from "./dates";
 
 test("only real calendar dates are accepted", () => {
   expect(isIsoDate("2024-02-29")).toBe(true);
@@ -7,6 +7,18 @@ test("only real calendar dates are accepted", () => {
   expect(isIsoDate("2024-13-01")).toBe(false);
   expect(isIsoDate("2024-1-01")).toBe(false);
   expect(isIsoDate("")).toBe(false);
+});
+
+test("a date is future only when no time zone can call it today", () => {
+  const todayUtc = "2026-11-18";
+  expect(isFutureDate("2026-11-18", todayUtc)).toBe(false);
+  // Tomorrow in UTC is already today somewhere east of Greenwich.
+  expect(isFutureDate("2026-11-19", todayUtc)).toBe(false);
+  expect(isFutureDate("2026-11-20", todayUtc)).toBe(true);
+  expect(isFutureDate("2020-02-29", todayUtc)).toBe(false);
+  // Without an injected today, the clock's own UTC date bounds it.
+  expect(isFutureDate("2999-01-01")).toBe(true);
+  expect(isFutureDate("2000-01-01")).toBe(false);
 });
 
 test("elapsed time counts whole months the way birthdays do", () => {
@@ -22,6 +34,10 @@ test("elapsed time counts whole months the way birthdays do", () => {
 
 test("ages are shown in the largest sensible units", () => {
   const today = "2026-11-18";
+  // Under a week, the age is in days, never "0 wk".
+  expect(formatAge("2026-11-18", today)).toBe("0 d");
+  expect(formatAge("2026-11-15", today)).toBe("3 d");
+  expect(formatAge("2026-11-11", today)).toBe("1 wk");
   expect(formatAge("2026-10-28", today)).toBe("3 wk");
   expect(formatAge("2026-05-01", today)).toBe("6 mo");
   expect(formatAge("2024-11-18", today)).toBe("2 yr");

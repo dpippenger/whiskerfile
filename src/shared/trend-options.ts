@@ -106,6 +106,20 @@ export function labTrendOption(
   theme: ChartTheme = CHART_THEME,
 ) {
   const band = rangeBand(points);
+  // With step "middle" each stretch splits at the midpoint between results, so
+  // every result — including the latest — sits over the range printed on its
+  // own report. The band is stretched half a gap past each end (30 days when
+  // there is no gap, within timePadding's span), so the outer results' ranges
+  // have width and a single result still shows its range.
+  const gap = (i: number) => (band.length > 1 ? band[i + 1]!.x - band[i]!.x : 0);
+  const extended =
+    band.length === 0
+      ? []
+      : [
+          { ...band[0]!, x: band[0]!.x - (gap(0) / 2 || 30 * DAY) },
+          ...band,
+          { ...band.at(-1)!, x: band.at(-1)!.x + (gap(band.length - 2) / 2 || 30 * DAY) },
+        ];
   const unit = opts.unit ? ` ${escapeHtml(opts.unit)}` : "";
   return {
     ...base(
@@ -120,12 +134,12 @@ export function labTrendOption(
         stack: "range",
         // Stack whatever the signs: a range like -2 to 2 has a negative base.
         stackStrategy: "all",
-        step: "end",
+        step: "middle",
         silent: true,
         symbol: "none",
         lineStyle: { opacity: 0 },
         connectNulls: false,
-        data: band.map((b) => [b.x, b.low]),
+        data: extended.map((b) => [b.x, b.low]),
       },
       {
         id: "range",
@@ -133,13 +147,13 @@ export function labTrendOption(
         stack: "range",
         // Stack whatever the signs: a range like -2 to 2 has a negative base.
         stackStrategy: "all",
-        step: "end",
+        step: "middle",
         silent: true,
         symbol: "none",
         lineStyle: { opacity: 0 },
         areaStyle: { color: theme.band },
         connectNulls: false,
-        data: band.map((b) => [b.x, b.height]),
+        data: extended.map((b) => [b.x, b.height]),
       },
       {
         id: "values",

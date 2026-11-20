@@ -5,6 +5,7 @@ import type { Analyte } from "../../server/db/schema";
 import { ANALYTE_CATEGORIES, analyteInput, CATEGORY_LABEL } from "../../shared/labs";
 import { api, ApiError } from "../lib/api";
 import { useAnalytes } from "../lib/queries";
+import { DeleteButton } from "./record-forms";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Dialog } from "./ui/dialog";
@@ -77,11 +78,7 @@ function AnalyteForm({ analyte, onDone }: { analyte: Analyte | null; onDone: () 
         <p className="text-danger">{(save.error ?? remove.error)!.message}</p>
       )}
       <div className="flex flex-wrap items-center gap-2">
-        {analyte && (
-          <Button variant="ghost" className="text-danger" onClick={() => remove.mutate()} disabled={remove.isPending}>
-            Delete
-          </Button>
-        )}
+        {analyte && <DeleteButton onConfirm={() => remove.mutate()} pending={remove.isPending} />}
         <div className="ml-auto flex gap-2">
           <Button variant="ghost" onClick={onDone}>
             Cancel

@@ -36,7 +36,7 @@ This spec covers the three record types, their validation and API, the Health ta
 #### Acceptance Criteria
 
 1. THE `vaccinationInput` schema SHALL require a vaccine name of 1 to 80 characters after trimming, with the message "Enter the vaccine". (`src/shared/health.test.ts`)
-2. THE `vaccinationInput` schema SHALL require a date given that is a real calendar date in `YYYY-MM-DD` form, and accept an empty or null due date as no due date. (`src/shared/dates.test.ts` for the date check)
+2. THE `vaccinationInput` schema SHALL require a date given that is a real calendar date in `YYYY-MM-DD` form and no later than tomorrow in UTC — a later one is refused with "Can't be in the future" (`isFutureDate`, `src/shared/dates.ts`) — and accept an empty or null due date as no due date, however far ahead. (`src/shared/health.test.ts`, `src/shared/dates.test.ts` for the date check)
 3. IF the due date is before the date given, THEN THE schema SHALL reject it on the `dueDate` field with "Must be on or after the date given". (`src/shared/health.test.ts`)
 4. THE schema SHALL accept optional lot (up to 40 characters), clinic (up to 120) and notes (up to 2000), trimming each and storing a blank one as null. (manual)
 5. THE System SHALL accept any vaccine name the user types; the names FVRCP, Rabies, FeLV, DHPP, Bordetella, Leptospirosis, Lyme and Canine influenza (`VACCINE_SUGGESTIONS`) SHALL only be offered as suggestions. (manual)
@@ -49,7 +49,7 @@ This spec covers the three record types, their validation and API, the Health ta
 
 1. THE `medicationInput` schema SHALL require a drug name of 1 to 80 characters after trimming ("Enter the medication") and a valid start date, and accept optional dose (60), frequency (60), reason (120) and notes (2000) as free text, blank stored as null. (`src/shared/health.test.ts`)
 2. IF a course's end date is before its start date, THEN THE schema SHALL reject it on `endDate` with "Must be on or after the start date". (`src/shared/health.test.ts`)
-3. THE `conditionInput` schema SHALL require a Condition_Kind, a title of 1 to 120 characters after trimming ("Enter a title") and a valid date, and accept optional resolved date and notes (2000). (`src/shared/health.test.ts`)
+3. THE `conditionInput` schema SHALL require a Condition_Kind, a title of 1 to 120 characters after trimming ("Enter a title") and a valid date, and accept optional resolved date and notes (2000); the date and resolved date are refused past tomorrow in UTC with "Can't be in the future", while a course's start and end dates may be in the future. (`src/shared/health.test.ts`)
 4. IF a condition's resolved date is before its date, THEN THE schema SHALL reject it on `resolvedOn` with "Must be on or after the date". (`src/shared/health.test.ts`)
 5. IF the kind is not a Condition_Kind, THEN THE API SHALL respond 400. (`src/server/routes/health.test.ts`)
 
@@ -98,7 +98,7 @@ This spec covers the three record types, their validation and API, the Health ta
 
 #### Acceptance Criteria
 
-1. THE `medicationState()` function SHALL return `past` when the end date is before Local_Today, or when the pet's `deceasedOn` is on or before Local_Today. (`src/shared/health.test.ts`)
+1. THE `medicationState()` function SHALL return `past` when the end date is before Local_Today, or when the pet is a Deceased_Pet — any set date of passing counts, even one after Local_Today, the same rule `vaccineStatus()` and `petAlerts()` use. (`src/shared/health.test.ts`)
 2. OTHERWISE, THE function SHALL return `upcoming` when the start date is after Local_Today, and `current` when it is not; a course on its end date is still `current`. (`src/shared/health.test.ts`)
 3. THE `isActiveCondition()` function SHALL treat a condition as active when it has no resolved date or the resolved date is after Local_Today; a condition resolved today is not active. (`src/shared/health.test.ts`)
 
@@ -109,7 +109,7 @@ This spec covers the three record types, their validation and API, the Health ta
 #### Acceptance Criteria
 
 1. THE Health tab SHALL compute every status from Local_Today and the pet's `deceasedOn`. (manual)
-2. THE Vaccinations section SHALL list one row per Latest_Dose in vaccine-name order, showing the name, "Overdue since {date}" (danger badge) or "Due {date}" (warning badge) by Due_Status, otherwise "Next due {date}" as plain text when a due date exists, then "Given {date}", clinic and lot, notes as typed, and "Added by {author}". (manual)
+2. THE Vaccinations section SHALL list one row per Latest_Dose in vaccine-name order, showing the name, "Overdue since {date}" (danger badge) or "Due {date}" (warning badge) by Due_Status, otherwise "Next due {date}" as plain text when a due date exists — never for a Deceased_Pet, which shows no due dates at all — then "Given {date}", clinic and lot, notes as typed, and "Added by {author}". (manual)
 3. THE Vaccinations section SHALL list each earlier dose of the same Vaccine_Key, muted, beneath its Latest_Dose as "Earlier dose · {date}" with the clinic, newest first; with no doses it SHALL show "No vaccinations recorded." (manual)
 4. THE Medications section SHALL list current and upcoming courses; an upcoming one SHALL carry a "Starts {date}" badge and read "From {date}", a current one "Since {date}", each with "until {end}" when an end date exists, plus dose, frequency, reason, notes and author; with none it SHALL show "None current." (manual)
 5. THE Conditions section SHALL list Active_Conditions with their kind badge and "Since {date}"; with none it SHALL show "None recorded." (manual)
@@ -127,7 +127,7 @@ This spec covers the three record types, their validation and API, the Health ta
 2. WHEN a form opens for a new record, THE form SHALL prefill its date (date given, started, or date) with Local_Today and leave every other field empty, with kind Diagnosis for a condition. (manual)
 3. THE Vaccine field SHALL be free text with the `VACCINE_SUGGESTIONS` offered through a datalist, and the Next due field SHALL be empty unless typed, with the hint "From the certificate or the clinic's reminder." (manual)
 4. WHEN the user saves, THE form SHALL validate with the same shared schema the server uses and mark each failing field, with "Check the highlighted fields." beside the actions; field errors the server returns SHALL be shown the same way. (manual)
-5. IF a vaccination's date given, or a condition's date or resolved date, is after Local_Today, THEN THE form SHALL refuse it with "Can't be in the future", and those date inputs SHALL carry `max` = Local_Today. (manual)
+5. IF a vaccination's date given, or a condition's date or resolved date, is after Local_Today, THEN THE form SHALL refuse it with "Can't be in the future" (a stricter bound than the shared schema's own tomorrow-in-UTC one), and those date inputs SHALL carry `max` = Local_Today. (manual)
 6. THE medication form SHALL accept start and end dates in the future, so a course can be entered ahead of time. (manual)
 7. WHEN editing, THE form SHALL offer Delete, which turns into "Confirm delete" on the first press, deletes on the second, and disarms when it loses focus. (manual)
 8. WHEN a save or delete succeeds, THE form SHALL refresh the pet's cached queries and the pet list, then close. (manual)
@@ -165,7 +165,7 @@ This spec covers the three record types, their validation and API, the Health ta
 1. THE `timelineItems()` function SHALL place a lab report by its sample date, a dose by its date given, a course by its start date and a condition by its date, sorted newest day first and newest added first within a day. (`src/web/lib/timeline-items.test.ts`)
 2. THE timeline SHALL show a lab report as a link to its report page with the date, the lab name (or source label), the result count and codes, and "{n} high", "{n} low" or "In range" badges. (manual)
 3. THE timeline SHALL show a dose with a syringe icon, its name and "Vaccinated {date}", the clinic when set, and the author. (manual)
-4. THE timeline SHALL show a course with a pill icon, drug and dose, and `medicationDates()` wording: "Starts" or "Started {date}", then ", stopped {end}" once the end date is before Local_Today or ", until {end}" otherwise. (`src/web/lib/timeline-items.test.ts`)
+4. THE timeline SHALL show a course with a pill icon, drug and dose, and `medicationDates()` wording from its Medication_State: "Starts {date}" while `upcoming`, else "Started {date}", then ", stopped {end}" once the course is `past` (ended, or the pet is a Deceased_Pet) or ", until {end}" otherwise. (`src/web/lib/timeline-items.test.ts`)
 5. THE timeline SHALL show a condition with a heart-pulse icon, title, kind badge and "{date}", adding ", resolved {date}" when resolved. (manual)
 6. THE dose, course and condition rows SHALL each have an edit button opening the same form as the Health tab. (manual)
 
@@ -244,7 +244,7 @@ stateDiagram-v2
 - Validation lives in the shared Zod schemas and runs in both the form and the API.
 - Records live in the `vaccinations`, `medications` and `conditions` tables (`src/server/db/schema.ts`), each with a `pet_id` foreign key that cascades on delete and a `created_by` reference to `users`. Rows carry `createdAt` only; there is no edit history.
 - Every `/api/*` handler is wrapped in `authed()` and listed in the 401 checks in `src/server/app.test.ts`. Any signed-in user can read and change any pet's records.
-- The "Can't be in the future" checks run only in the browser, because only the browser knows the user's date.
+- "Can't be in the future" is checked twice: the shared schemas refuse a date later than tomorrow in UTC (`isFutureDate`, `src/shared/dates.ts` — the server doesn't know the browser's time zone, and tomorrow in UTC covers every zone's today), and the forms refuse anything after the user's own local today first.
 - Every screen works at desktop and phone widths; layout follows the main content width (`@container` queries), not the viewport.
 
 ## Correctness Properties
@@ -303,7 +303,6 @@ stateDiagram-v2
 - Dose calculation, drug catalogs, drug interactions or structured dose units; dose and frequency are free text.
 - Reminders or notifications outside the app (email, push, calendar).
 - Dashboard alerts for medications or conditions; the dashboard warns only about vaccines and the latest lab report.
-- Server-side "can't be in the future" checks.
 - Matching vaccine names beyond `vaccineKey()`: no synonyms, abbreviation expansion or accent folding.
 - Per-pet or per-user permissions, edit history, undo after delete, and moving a record to another pet.
 - Lab result entry, flagging rules and report pages (lab-results spec), the PDF report's health sections (pdf-health-reports spec), and visits, weights and files on the timeline (visits-and-files spec).

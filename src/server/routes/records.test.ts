@@ -109,6 +109,19 @@ test("an invalid visit is refused without leaving anything behind", async () => 
   expect((await call("/api/entries/999", { method: "PUT", body: visit() })).status).toBe(404);
 });
 
+test("a visit or weigh-in dated in the future is refused", async () => {
+  const { call, json, petId } = await setup();
+  const futureVisit = await call(`/api/pets/${petId}/entries`, { method: "POST", body: visit({ date: "2999-01-01" }) });
+  expect(futureVisit.status).toBe(400);
+  expect((await json<{ fields: object }>(futureVisit)).fields).toEqual({ date: "Can't be in the future" });
+  const futureWeight = await call(`/api/pets/${petId}/measurements`, {
+    method: "POST",
+    body: { date: "2999-01-01", kind: "weight", value: 4600 },
+  });
+  expect(futureWeight.status).toBe(400);
+  expect((await json<{ fields: object }>(futureWeight)).fields).toEqual({ date: "Can't be in the future" });
+});
+
 test("standalone weigh-ins can be added, corrected and removed; a visit's readings cannot", async () => {
   const { call, json, petId } = await setup();
   const weighIn = await call(`/api/pets/${petId}/measurements`, {
@@ -153,6 +166,33 @@ test("standalone weigh-ins can be added, corrected and removed; a visit's readin
   const { measurements: standalone } = await json<PetRecords>(call(`/api/pets/${petId}/records`));
   expect(standalone).toEqual([]);
   expect((await call(`/api/pets/${petId}/measurements?kind=height`)).status).toBe(400);
+});
+
+test("only weights are recorded on their own, and a reading keeps its kind", async () => {
+  const { call, json, petId } = await setup();
+  const bad = await call(`/api/pets/${petId}/measurements`, {
+    method: "POST",
+    body: { date: "2026-11-01", kind: "temperature", value: 38.5 },
+  });
+  expect(bad.status).toBe(400);
+  expect((await json<{ fields: object }>(bad)).fields).toHaveProperty("kind");
+
+  const weighIn = await json<{ id: number }>(
+    call(`/api/pets/${petId}/measurements`, {
+      method: "POST",
+      body: { date: "2026-11-01", kind: "weight", value: 4600 },
+    }),
+  );
+  const changed = await call(`/api/measurements/${weighIn.id}`, {
+    method: "PUT",
+    body: { date: "2026-11-01", kind: "temperature", value: 38.5 },
+  });
+  expect(changed.status).toBe(400);
+  expect((await json<{ fields: object }>(changed)).fields).toHaveProperty("kind");
+  const weights = await json<{ id: number; kind: string; value: number }[]>(
+    call(`/api/pets/${petId}/measurements?kind=weight`),
+  );
+  expect(weights.find((m) => m.id === weighIn.id)).toMatchObject({ kind: "weight", value: 4600 });
 });
 
 test("deleting a visit removes its vitals; deleting a pet removes all its records", async () => {

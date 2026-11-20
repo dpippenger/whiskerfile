@@ -4,7 +4,7 @@
 
 Lab results are the core of a pet's medical history in Whiskerfile. They arrive as IDEXX reference-lab PDFs or as receipt-style printouts from in-clinic analyzers, and every vet prints them a little differently. This feature lets the household type a report in by hand, test by test, exactly as it is printed, and then read it back with flags, range bars and the change since the previous result.
 
-The project has one hard rule: the app never invents medical facts. There are no built-in reference ranges, schedules or doses. Each result stores the range printed beside it on its own document, and a high or low flag is worked out from that range every time it is shown, never stored. When a printed value cannot be read without guessing (such as `1,035`, which could be 1035 or 1.035), the app keeps the text and reads no number from it.
+The project has one hard rule: the app never invents medical facts. There are no built-in reference ranges, schedules or doses. Each result stores the range printed beside it on its own document, and a high or low flag is worked out from that range every time it is shown, never stored. When a printed value cannot be read without guessing (such as `1,035` or `1 035`, either of which could be 1035 or 1.035), the app keeps the text and reads no number from it.
 
 This spec covers the test catalog, lab reports and their results, the reading rules for printed values, flags, range display, the previous-result comparison, the entry form and the Labs tab. Filling the form from a document ("Read results from a document") belongs to the lab-document-import spec (`docs/specs/lab-document-import/spec.md`). Trend charts and cross-pet comparison, PDF health reports, the dashboard, records (visits and files) and the platform (auth, backups) have their own specs and appear here only as integration points.
 
@@ -53,6 +53,7 @@ This spec covers the test catalog, lab reports and their results, the reading ru
 4. WHEN a test is edited through `PUT /api/analytes/:id`, THE System SHALL update its code, name, Category and default unit, which existing results show because they are joined to the catalog when read; IF the test does not exist, THEN THE System SHALL answer 404. (`src/server/routes/labs.test.ts`)
 5. IF any Lab_Result uses a test, THEN `DELETE /api/analytes/:id` SHALL answer 409 "Lab results use this test, so it can't be removed" and keep it; otherwise it SHALL delete it (204), or answer 404 for an unknown id. (`src/server/routes/labs.test.ts`)
 6. WHEN the add/edit dialog is submitted, THE Catalog_Settings card SHALL validate with `analyteInput` before sending, show field errors beside their fields, and show a refused delete's message in the dialog. (manual)
+7. THE edit dialog's Delete SHALL turn into "Confirm delete" on the first press, delete on the second, and disarm when it loses focus — the same control lab reports use. (manual)
 
 ### Requirement 3: Lab reports
 
@@ -60,9 +61,9 @@ This spec covers the test catalog, lab reports and their results, the reading ru
 
 #### Acceptance Criteria
 
-1. THE System SHALL require a valid ISO sample date and a Source, and accept an optional lab (up to 80 characters), accession (up to 60) and notes (up to 4000), each stored as null when blank. (manual)
+1. THE System SHALL require a valid ISO sample date no later than tomorrow in UTC — a later one is refused with `date: "Can't be in the future"` (`isFutureDate`, `src/shared/dates.ts`: the server doesn't know the browser's time zone, and tomorrow in UTC covers every zone's today) — and a Source, and accept an optional lab (up to 80 characters), accession (up to 60) and notes (up to 4000), each stored as null when blank. (`src/shared/labs.test.ts`, `src/server/routes/labs.test.ts`; the text limits are manual)
 2. THE System SHALL require 1 to 200 results and at most 20 Documents per report, and refuse the same analyte twice with "Already in this report" on the repeated row. (`src/shared/labs.test.ts`, `src/server/routes/labs.test.ts`)
-3. IF a report names a visit of another pet, an unknown analyte or an unknown file, THEN THE System SHALL answer 400 with `entryId: "Not a visit of this pet"`, `results.N.analyteId: "Unknown test"` (the first unknown) or `fileIds: "Unknown file"`, and write nothing. (`src/server/routes/labs.test.ts`)
+3. IF a report names an entry that is not a vet visit of this pet (another pet's entry, or a home exam), an unknown analyte, an unknown file, or a file attached to another pet and not to this one, THEN THE System SHALL answer 400 with `entryId: "Not a visit of this pet"`, `results.N.analyteId: "Unknown test"` (the first unknown), `fileIds: "Unknown file"` or `fileIds: "Not this pet's file"`, and write nothing; a Document must be a fresh upload or already one of this pet's files (the same document uploaded again for another pet is a fresh upload). WHEN a vet visit is changed to a home exam, THE System SHALL unlink the reports that named it. (`src/server/routes/labs.test.ts`)
 4. WHEN a report is created (`POST /api/pets/:id/labs`, 201) or edited (`PUT /api/labs/:id`, 200), THE System SHALL save the report, its results and its Documents in one transaction; IF the pet or report does not exist, THEN THE System SHALL answer 404. (`src/server/routes/labs.test.ts`)
 5. WHEN a report is edited, THE System SHALL update results of analytes still on it in place (keeping their ids), delete results no longer on it, add new ones, and keep the original author. (`src/server/routes/labs.test.ts`)
 6. WHEN a report is saved, THE System SHALL date every attached Document with the report's date; WHEN `fileIds` is given, THE System SHALL attach exactly those files, and WHEN it is omitted, THE System SHALL leave the Documents as they were. (`src/server/routes/labs.test.ts`)
@@ -88,11 +89,11 @@ This spec covers the test catalog, lab reports and their results, the reading ru
 
 #### Acceptance Criteria
 
-1. THE `parseLabValue` function SHALL ignore surrounding and inner whitespace and read plain decimals (`1.20`, `.5`). (`src/shared/labs.test.ts`)
+1. THE `parseLabValue` function SHALL ignore surrounding whitespace and whitespace after a Comparator (`< 0.5`) and read plain decimals (`1.20`, `.5`). (`src/shared/labs.test.ts`)
 2. WHEN Value_Text starts with `<`, `<=`, `≤`, `>`, `>=` or `≥`, THE function SHALL read the matching Comparator (`≤` as `<=`, `≥` as `>=`) and the number after it. (`src/shared/labs.test.ts`)
 3. THE function SHALL read a leading hyphen or Unicode minus sign (U+2212) as a negative number, including after a Comparator (`<-3`). (`src/shared/labs.test.ts`)
 4. THE function SHALL read unambiguous thousands groups (`2,000,000`, `1,234.5`) and decimal commas (`4,5`, `0,500`, `12,25`). (`src/shared/labs.test.ts`)
-5. IF a comma is followed by exactly one group of three digits after a non-zero lead (`1,035`, `>2,000`), THEN THE function SHALL read no number. (`src/shared/labs.test.ts`)
+5. IF a comma is followed by exactly one group of three digits after a non-zero lead (`1,035`, `>2,000`), or whitespace appears inside the number (`1 035`, `2 5`), THEN THE function SHALL read no number. (`src/shared/labs.test.ts`)
 6. IF Value_Text is not a number in these forms (`Negative`, `2+`, `Trace`, `1.2.3`, `--1`, `1e3`), THEN THE function SHALL return no number and no Comparator. (`src/shared/labs.test.ts`)
 
 ### Requirement 6: Re-reading stored results at startup
@@ -158,9 +159,9 @@ This spec covers the test catalog, lab reports and their results, the reading ru
 #### Acceptance Criteria
 
 1. THE Lab_Form SHALL send only rows with a result typed in. (`src/web/lib/lab-rows.test.ts`)
-2. THE `parseLimit` function SHALL read a blank limit as none, a signed decimal or exponent number as itself, the Unicode minus as a hyphen, and commas as `parseLabValue` does; an ambiguous comma, a Comparator or other text SHALL be refused as "Enter a number". (`src/web/lib/lab-rows.test.ts`)
+2. THE `parseLimit` function SHALL read a blank limit as none, a signed decimal or exponent number as itself, the Unicode minus as a hyphen, and commas as `parseLabValue` does; an ambiguous comma, a space inside the number (`2 5`), a Comparator or other text SHALL be refused as "Enter a number". (`src/web/lib/lab-rows.test.ts`)
 3. THE System SHALL show every stored limit so that reading it back gives the same number. (`src/web/lib/lab-rows.test.ts`)
-4. WHEN the form is submitted, THE Lab_Form SHALL check limits and `labReportInput` locally, refuse a future sample date with "Can't be in the future", and send nothing while any error remains. (manual)
+4. WHEN the form is submitted, THE Lab_Form SHALL check limits and `labReportInput` locally, refuse a sample date after the browser's local today with "Can't be in the future" (a stricter bound than the schema's own UTC one), and send nothing while any error remains. (manual)
 5. THE System SHALL move local and server errors about `results.N` onto the Nth sent row, skipping blank rows, and keep other errors on their own fields; the form SHALL then say "Check the highlighted fields." (`src/web/lib/lab-rows.test.ts`)
 6. WHILE a Document is uploading or being read, THE Lab_Form SHALL not save. (manual)
 

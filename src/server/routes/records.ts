@@ -1,10 +1,12 @@
-import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, type SQL } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
 import { attachmentInput, entryInput, measurementInput, VITALS, type Vital } from "../../shared/records";
 import type { Db } from "../db";
 import {
   attachments,
   entries,
   files,
+  labReports,
   measurements,
   pets,
   users,
@@ -49,6 +51,21 @@ export function unknownFiles(db: Db, ids: number[]): number[] {
   return ids.filter((id) => !found.has(id));
 }
 
+/**
+ * Whether a record already carries this document under another row: the same
+ * bytes and name, uploaded again after the first upload was attached.
+ */
+export function alreadyAttached(db: Pick<Db, "select">, fileId: number, record: SQL): boolean {
+  const twin = alias(files, "twin");
+  return !!db
+    .select({ id: attachments.id })
+    .from(attachments)
+    .innerJoin(files, eq(files.id, attachments.fileId))
+    .innerJoin(twin, and(eq(twin.sha256, files.sha256), eq(twin.originalName, files.originalName)))
+    .where(and(record, eq(twin.id, fileId)))
+    .get();
+}
+
 export const unknownFileError = (field: "fileId" | "fileIds") =>
   error(400, "Some fields are invalid", { [field]: "Unknown file" });
 
@@ -79,6 +96,10 @@ function saveEntry(
           .returning()
           .get();
     if (!entry) return undefined;
+    // Only a vet visit can be a lab report's visit.
+    if (existingId && entry.kind !== "vet") {
+      tx.update(labReports).set({ entryId: null }).where(eq(labReports.entryId, entry.id)).run();
+    }
 
     // Update readings in place rather than replacing them: ids order same-day
     // readings, so a new id would change which reading counts as the latest.
@@ -112,7 +133,7 @@ function saveEntry(
       for (const a of attached) if (!wanted.has(a.fileId)) tx.delete(attachments).where(eq(attachments.id, a.id)).run();
       const have = new Set(attached.map((a) => a.fileId));
       for (const fileId of wanted) {
-        if (have.has(fileId)) continue;
+        if (have.has(fileId) || alreadyAttached(tx, fileId, eq(attachments.entryId, entry.id))) continue;
         tx.insert(attachments)
           .values({
             petId: entry.petId,
@@ -225,6 +246,10 @@ export function recordRoutes({ db }: AppContext, authed: Authed) {
         if (!petId || !petExists(db, petId)) return error(404, "Pet not found");
         const parsed = await parseJson(req, measurementInput);
         if ("response" in parsed) return parsed.response;
+        // Other vitals are recorded with a visit; the app can only edit weights on their own.
+        if (parsed.data.kind !== "weight") {
+          return error(400, "Some fields are invalid", { kind: "Only weight can be recorded on its own" });
+        }
         const row = db
           .insert(measurements)
           .values({ ...parsed.data, petId, entryId: null, createdBy: user.id, createdAt: Date.now() })
@@ -297,10 +322,17 @@ export function recordRoutes({ db }: AppContext, authed: Authed) {
           db.update(attachments).set(parsed.data).where(eq(attachments.id, existing.id)).returning().get(),
         );
       }),
-      // Removes the attachment; the stored file stays (it may be attached elsewhere).
+      // Removes a file filed on its own; the stored file stays (it may be attached
+      // elsewhere). A visit's files change with the visit, a report's with the report.
       DELETE: authed<"/api/attachments/:id">((req) => {
         const id = idParam(req.params.id);
-        const row = id ? db.delete(attachments).where(eq(attachments.id, id)).returning().get() : undefined;
+        const row = id
+          ? db
+              .delete(attachments)
+              .where(and(eq(attachments.id, id), isNull(attachments.entryId), isNull(attachments.labReportId)))
+              .returning()
+              .get()
+          : undefined;
         return row ? new Response(null, { status: 204 }) : error(404, "Attachment not found");
       }),
     },
@@ -313,6 +345,10 @@ export function recordRoutes({ db }: AppContext, authed: Authed) {
         if (!existing) return error(404, "Measurement not found");
         const parsed = await parseJson(req, measurementInput);
         if ("response" in parsed) return parsed.response;
+        // The kind is fixed once recorded; only the date and value change.
+        if (parsed.data.kind !== existing.kind) {
+          return error(400, "Some fields are invalid", { kind: "The kind can't be changed" });
+        }
         return Response.json(
           db.update(measurements).set(parsed.data).where(eq(measurements.id, existing.id)).returning().get(),
         );

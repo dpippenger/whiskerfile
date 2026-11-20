@@ -86,8 +86,9 @@ export function labSeries(results: LabResultInput[]): LabSeries {
 
 /**
  * The reference range under a series, as [lower, height] pairs per point for
- * a stacked band. A point without a two-sided range breaks the band, and the
- * band never extends past the first or last result.
+ * a stacked band. A point without a two-sided range breaks the band; the
+ * chart option stretches the band past the first and last result so each
+ * sits over its own range.
  */
 export function rangeBand(points: Pick<LabPoint, "date" | "refLow" | "refHigh">[]) {
   return points.map((p) => {
@@ -116,17 +117,28 @@ export type LeftOut = {
  * the unit of the most recent numeric result across all pets; a pet with no
  * result in that unit is left out and named. Against age, a pet without a
  * birth date is left out too. Points are [x, value] with x a UTC date or an
- * age in years.
+ * age in years. A plotted pet's results that can't be drawn are counted on
+ * its entry, never dropped silently.
  */
 export function compareSeries(pets: ComparePet[], axis: CompareAxis) {
-  const plotted: { petId: number; name: string; points: (LabPoint & { x: number })[] }[] = [];
+  const plotted: {
+    petId: number;
+    name: string;
+    points: (LabPoint & { x: number })[];
+    /** Results left out because they were in another unit. */
+    otherUnits: number;
+    /** Results left out because they have no number. */
+    unread: number;
+    /** Results left out because they predate the birth date, on the age axis. */
+    beforeBirth: number;
+  }[] = [];
   const leftOut: LeftOut[] = [];
   const leave = (pet: ComparePet, reason: LeftOut["reason"]) =>
     leftOut.push({ petId: pet.petId, name: pet.name, reason });
   const xOf = (pet: ComparePet, date: string) => (axis === "date" ? dateToUtc(date) : ageInYears(pet.dob!, date));
 
   // Each pet's results that can be placed on this axis; only those choose the unit.
-  const placeable: { pet: ComparePet; results: LabResultInput[] }[] = [];
+  const placeable: { pet: ComparePet; results: LabResultInput[]; unread: number; beforeBirth: number }[] = [];
   for (const pet of pets) {
     const numeric = pet.results.filter((r) => r.value != null);
     if (numeric.length === 0) leave(pet, "no-data");
@@ -135,7 +147,13 @@ export function compareSeries(pets: ComparePet[], axis: CompareAxis) {
       // Against age, results dated before the birth date can't be placed.
       const results = numeric.filter((r) => xOf(pet, r.date) != null);
       if (results.length === 0) leave(pet, "before-birth");
-      else placeable.push({ pet, results });
+      else
+        placeable.push({
+          pet,
+          results,
+          unread: pet.results.length - numeric.length,
+          beforeBirth: numeric.length - results.length,
+        });
     }
   }
   const latest = placeable
@@ -144,13 +162,21 @@ export function compareSeries(pets: ComparePet[], axis: CompareAxis) {
     .at(-1);
   const unit = latest?.unit ?? null;
 
-  for (const { pet, results } of placeable) {
+  for (const { pet, results, unread, beforeBirth } of placeable) {
     const points = labSeries(results.filter((r) => (r.unit ?? "") === (unit ?? ""))).points.map((p) => ({
       ...p,
       x: xOf(pet, p.date)!,
     }));
     if (points.length === 0) leave(pet, "other-unit");
-    else plotted.push({ petId: pet.petId, name: pet.name, points });
+    else
+      plotted.push({
+        petId: pet.petId,
+        name: pet.name,
+        points,
+        otherUnits: results.length - points.length,
+        unread,
+        beforeBirth,
+      });
   }
   leftOut.sort((a, b) => a.name.localeCompare(b.name));
   return { unit, plotted, leftOut };
