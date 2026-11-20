@@ -1,0 +1,59 @@
+version: 2
+# Every entry pins the commit prefix so the pull requests pass commitlint, and
+# waits a week after a release before proposing it.
+updates:
+  # package.json and bun.lock. .bun-version and .bun-canary-version are not
+  # tracked by any ecosystem and move by hand.
+  - package-ecosystem: "bun"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    cooldown:
+      default-days: 7
+    groups:
+      production:
+        dependency-type: "production"
+      dev:
+        dependency-type: "development"
+
+  - package-ecosystem: "github-actions"
+    directories:
+      - "/"
+      - "/.github/actions/setup"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    cooldown:
+      default-days: 7
+
+  # The Dockerfile's Bun image. CI requires it to match .bun-version, so bump
+  # that file on the same pull request.
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    cooldown:
+      default-days: 7
+
+  # compose.yaml. An image on the `latest` tag is never proposed.
+  - package-ecosystem: "docker-compose"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    cooldown:
+      default-days: 7
