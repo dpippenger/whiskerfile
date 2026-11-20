@@ -179,7 +179,8 @@ test("a report can't attach another pet's file, but keeps its own across an edit
   // The report's own document picked again on an edit is not attached twice.
   const repick = await upload("chem", "chem.pdf");
   expect(repick).not.toBe(myDoc);
-  await call(`/api/labs/${id}`, { method: "PUT", body: report([crea], { fileIds: [myDoc, repick] }) });
+  const resaved = await call(`/api/labs/${id}`, { method: "PUT", body: report([crea], { fileIds: [myDoc, repick] }) });
+  expect(resaved.status).toBe(200);
   expect((await labs())[0]!.attachments.map((a) => a.fileId)).toEqual([myDoc]);
 
   // The same document uploaded again for this pet is a fresh upload, not the other pet's file.

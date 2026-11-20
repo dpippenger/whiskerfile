@@ -219,6 +219,10 @@ test("a file the saved visit already carries, picked again, is not attached twic
 
   const again = await upload(bytes, "invoice.pdf");
   expect(again.id).not.toBe(first.id);
-  await call(`/api/entries/${entry.id}`, { method: "PUT", body: visit({ fileIds: [first.id, again.id] }) });
+  const saved = await call(`/api/entries/${entry.id}`, {
+    method: "PUT",
+    body: visit({ fileIds: [first.id, again.id] }),
+  });
+  expect(saved.status).toBe(200);
   expect((await records()).entries[0]!.attachments.map((a) => a.fileId)).toEqual([first.id]);
 });
