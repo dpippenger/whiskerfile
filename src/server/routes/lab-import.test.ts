@@ -98,7 +98,7 @@ test("a photo too large for the API is refused before anything is sent", async (
 test("without an API key, importing says what to set", async () => {
   const { call } = await startApi();
   const res = await call("/api/labs/import", { method: "POST", body: form(PDF) });
-  expect(res.status).toBe(503);
+  expect(res.status).toBe(501);
   expect(await json(res)).toEqual({
     error: "Reading documents needs an Anthropic API key; set ANTHROPIC_API_KEY",
   });

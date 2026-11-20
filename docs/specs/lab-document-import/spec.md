@@ -29,8 +29,8 @@ The feature is optional. It is enabled only when `ANTHROPIC_API_KEY` is set, and
 
 1. THE System SHALL read the key from `ANTHROPIC_API_KEY` (`src/server/config.ts`), defaulting to empty; `compose.yaml` passes it through as optional and `.env.example` documents that documents read this way are sent to Anthropic's API. (manual)
 2. WHERE the key is set, THE System SHALL create the Reader with an Anthropic client using that key (`src/server/index.ts`). (manual)
-3. IF the key is not set, WHEN `POST /api/labs/import` is called by a signed-in user, THE System SHALL answer 503 `"Reading documents needs an Anthropic API key; set ANTHROPIC_API_KEY"`, before the upload is read. (`src/server/routes/lab-import.test.ts`; the ordering is manual)
-4. WHILE the key is not set, THE lab form SHALL still show **Read results from a document**, and SHALL show the 503 message when it is used. (manual)
+3. IF the key is not set, WHEN `POST /api/labs/import` is called by a signed-in user, THE System SHALL answer 501 `"Reading documents needs an Anthropic API key; set ANTHROPIC_API_KEY"`, before the upload is read. (`src/server/routes/lab-import.test.ts`; the ordering is manual)
+4. WHILE the key is not set, THE lab form SHALL still show **Read results from a document**, and SHALL show the 501 message when it is used. (manual)
 
 ### Requirement 2: Import endpoint
 
@@ -124,7 +124,7 @@ Criteria 4.1 to 4.6 are checked by reading `INSTRUCTIONS` in `src/server/import/
 
 #### Acceptance Criteria
 
-1. WHEN the user picks a file with **Read results from a document** (a picker whose `accept` offers only PDFs and images), THE form SHALL first prepare the copy to send (7.2) — a file that can't be prepared is refused with nothing uploaded or attached — then upload the Original unchanged through `/api/files`, add it to the report's attachments and send the prepared copy for reading. The Original stays attached when a reading that started fails, but a 503 (no API key) removes it again, since nothing was read. (manual)
+1. WHEN the user picks a file with **Read results from a document** (a picker whose `accept` offers only PDFs and images), THE form SHALL first prepare the copy to send (7.2) — a file that can't be prepared is refused with nothing uploaded or attached — then upload the Original unchanged through `/api/files`, add it to the report's attachments and send the prepared copy for reading. The Original stays attached when a reading that started fails, but a 501 (no API key) removes it again, since nothing was read; a busy API (503) keeps it. (manual)
 2. THE form SHALL identify the file by its first bytes, never its name or declared type: a PDF is sent as is, and so is a PNG or GIF within the API's base64 size limit and at most 2576 px on its long edge, so re-encoding never softens a screenshot's text; any other image is re-encoded to at most 2576 px on its long edge as WebP (or JPEG where WebP cannot be encoded), which drops the photo's metadata from the copy sent for reading. IF the browser cannot decode the image, THE form SHALL show `"This image format can't be used here. Try a JPEG or PNG."`. (manual)
 3. WHEN the Draft arrives, THE form SHALL fill date, source, lab and accession only where the Draft has a value and the user has not edited that field; on a new report it replaces the untouched defaults, and on an existing report it fills only empty fields. A Draft date later than today is not used. Notes and visit are never filled. (manual)
 4. WHEN results arrive, THE form SHALL apply them with `applyDraftResults`: a test not on the form is added as a new row with the document's value, unit and range; a row with a blank value takes the document's value, unit and range, replacing any unit or range pre-filled from an earlier report, even when the document prints none; a row with a typed value is never changed, and a typed value that differs (after trimming) is reported as a Kept_Value. (`src/web/lib/lab-rows.test.ts`)

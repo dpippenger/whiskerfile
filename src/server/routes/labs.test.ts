@@ -175,6 +175,36 @@ test("a report can't attach another pet's file, but keeps its own across an edit
   expect((await call(`/api/labs/${id}`, { method: "PUT", body: report([crea], { fileIds: [myDoc] }) })).status).toBe(
     200,
   );
+
+  // The same document uploaded again for this pet is a fresh upload, not the other pet's file.
+  const again = await upload("their chem", "their.pdf");
+  expect(again).not.toBe(theirDoc);
+  const shared = await call(`/api/pets/${petId}/labs`, { method: "POST", body: report([crea], { fileIds: [again] }) });
+  expect(shared.status).toBe(201);
+});
+
+test("turning a report's visit into a home exam unlinks the report, which can still be edited", async () => {
+  const { call, json, analyte, labs, petId } = await setup();
+  const entry = { date: "2026-11-06", clinic: "", vet: "", reason: "", notes: "", vitals: {} };
+  const visit = await json<{ id: number }>(
+    call(`/api/pets/${petId}/entries`, { method: "POST", body: { ...entry, kind: "vet" } }),
+  );
+  const crea = { analyteId: analyte("CREA"), valueText: "2.6", unit: "mg/dL", refLow: 0.6, refHigh: 2.4 };
+  const { id } = await json<{ id: number }>(
+    call(`/api/pets/${petId}/labs`, { method: "POST", body: report([crea], { entryId: visit.id }) }),
+  );
+
+  // Saving it as a vet visit again keeps the link.
+  await call(`/api/entries/${visit.id}`, { method: "PUT", body: { ...entry, kind: "vet", reason: "Recheck" } });
+  expect((await labs()).map((r) => r.entryId)).toEqual([visit.id]);
+
+  expect((await call(`/api/entries/${visit.id}`, { method: "PUT", body: { ...entry, kind: "home" } })).status).toBe(
+    200,
+  );
+  const [saved] = await labs();
+  expect(saved!.entryId).toBeNull();
+  const edit = await call(`/api/labs/${id}`, { method: "PUT", body: report([crea], { entryId: saved!.entryId }) });
+  expect(edit.status).toBe(200);
 });
 
 test("deleting a visit unlinks its report; deleting the report keeps the stored files", async () => {

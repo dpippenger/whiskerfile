@@ -5,6 +5,7 @@ import {
   attachments,
   entries,
   files,
+  labReports,
   measurements,
   pets,
   users,
@@ -79,6 +80,10 @@ function saveEntry(
           .returning()
           .get();
     if (!entry) return undefined;
+    // Only a vet visit can be a lab report's visit.
+    if (existingId && entry.kind !== "vet") {
+      tx.update(labReports).set({ entryId: null }).where(eq(labReports.entryId, entry.id)).run();
+    }
 
     // Update readings in place rather than replacing them: ids order same-day
     // readings, so a new id would change which reading counts as the latest.

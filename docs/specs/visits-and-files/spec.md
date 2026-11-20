@@ -97,7 +97,7 @@ The spec describes the system as built. Where a criterion is proven by a test, t
 #### Acceptance Criteria
 
 1. WHEN `POST /api/files` receives a multipart `file` field, THE System SHALL store its bytes unchanged and answer 201 with the Stored_File row. (`src/server/routes/files.test.ts`, `src/server/routes/attachments.test.ts`)
-2. THE System SHALL name each stored copy by the SHA-256 of its bytes and SHALL keep one copy per distinct content, with one row per distinct (content, name, uploader): an exact repeat upload returns the existing row, while the same bytes uploaded under another name or by another member get their own row carrying that name and uploader. (`src/server/routes/files.test.ts`)
+2. THE System SHALL name each stored copy by the SHA-256 of its bytes and SHALL keep one copy per distinct content, with one row per distinct (content, name, uploader): an exact repeat of an upload not yet attached to a record returns the existing row, while the same bytes uploaded under another name, by another member, or again after the first upload was attached get their own row carrying that name and uploader. (`src/server/routes/files.test.ts`)
 3. THE System SHALL write each copy under a `.partial` name and rename it once complete. (`src/server/routes/files.test.ts` checks that nothing is left over)
 4. WHEN the stored copy is missing or a different size, THE System SHALL write the bytes again on the next upload of the same content. (`src/server/routes/files.test.ts`)
 5. THE System SHALL set the type from the file's first bytes (JPEG, PNG, WebP, GIF or PDF, and `application/octet-stream` for anything else) and SHALL never take it from the client. (`src/server/routes/files.test.ts`)

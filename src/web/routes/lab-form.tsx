@@ -228,9 +228,10 @@ function LabForm({
       try {
         return await readDocument(payload);
       } catch (err) {
-        // 503 means the server refused before reading started (no API key);
-        // don't keep a document attached that was never read.
-        if (added && err instanceof ApiError && err.status === 503) {
+        // 501 means the server has no API key and refused before reading
+        // started; don't keep a document attached that was never read. A busy
+        // API (503) is a reading that started, so the document stays.
+        if (added && err instanceof ApiError && err.status === 501) {
           setFiles((list) => list.filter((f) => f.fileId !== stored.id));
         }
         throw err;

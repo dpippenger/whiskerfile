@@ -12,6 +12,6 @@ export const config = {
   accessAud: env.CF_ACCESS_AUD ?? "",
   // Prints PDF reports; without it, reports answer 503.
   chromiumPath: env.CHROMIUM_PATH ?? "",
-  // Reads lab documents with Claude; without it, importing answers 503.
+  // Reads lab documents with Claude; without it, importing answers 501.
   anthropicApiKey: env.ANTHROPIC_API_KEY ?? "",
 };
