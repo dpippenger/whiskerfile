@@ -1,5 +1,6 @@
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { queries, within } from "@testing-library/react/pure";
 import { afterAll, afterEach, beforeAll, expect, test } from "bun:test";
 import { files, labReports } from "../../server/db/schema";
 import { ReadLabError, type LabDocument, type ReadLab } from "../../server/import/claude";
@@ -15,7 +16,7 @@ import type { Extraction } from "../../shared/lab-import";
 let rtl: typeof import("@testing-library/react/pure");
 let LabEntry: typeof import("./lab-form").LabEntry;
 /** Queries over the page of the form `open` rendered last. */
-let page: ReturnType<typeof rtl.within>;
+let page: ReturnType<typeof within<typeof queries>>;
 
 const globals = globalThis as unknown as Record<string, unknown>;
 const realFetch = globalThis.fetch;
