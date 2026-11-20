@@ -6,7 +6,7 @@ Whiskerfile stores lab reports as results typed into the lab form (see `docs/spe
 
 The feature is optional. It is enabled only when `ANTHROPIC_API_KEY` is set, and every document read is sent to Anthropic's API and billed to that account. The project's hard rule applies throughout: the app never invents medical facts. A range is filled only when the document prints it, imported rows bypass the earlier-result pre-fill, values the user has typed are never overwritten, and no lab report is saved until the user presses Save.
 
-**Status of live verification.** The feature has not yet been exercised against the real Anthropic API; no credentials were available while it was built. `bun test` never calls the API: the reader is tested with the real SDK client and its `fetch` replaced. Everything that depends on the live API accepting the request (the model id, the beta, server-side fallbacks, the structured output format) or on the model following the prompt is marked **(manual, not yet run)**. `bun run read:lab <file>` (`scripts/read-lab.ts`) is the manual live check.
+**Status of live verification.** The feature has not yet been exercised against the real Anthropic API; no credentials were available while it was built. `bun test` never calls the API: the reader and `scripts/read-lab.ts` are tested with the real SDK client and its `fetch` replaced, and the lab form is tested in a DOM (happy-dom) against the in-process API with a stand-in reader. Everything that depends on the live API accepting the request (the model id, the beta, server-side fallbacks, the structured output format) or on the model following the prompt is marked **(manual, not yet run)**. `bun run read:lab <file>` (`scripts/read-lab.ts`) is the manual live check.
 
 ## Glossary
 
@@ -29,8 +29,8 @@ The feature is optional. It is enabled only when `ANTHROPIC_API_KEY` is set, and
 
 1. THE System SHALL read the key from `ANTHROPIC_API_KEY` (`src/server/config.ts`), defaulting to empty; `compose.yaml` passes it through as optional and `.env.example` documents that documents read this way are sent to Anthropic's API. (manual)
 2. WHERE the key is set, THE System SHALL create the Reader with an Anthropic client using that key (`src/server/index.ts`). (manual)
-3. IF the key is not set, WHEN `POST /api/labs/import` is called by a signed-in user, THE System SHALL answer 501 `"Reading documents needs an Anthropic API key; set ANTHROPIC_API_KEY"`, before the upload is read. (`src/server/routes/lab-import.test.ts`; the ordering is manual)
-4. WHILE the key is not set, THE lab form SHALL still show **Read results from a document**, and SHALL show the 501 message when it is used. (manual)
+3. IF the key is not set, WHEN `POST /api/labs/import` is called by a signed-in user, THE System SHALL answer 501 `"Reading documents needs an Anthropic API key; set ANTHROPIC_API_KEY"`, before the upload is read. (`src/server/routes/lab-import.test.ts`, including the ordering: uploads that would be refused still answer 501)
+4. WHILE the key is not set, THE lab form SHALL still show **Read results from a document**, and SHALL show the 501 message when it is used. (`src/web/routes/lab-form.test.tsx`)
 
 ### Requirement 2: Import endpoint
 
@@ -58,7 +58,7 @@ The feature is optional. It is enabled only when `ANTHROPIC_API_KEY` is set, and
 1. THE Reader SHALL call `client.beta.messages.create` (not `parse`) on `/v1/messages` with model `claude-opus-5-5`. (`src/server/import/claude.test.ts`)
 2. THE request SHALL set `output_config` to effort `high` and a `json_schema` format holding only `type` and `schema`, derived from `extractionSchema` with `betaZodOutputFormat`; the schema requires `date`, `lab`, `accession`, `source` and `results`. (`claude.test.ts`)
 3. THE request SHALL send `fallbacks: "default"` with the `anthropic-beta: server-side-fallback-2026-07-01` header, and SHALL send neither `thinking` nor `tool_choice`. (`claude.test.ts`)
-4. THE request SHALL set `max_tokens` to 16000. (manual)
+4. THE request SHALL set `max_tokens` to 16000. (`claude.test.ts`)
 5. THE user message SHALL carry the document first, then the text `"Transcribe this lab report."`: a PDF as a base64 `document` block, an image as a base64 `image` block of its own type. (`claude.test.ts`)
 6. THE system prompt SHALL end with the Catalog, one `CODE — Name` line per test. (`claude.test.ts`)
 7. THE request SHALL use a 180 second timeout (`READ_TIMEOUT_SECONDS`), `maxRetries: 0`, and the caller's abort signal. (`claude.test.ts`: one attempt on failure, 504 on timeout)
@@ -94,12 +94,12 @@ Criteria 4.1 to 4.6 are checked by reading `INSTRUCTIONS` in `src/server/import/
 |---|---|---|---|
 | `APIUserAbortError` | 499 | Reading was stopped. | `claude.test.ts` |
 | `AuthenticationError` (401) | 502 | The Anthropic API key was refused. Check ANTHROPIC_API_KEY. | `claude.test.ts` |
-| `PermissionDeniedError` (403) | 502 | same as 401 | (manual) |
+| `PermissionDeniedError` (403) | 502 | same as 401 | `claude.test.ts` |
 | `ContentTooLargeError` (413) | 413 | This file is too large to read. Try a smaller copy, or enter the results by hand. | `claude.test.ts` |
 | `RateLimitError` (429), `OverloadedError` (529) | 503 | The Anthropic API is busy. Try again in a minute. | `claude.test.ts` |
 | `BadRequestError` (400) | 400 | Claude couldn't read this file: plus the API's message, or "no reason given" | `claude.test.ts` |
 | `APIConnectionTimeoutError` | 504 | Reading the document took too long. Try again. | `claude.test.ts` |
-| any other `APIError` | 502 | The Anthropic API couldn't be reached or failed. Try again later. | `claude.test.ts` (500); connection errors (manual) |
+| any other `APIError` | 502 | The Anthropic API couldn't be reached or failed. Try again later. | `claude.test.ts` (500, and a connection that fails before any reply) |
 
 4. IF the error is not an SDK error, THE Reader SHALL rethrow it unchanged, so the route answers 500. (`claude.test.ts`)
 5. IF the abort signal has already fired, THE Reader SHALL send nothing and throw 499. (`claude.test.ts`)
@@ -124,14 +124,14 @@ Criteria 4.1 to 4.6 are checked by reading `INSTRUCTIONS` in `src/server/import/
 
 #### Acceptance Criteria
 
-1. WHEN the user picks a file with **Read results from a document** (a picker whose `accept` offers only PDFs and images), THE form SHALL first prepare the copy to send (7.2) — a file that can't be prepared is refused with nothing uploaded or attached — then upload the Original unchanged through `/api/files`, add it to the report's attachments and send the prepared copy for reading. The Original stays attached when a reading that started fails, but a 501 (no API key) removes it again, since nothing was read; a busy API (503) keeps it. (manual)
-2. THE form SHALL identify the file by its first bytes, never its name or declared type: a PDF is sent as is, and so is a PNG or GIF within the API's base64 size limit and at most 2576 px on its long edge, so re-encoding never softens a screenshot's text; any other image is re-encoded to at most 2576 px on its long edge as WebP (or JPEG where WebP cannot be encoded), which drops the photo's metadata from the copy sent for reading. IF the browser cannot decode the image, THE form SHALL show `"This image format can't be used here. Try a JPEG or PNG."`. (manual)
-3. WHEN the Draft arrives, THE form SHALL fill date, source, lab and accession only where the Draft has a value and the user has not edited that field; on a new report it replaces the untouched defaults, and on an existing report it fills only empty fields. A Draft date later than today is not used. Notes and visit are never filled. (manual)
+1. WHEN the user picks a file with **Read results from a document** (a picker whose `accept` offers only PDFs and images), THE form SHALL first prepare the copy to send (7.2) — a file that can't be prepared is refused with nothing uploaded or attached — then upload the Original unchanged through `/api/files`, add it to the report's attachments and send the prepared copy for reading. The Original stays attached when a reading that started fails, but a 501 (no API key) removes it again, since nothing was read; a busy API (503) keeps it. (`src/web/routes/lab-form.test.tsx`)
+2. THE form SHALL identify the file by its first bytes, never its name or declared type: a PDF is sent as is, and so is a PNG or GIF within the API's base64 size limit and at most 2576 px on its long edge, so re-encoding never softens a screenshot's text; any other image is re-encoded to at most 2576 px on its long edge as WebP (or JPEG where WebP cannot be encoded), which drops the photo's metadata from the copy sent for reading. IF the browser cannot decode the image, THE form SHALL show `"This image format can't be used here. Try a JPEG or PNG."`. (`src/web/routes/lab-form.test.tsx` with the browser's decoder and canvas replaced; `src/web/lib/image.test.ts` for the scaling, the JPEG fallback and the file name)
+3. WHEN the Draft arrives, THE form SHALL fill date, source, lab and accession only where the Draft has a value and the user has not edited that field; on a new report it replaces the untouched defaults, and on an existing report it fills only empty fields. A Draft date later than today is not used. Notes and visit are never filled. (`src/web/routes/lab-form.test.tsx`)
 4. WHEN results arrive, THE form SHALL apply them with `applyDraftResults`: a test not on the form is added as a new row with the document's value, unit and range; a row with a blank value takes the document's value, unit and range, replacing any unit or range pre-filled from an earlier report, even when the document prints none; a row with a typed value is never changed, and a typed value that differs (after trimming) is reported as a Kept_Value. (`src/web/lib/lab-rows.test.ts`)
-5. THE form SHALL show the Import_Notice: `Read N results from <file name>`, where N counts only the results filled in (rows added or previously blank), not those kept as typed, the instruction to check every value and range against the document before saving, the Kept_Values (`CODE: you typed X, the document says Y`), and the unmatched results with their reasons. It can be dismissed. (manual)
-6. IF reading fails, THE form SHALL show the error message under the picker. (manual)
-7. WHILE an upload or reading is in progress, THE form SHALL disable the read picker and the Save button (labelled `Reading…` while reading), and a submit SHALL do nothing. (manual)
-8. THE form SHALL save no lab report until the user presses Save; the read results are then validated and saved like typed ones. (manual)
+5. THE form SHALL show the Import_Notice: `Read N results from <file name>`, where N counts only the results filled in (rows added or previously blank), not those kept as typed, the instruction to check every value and range against the document before saving, the Kept_Values (`CODE: you typed X, the document says Y`), and the unmatched results with their reasons. It can be dismissed. (`src/web/routes/lab-form.test.tsx`)
+6. IF reading fails, THE form SHALL show the error message under the picker. (`src/web/routes/lab-form.test.tsx`)
+7. WHILE an upload or reading is in progress, THE form SHALL disable the read picker and the Save button (labelled `Reading…` while reading), and a submit SHALL do nothing. (`src/web/routes/lab-form.test.tsx`)
+8. THE form SHALL save no lab report until the user presses Save; the read results are then validated and saved like typed ones. (`src/web/routes/lab-form.test.tsx`)
 9. THE form SHALL work at desktop and phone widths. (manual)
 
 ### Requirement 8: Manual live check
@@ -140,8 +140,8 @@ Criteria 4.1 to 4.6 are checked by reading `INSTRUCTIONS` in `src/server/import/
 
 #### Acceptance Criteria
 
-1. WHEN `bun run read:lab <file>` is run, THE script SHALL sniff the file, refuse anything but a PDF or the four image types (exit 2), read it with the Reader against the Catalog of a fresh in-memory database, and print the Draft as JSON with each result's code, plus the elapsed time on stderr. (manual)
-2. IF reading fails, THE script SHALL print `<status>: <message>` for a `ReadLabError`, or the error itself, and exit 1. (manual)
+1. WHEN `bun run read:lab <file>` is run, THE script SHALL sniff the file, refuse anything but a PDF or the four image types (exit 2), read it with the Reader against the Catalog of a fresh in-memory database, and print the Draft as JSON with each result's code, plus the elapsed time on stderr. (`scripts/read-lab.test.ts`, which runs the script with `fetch` replaced)
+2. IF reading fails, THE script SHALL print `<status>: <message>` for a `ReadLabError`, or the error itself, and exit 1. (`scripts/read-lab.test.ts`: a `ReadLabError`)
 3. WHEN run with a real key on IDEXX PDFs and receipt photos, THE script SHALL produce Drafts that match the documents. (manual, not yet run)
 
 ## Diagrams
