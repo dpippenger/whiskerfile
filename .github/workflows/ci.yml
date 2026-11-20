@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash -eo pipefail {0}
+
+jobs:
+  format:
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+      - run: bun run format:check
+
+  lint:
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+      - run: bun run lint
+
+  typecheck:
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+      - run: bun check
+
+  test:
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    env:
+      # With a browser set, the suite also prints one real PDF report.
+      CHROMIUM_PATH: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+      - name: The runner has the browser the report test needs
+        run: test -x "$CHROMIUM_PATH"
+      - run: bun test
+
+  # Files, exports and dependencies nothing uses.
+  unused:
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+      - run: bun run check:unused
+
+  # The committed migrations are consistent and match src/server/db/schema.ts.
+  migrations:
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+      - run: bun run check:migrations
+
+  # Known vulnerabilities in the locked dependencies, at high severity and above.
+  audit:
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+      - run: bun audit --audit-level=high
+
+  # The image runs from source, so only a booted container shows whether the
+  # front end bundles and Chromium prints.
+  image:
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+      - name: The image runs the Bun that CI tests with
+        run: grep -qx "FROM oven/bun:$(cat .bun-version)-slim" Dockerfile
+      - run: docker build -t whiskerfile:ci .
+      - run: .github/scripts/image-smoke.sh whiskerfile:ci
+
+  # The one check the main branch requires. It fails unless every job above
+  # succeeded, so a skipped or failed job can't pass as green, and a cancelled
+  # run never reports success.
+  ci-gate:
+    timeout-minutes: 5
+    if: ${{ !cancelled() }}
+    needs: [format, lint, typecheck, test, unused, migrations, audit, image]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check required results
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$NEEDS"
+          jq -e 'all(.[]; .result == "success")' <<<"$NEEDS" >/dev/null
