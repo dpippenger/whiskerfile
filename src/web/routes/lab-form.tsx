@@ -28,7 +28,6 @@ import { downsizeImage } from "../lib/image";
 import { useAnalytes, useLabs, usePet, useRecords } from "../lib/queries";
 import {
   applyDraftResults,
-  filledRows,
   limitErrors,
   limitText,
   parseLimit,
@@ -38,7 +37,6 @@ import {
   type KeptValue,
   type Row,
 } from "../lib/lab-rows";
-import { cn } from "../lib/utils";
 
 const COLUMNS = ["valueText", "unit", "refLow", "refHigh"] as const;
 type Column = (typeof COLUMNS)[number];

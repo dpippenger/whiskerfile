@@ -37,7 +37,7 @@ export function Compare() {
     // Every pet not switched off, so pets without usable results are named rather than vanish.
     const shown = series.data.filter((p) => !hidden.includes(p.petId));
     return compareSeries(shown, axis);
-  }, [series.data, option, hidden, axis]);
+  }, [series.data, hidden, axis]);
 
   const chart = useMemo(() => {
     if (!result) return null;

@@ -15,7 +15,7 @@ export const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"
 
 const startsWith = (bytes: Uint8Array, signature: number[], offset = 0) =>
   signature.every((byte, i) => bytes[offset + i] === byte);
-const ascii = (text: string) => [...text].map((c) => c.charCodeAt(0));
+const ascii = (text: string) => Array.from(text, (c) => c.charCodeAt(0));
 
 /**
  * Identifies a file from its first bytes. The client's declared type is never

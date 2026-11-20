@@ -158,6 +158,8 @@ function HealthRow({
   );
 }
 
+// Each row is returned with its key; the caller sets it on the wrapper it renders.
+/* oxlint-disable react/jsx-key */
 function itemRow(item: TimelineItem, units: Units, onEdit: (editing: Editing) => void): [string, ReactNode] {
   switch (item.type) {
     case "entry":
@@ -235,6 +237,7 @@ function itemRow(item: TimelineItem, units: Units, onEdit: (editing: Editing) =>
     }
   }
 }
+/* oxlint-enable react/jsx-key */
 
 export function Timeline({
   records,

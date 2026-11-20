@@ -55,3 +55,17 @@ PDF reports need Chromium: set `CHROMIUM_PATH` (in `.env` or the shell) to a Chr
 `bun run read:lab <file>` reads one lab PDF or photo with Claude and prints what the form would be filled with, which is the way to check the reading on real reports. It needs `ANTHROPIC_API_KEY` and is billed; `bun test` never calls the API.
 
 Database schema lives in `src/server/db/schema.ts`. After changing it, run `bun run db:generate` and commit the new migration; migrations apply on startup.
+
+Every pull request runs the CI workflow (`.github/workflows/ci.yml`), and `main` requires its `ci-gate` check. The same checks run locally through `make`:
+
+```sh
+make check # before pushing: format check, lint, type check, tests, unused code (knip), migration drift
+make ci    # everything CI gates on: check, plus commit messages, the dependency audit and the image smoke test (needs docker)
+make help  # each check as its own target
+```
+
+`make image` boots the production image and checks that the front end is bundled and a report prints. CI installs the Bun named in `.bun-version`, which must match the `Dockerfile`.
+
+Lint is `bun lint` with the rules in `.oxlintrc.json`. Only canary builds of Bun have it so far, so `scripts/lint.sh` installs the canary pinned in `.bun-canary-version` beside your own Bun (under `~/.bun/canary`) the first time it runs.
+
+`bun install` sets up the git hooks (husky): pre-commit formats and lints the staged files, commit-msg checks the message is a [Conventional Commit](https://www.conventionalcommits.org/) (commitlint), and pre-push runs `make check`. CI checks the pull request's title and commits the same way. Dependabot (`.github/dependabot.yml`) proposes updates weekly for the packages, the actions and the Docker images.

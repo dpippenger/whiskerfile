@@ -1,0 +1,5 @@
+if [ ! -x node_modules/.bin/lint-staged ]; then
+  echo "pre-commit: dependencies are not installed. Run \`bun install\` before committing." >&2
+  exit 1
+fi
+bun x lint-staged

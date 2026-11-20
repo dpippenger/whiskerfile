@@ -1,0 +1,9 @@
+# Runs `make check` so a push that CI would reject stops here. It checks the
+# working tree, so commit or set aside unfinished work first. A push that only
+# deletes branches has nothing to check.
+zero=0000000000000000000000000000000000000000
+pushing=0
+while read -r _local_ref local_sha _remote_ref _remote_sha; do
+  [ "$local_sha" = "$zero" ] || pushing=1
+done
+[ "$pushing" -eq 0 ] || make check

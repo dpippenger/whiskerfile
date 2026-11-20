@@ -1,0 +1,27 @@
+{
+  "plugins": ["typescript", "react", "jsx-a11y", "import", "unicorn", "oxc"],
+  "categories": { "correctness": "error" },
+  "options": { "typeAware": true },
+  "rules": {
+    // `{ petId: _, ...rest }` is how a field is left out of a copy.
+    "no-unused-vars": ["error", { "ignoreRestSiblings": true }],
+    // Narrowing parsed JSON and test fixtures with `as` is accepted here.
+    "typescript/no-unsafe-type-assertion": "off",
+    // The lab grid and the segmented controls are ARIA widgets on purpose.
+    "jsx-a11y/prefer-tag-over-role": "off",
+    // Dialogs focus their first field.
+    "jsx-a11y/no-autofocus": "off",
+    // Fires on every <datalist> <option value>, which has no label to give.
+    "jsx-a11y/control-has-associated-label": "off"
+  },
+  "overrides": [
+    {
+      "files": ["**/*.test.ts"],
+      "rules": {
+        // bun:test types `expect().rejects` matchers as synchronous; they must be awaited.
+        "typescript/await-thenable": "off",
+        "typescript/no-base-to-string": "off"
+      }
+    }
+  ]
+}
