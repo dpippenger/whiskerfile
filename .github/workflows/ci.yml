@@ -47,14 +47,11 @@ jobs:
   test:
     timeout-minutes: 10
     runs-on: ubuntu-latest
-    env:
-      # With a browser set, the suite also prints one real PDF report.
-      CHROMIUM_PATH: /usr/bin/google-chrome
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup
-      - name: The runner has the browser the report test needs
-        run: test -x "$CHROMIUM_PATH"
+      # CHROMIUM_PATH is unset, so the one test that prints with a real browser
+      # is skipped; the image job prints a report with the image's own Chromium.
       - run: bun test
 
   # Conventional Commits, for the pull request's title and each of its commits.
