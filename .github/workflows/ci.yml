@@ -55,6 +55,28 @@ jobs:
         run: test -x "$CHROMIUM_PATH"
       - run: bun test
 
+  # Conventional Commits, for the pull request's title and each of its commits.
+  # On a push to main there is nothing left to check and the job passes.
+  commitlint:
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - name: Pull request title
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: echo "$PR_TITLE" | bun x commitlint --verbose
+      - name: Pull request commits
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: bun x commitlint --from "$BASE_SHA" --to "$HEAD_SHA" --verbose
+
   # Files, exports and dependencies nothing uses.
   unused:
     timeout-minutes: 5
@@ -101,7 +123,7 @@ jobs:
   ci-gate:
     timeout-minutes: 5
     if: ${{ !cancelled() }}
-    needs: [format, lint, typecheck, test, unused, migrations, audit, image]
+    needs: [format, lint, typecheck, test, commitlint, unused, migrations, audit, image]
     runs-on: ubuntu-latest
     steps:
       - name: Check required results

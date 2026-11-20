@@ -2,7 +2,7 @@
 # `make check` before pushing; `make ci` adds the audit and the image.
 
 .DEFAULT_GOAL := help
-.PHONY: help check ci format format-check lint typecheck test check-unused check-migrations audit image
+.PHONY: help check ci format format-check lint typecheck test check-unused check-migrations audit image commitlint
 
 help: ## Show the targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-18s %s\n", $$1, $$2}'
@@ -13,7 +13,7 @@ node_modules: package.json bun.lock
 
 check: format-check lint typecheck test check-unused check-migrations ## Format check, lint, type check, tests, unused code, migrations
 
-ci: check audit image ## Everything CI gates on (needs docker)
+ci: check commitlint audit image ## Everything CI gates on (needs docker)
 
 format: node_modules ## Format the code
 	bun run format
@@ -42,3 +42,6 @@ audit: node_modules ## Known vulnerabilities, high severity and above
 image: node_modules ## Build the image and smoke test it
 	docker build -t whiskerfile:ci .
 	.github/scripts/image-smoke.sh whiskerfile:ci
+
+commitlint: node_modules ## Check this branch's commit messages (Conventional Commits)
+	bun x commitlint --from origin/main
