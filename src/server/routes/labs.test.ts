@@ -153,7 +153,7 @@ test("a report naming an unknown test, file or another pet's visit is refused an
 });
 
 test("a report can't attach another pet's file, but keeps its own across an edit", async () => {
-  const { call, json, analyte, upload, petId } = await setup();
+  const { call, json, analyte, upload, labs, petId } = await setup();
   const otherPet = (await json<{ id: number }>(call("/api/pets", { method: "POST", body: { ...PET, name: "Other" } })))
     .id;
   const theirDoc = await upload("their chem", "their.pdf");
@@ -175,6 +175,12 @@ test("a report can't attach another pet's file, but keeps its own across an edit
   expect((await call(`/api/labs/${id}`, { method: "PUT", body: report([crea], { fileIds: [myDoc] }) })).status).toBe(
     200,
   );
+
+  // The report's own document picked again on an edit is not attached twice.
+  const repick = await upload("chem", "chem.pdf");
+  expect(repick).not.toBe(myDoc);
+  await call(`/api/labs/${id}`, { method: "PUT", body: report([crea], { fileIds: [myDoc, repick] }) });
+  expect((await labs())[0]!.attachments.map((a) => a.fileId)).toEqual([myDoc]);
 
   // The same document uploaded again for this pet is a fresh upload, not the other pet's file.
   const again = await upload("their chem", "their.pdf");

@@ -208,3 +208,17 @@ test("deleting a pet removes its attachments but not the stored files", async ()
   expect(db.select().from(attachments).all()).toEqual([]);
   expect(db.select().from(files).all()).toHaveLength(1);
 });
+
+test("a file the saved visit already carries, picked again, is not attached twice", async () => {
+  const { call, json, upload, records, petId } = await setup();
+  const bytes = new TextEncoder().encode("%PDF-1.7\ninvoice");
+  const first = await upload(bytes, "invoice.pdf");
+  const entry = await json<{ id: number }>(
+    call(`/api/pets/${petId}/entries`, { method: "POST", body: visit({ fileIds: [first.id] }) }),
+  );
+
+  const again = await upload(bytes, "invoice.pdf");
+  expect(again.id).not.toBe(first.id);
+  await call(`/api/entries/${entry.id}`, { method: "PUT", body: visit({ fileIds: [first.id, again.id] }) });
+  expect((await records()).entries[0]!.attachments.map((a) => a.fileId)).toEqual([first.id]);
+});

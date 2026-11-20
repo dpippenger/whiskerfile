@@ -1,4 +1,5 @@
-import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, type SQL } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
 import { attachmentInput, entryInput, measurementInput, VITALS, type Vital } from "../../shared/records";
 import type { Db } from "../db";
 import {
@@ -48,6 +49,21 @@ export function unknownFiles(db: Db, ids: number[]): number[] {
       .map((f) => f.id),
   );
   return ids.filter((id) => !found.has(id));
+}
+
+/**
+ * Whether a record already carries this document under another row: the same
+ * bytes and name, uploaded again after the first upload was attached.
+ */
+export function alreadyAttached(db: Pick<Db, "select">, fileId: number, record: SQL): boolean {
+  const twin = alias(files, "twin");
+  return !!db
+    .select({ id: attachments.id })
+    .from(attachments)
+    .innerJoin(files, eq(files.id, attachments.fileId))
+    .innerJoin(twin, and(eq(twin.sha256, files.sha256), eq(twin.originalName, files.originalName)))
+    .where(and(record, eq(twin.id, fileId)))
+    .get();
 }
 
 export const unknownFileError = (field: "fileId" | "fileIds") =>
@@ -117,7 +133,7 @@ function saveEntry(
       for (const a of attached) if (!wanted.has(a.fileId)) tx.delete(attachments).where(eq(attachments.id, a.id)).run();
       const have = new Set(attached.map((a) => a.fileId));
       for (const fileId of wanted) {
-        if (have.has(fileId)) continue;
+        if (have.has(fileId) || alreadyAttached(tx, fileId, eq(attachments.entryId, entry.id))) continue;
         tx.insert(attachments)
           .values({
             petId: entry.petId,

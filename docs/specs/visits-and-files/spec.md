@@ -177,7 +177,7 @@ The spec describes the system as built. Where a criterion is proven by a test, t
 2. THE dialog SHALL close on a backdrop click only while it shows the chooser, never while it shows a form. (manual)
 3. THE visit form SHALL switch between Vet visit and Home exam, with the dialog title following the selected kind. It SHALL show clinic and vet only for a vet visit, and SHALL send them as empty for a home exam, warning first that saving as a home exam removes a clinic or vet already entered. (manual)
 4. THE visit form SHALL suggest clinics and vets from this pet's earlier Entries, label the weight and temperature fields with the reader's Display_Units, and offer body condition 1–9 with 5 marked "(ideal)". (manual)
-5. THE visit form SHALL upload picked files one after another, skip a file already attached, and refuse to save until every upload has finished. (manual)
+5. THE visit form SHALL upload picked files one after another, skip a file already attached, and refuse to save until every upload has finished; a document the saved visit already carries, picked again, is skipped when the visit is saved. (manual; `src/server/routes/attachments.test.ts` for the save)
 6. THE weight form SHALL require a weight. The file form SHALL require a file and fill the label from the file name without its extension. WHEN a form opens for a new record, its date SHALL default to today. (manual)
 7. WHEN deleting an Entry or a weigh-in, THE web app SHALL require a second click on "Confirm delete". A Standalone_File's "Remove" SHALL act on one click. (manual)
 8. WHILE at phone widths, THE dialog SHALL fill the screen with Save pinned to its bottom edge. (manual)
@@ -270,7 +270,7 @@ sequenceDiagram
 
 ### Property 6: Content addressing
 
-*For any* two uploads with identical bytes, the System keeps exactly one copy, named by its SHA-256, with no `.partial` file left behind; the second upload returns the existing row when its name and uploader match the first's, and otherwise a new row naming the same copy.
+*For any* two uploads with identical bytes, the System keeps exactly one copy, named by its SHA-256, with no `.partial` file left behind; the second upload returns the existing row when its name and uploader match the first's and that row is not yet attached to a record, and otherwise a new row naming the same copy. A visit or lab report never attaches the same bytes and name twice.
 
 **Validates: Requirements 6.2, 6.3**
 

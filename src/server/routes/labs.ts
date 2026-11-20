@@ -16,7 +16,7 @@ import {
   type LabResult,
 } from "../db/schema";
 import { error, idParam, parseJson, type AppContext, type Authed } from "../http";
-import { unknownFileError, unknownFiles, type AttachmentWithFile } from "./records";
+import { alreadyAttached, unknownFileError, unknownFiles, type AttachmentWithFile } from "./records";
 
 export type LabResultRow = LabResult & Pick<Analyte, "code" | "name" | "category" | "sortOrder">;
 export type LabReportWithResults = LabReport & {
@@ -114,7 +114,7 @@ function saveReport(db: Db, petId: number, userId: number, input: Input, existin
       for (const a of attached) if (!keep.has(a.fileId)) tx.delete(attachments).where(eq(attachments.id, a.id)).run();
       const have = new Set(attached.map((a) => a.fileId));
       for (const fileId of keep) {
-        if (have.has(fileId)) continue;
+        if (have.has(fileId) || alreadyAttached(tx, fileId, eq(attachments.labReportId, report.id))) continue;
         tx.insert(attachments)
           .values({ petId, labReportId: report.id, fileId, date: report.date, createdBy: userId, createdAt: now })
           .run();
