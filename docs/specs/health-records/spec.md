@@ -12,7 +12,7 @@ This spec covers the three record types, their validation and API, the Health ta
 
 ## Glossary
 
-- **Dose**: one vaccinations row: vaccine name, date given, optional next due date, lot, clinic and notes.
+- **Dose**: one vaccinations row: vaccine name, date given, optional next due date, lot, vet (a link to a saved vet, see `docs/specs/vets/spec.md`) and notes.
 - **Course**: one medications row: drug, optional dose and frequency text, start date, optional end date, reason and notes.
 - **Condition**: one conditions row with a Condition_Kind, title, date, optional resolved date and notes.
 - **Condition_Kind**: one of `diagnosis`, `allergy`, `surgery`, `dental`, `other`, labelled Diagnosis, Allergy, Surgery, Dental, Other.
@@ -38,7 +38,7 @@ This spec covers the three record types, their validation and API, the Health ta
 1. THE `vaccinationInput` schema SHALL require a vaccine name of 1 to 80 characters after trimming, with the message "Enter the vaccine". (`src/shared/health.test.ts`)
 2. THE `vaccinationInput` schema SHALL require a date given that is a real calendar date in `YYYY-MM-DD` form and no later than tomorrow in UTC — a later one is refused with "Can't be in the future" (`isFutureDate`, `src/shared/dates.ts`) — and accept an empty or null due date as no due date, however far ahead. (`src/shared/health.test.ts`, `src/shared/dates.test.ts` for the date check)
 3. IF the due date is before the date given, THEN THE schema SHALL reject it on the `dueDate` field with "Must be on or after the date given". (`src/shared/health.test.ts`)
-4. THE schema SHALL accept optional lot (up to 40 characters), clinic (up to 120) and notes (up to 2000), trimming each and storing a blank one as null. (manual)
+4. THE schema SHALL accept optional lot (up to 40 characters) and notes (up to 2000), trimming each and storing a blank one as null, and a `vetId` that is a saved vet's id or null. (manual; the vet link is proven in `src/server/routes/vets.test.ts`)
 5. THE System SHALL accept any vaccine name the user types; the names FVRCP, Rabies, FeLV, DHPP, Bordetella, Leptospirosis, Lyme and Canine influenza (`VACCINE_SUGGESTIONS`) SHALL only be offered as suggestions. (manual)
 
 ### Requirement 2: Medication and condition validation
@@ -109,8 +109,8 @@ This spec covers the three record types, their validation and API, the Health ta
 #### Acceptance Criteria
 
 1. THE Health tab SHALL compute every status from Local_Today and the pet's `deceasedOn`. (manual)
-2. THE Vaccinations section SHALL list one row per Latest_Dose in vaccine-name order, showing the name, "Overdue since {date}" (danger badge) or "Due {date}" (warning badge) by Due_Status, otherwise "Next due {date}" as plain text when a due date exists — never for a Deceased_Pet, which shows no due dates at all — then "Given {date}", clinic and lot, notes as typed, and "Added by {author}". (manual)
-3. THE Vaccinations section SHALL list each earlier dose of the same Vaccine_Key, muted, beneath its Latest_Dose as "Earlier dose · {date}" with the clinic, newest first; with no doses it SHALL show "No vaccinations recorded." (manual)
+2. THE Vaccinations section SHALL list one row per Latest_Dose in vaccine-name order, showing the name, "Overdue since {date}" (danger badge) or "Due {date}" (warning badge) by Due_Status, otherwise "Next due {date}" as plain text when a due date exists — never for a Deceased_Pet, which shows no due dates at all — then "Given {date}", the vet (a link to the vet's page) and lot, notes as typed, and "Added by {author}". (manual)
+3. THE Vaccinations section SHALL list each earlier dose of the same Vaccine_Key, muted, beneath its Latest_Dose as "Earlier dose · {date}" with the vet, newest first; with no doses it SHALL show "No vaccinations recorded." (manual)
 4. THE Medications section SHALL list current and upcoming courses; an upcoming one SHALL carry a "Starts {date}" badge and read "From {date}", a current one "Since {date}", each with "until {end}" when an end date exists, plus dose, frequency, reason, notes and author; with none it SHALL show "None current." (manual)
 5. THE Conditions section SHALL list Active_Conditions with their kind badge and "Since {date}"; with none it SHALL show "None recorded." (manual)
 6. WHEN past courses or resolved conditions exist, THE tab SHALL show a muted History section listing them as "Medication · {start} to {end}" and "{Kind} · {date} to {resolved}"; otherwise it SHALL hide that section. (manual)
@@ -164,7 +164,7 @@ This spec covers the three record types, their validation and API, the Health ta
 
 1. THE `timelineItems()` function SHALL place a lab report by its sample date, a dose by its date given, a course by its start date and a condition by its date, sorted newest day first and newest added first within a day. (`src/web/lib/timeline-items.test.ts`)
 2. THE timeline SHALL show a lab report as a link to its report page with the date, the lab name (or source label), the result count and codes, and "{n} high", "{n} low" or "In range" badges. (manual)
-3. THE timeline SHALL show a dose with a syringe icon, its name and "Vaccinated {date}", the clinic when set, and the author. (manual)
+3. THE timeline SHALL show a dose with a syringe icon, its name and "Vaccinated {date}", the vet when set (a link to the vet's page), and the author. (manual)
 4. THE timeline SHALL show a course with a pill icon, drug and dose, and `medicationDates()` wording from its Medication_State: "Starts {date}" while `upcoming`, else "Started {date}", then ", stopped {end}" once the course is `past` (ended, or the pet is a Deceased_Pet) or ", until {end}" otherwise. (`src/web/lib/timeline-items.test.ts`)
 5. THE timeline SHALL show a condition with a heart-pulse icon, title, kind badge and "{date}", adding ", resolved {date}" when resolved. (manual)
 6. THE dose, course and condition rows SHALL each have an edit button opening the same form as the Health tab. (manual)

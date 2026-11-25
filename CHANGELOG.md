@@ -4,6 +4,7 @@
 
 ### Added
 
+- Vets: save each vet once with their clinic, phone, email, address, website and notes, on the new **Vets** screen. Visits, lab reports and vaccinations link to a saved vet, picked in their forms (with **New vet** to add one on the spot), and each pet can have a usual vet. A vet's page shows their contact details, with phone and email as links, and every linked record across pets. The clinic and vet typed on earlier visits and vaccinations are turned into vets and linked automatically; deleting a vet keeps its records and only clears the link.
 - Lab form: **Read results from a document** sends the lab's PDF or a photo of the report to Claude, attaches it to the report, and fills in each result, unit and range as printed for you to check before saving. Typed values are never replaced, unmatched results are listed, and ranges come only from the document. Needs `ANTHROPIC_API_KEY`.
 
 ### Fixed

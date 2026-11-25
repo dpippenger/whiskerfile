@@ -59,11 +59,11 @@ Visits, lab reports, health records, pet profiles and PDF reports have their own
 
 #### Acceptance Criteria
 
-1. THE bodies of `POST /api/pets/:id/entries` and `PUT /api/entries/:id` SHALL carry a `vetId` that is a Vet's id or null, and THE System SHALL store it as the Entry's Vet_Link, so a later save changes or removes the link. (`src/server/routes/records.test.ts`)
-2. WHEN an Entry is saved as a home exam, THE System SHALL store no Vet_Link whatever the body names. (`src/server/routes/records.test.ts`)
-3. THE bodies of `POST /api/pets/:id/labs` and `PUT /api/labs/:id` SHALL carry a `vetId` that is a Vet's id or null, stored as the lab report's Vet_Link. (`src/server/routes/labs.test.ts`)
-4. THE bodies of `POST /api/pets/:id/vaccinations` and `PUT /api/vaccinations/:id` SHALL carry a `vetId` that is a Vet's id or null, stored as the vaccination's Vet_Link. (`src/server/routes/health.test.ts`)
-5. THE bodies of `POST /api/pets` and `PUT /api/pets/:id` SHALL carry a `vetId` that is a Vet's id or null, stored as the pet's Usual_Vet. (`src/server/routes/pets.test.ts`)
+1. THE bodies of `POST /api/pets/:id/entries` and `PUT /api/entries/:id` SHALL carry a `vetId` that is a Vet's id or null, and THE System SHALL store it as the Entry's Vet_Link, so a later save changes or removes the link. (`src/server/routes/vets.test.ts`)
+2. WHEN an Entry is saved as a home exam, THE System SHALL store no Vet_Link whatever the body names. (`src/server/routes/vets.test.ts`)
+3. THE bodies of `POST /api/pets/:id/labs` and `PUT /api/labs/:id` SHALL carry a `vetId` that is a Vet's id or null, stored as the lab report's Vet_Link. (`src/server/routes/vets.test.ts`)
+4. THE bodies of `POST /api/pets/:id/vaccinations` and `PUT /api/vaccinations/:id` SHALL carry a `vetId` that is a Vet's id or null, stored as the vaccination's Vet_Link. (`src/server/routes/vets.test.ts`)
+5. THE bodies of `POST /api/pets` and `PUT /api/pets/:id` SHALL carry a `vetId` that is a Vet's id or null, stored as the pet's Usual_Vet. (`src/server/routes/vets.test.ts`)
 6. IF a body names a `vetId` that is not a Vet, THE System SHALL answer 400 with `vetId: "Unknown vet"` and write nothing. (`src/server/routes/vets.test.ts`)
 7. A lab report's Vet_Link SHALL be independent of its visit's: a report can name a Vet with no visit, or a different Vet from its visit's. (manual)
 
@@ -97,8 +97,8 @@ Visits, lab reports, health records, pet profiles and PDF reports have their own
 
 #### Acceptance Criteria
 
-1. THE visit form (for a vet visit), the lab form, the vaccination form and the pet form SHALL each offer a Vet_Picker listing "No vet" and every Vet by Vet_Label, pre-selected to the record's Vet_Link when editing. (manual; `src/web/routes/lab-form.test.tsx` proves the lab form sends the chosen `vetId`)
-2. THE Vet_Picker SHALL offer **New vet**, opening the Vet form in a dialog over the form. WHEN the new Vet is saved, THE Vet_Picker SHALL select it, and the form underneath SHALL keep everything typed into it and SHALL not be submitted. (manual)
+1. THE visit form (for a vet visit), the lab form, the vaccination form and the pet form SHALL each offer a Vet_Picker listing "No vet" and every Vet by Vet_Label, pre-selected to the record's Vet_Link when editing. (manual; `src/web/routes/lab-form.test.tsx` proves the lab form saves the chosen `vetId`)
+2. THE Vet_Picker SHALL offer **New vet**, opening the Vet form in a dialog over the form. WHEN the new Vet is saved, THE Vet_Picker SHALL select it, and the form underneath SHALL keep everything typed into it and SHALL not be submitted (`src/web/routes/lab-form.test.tsx`) or, when it is itself in a dialog, closed (`src/web/components/ui/dialog.test.tsx`).
 3. THE visit form SHALL show the Vet_Picker only for a vet visit, SHALL send `vetId: null` for a home exam, and SHALL warn "Saving as a home exam removes the vet." WHEN a visit with a Vet chosen is switched to a home exam. (manual)
 4. THE pet form SHALL label its Vet_Picker "Usual vet". (manual)
 
