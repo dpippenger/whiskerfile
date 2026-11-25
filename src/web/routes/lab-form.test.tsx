@@ -99,6 +99,7 @@ const PET = {
   microchip: null,
   chipRegistryId: null,
   photoFileId: null,
+  vetId: null,
   notes: null,
   deceasedOn: null,
 };
@@ -161,6 +162,7 @@ async function open(readLab?: ReadLab, report?: { lab: string; value: string }) 
       accession: "",
       notes: "",
       entryId: null,
+      vetId: null,
       results: [{ analyteId: analyteId("CREA"), valueText: report.value, unit: "mg/dL", refLow: 0.8, refHigh: 2.4 }],
     };
     reportId = (await json<{ id: number }>(call(`/api/pets/${petId}/labs`, { method: "POST", body }))).id;
@@ -449,4 +451,27 @@ test("an image the browser can't decode is refused before anything is uploaded",
   expect(form.stored()).toEqual([]);
   expect(seen).toEqual([]);
   expect(form.container.querySelector('[aria-label^="Remove "]')).toBeNull();
+});
+
+test("a vet added from the form is selected without saving the report, then saved with it", async () => {
+  const form = await open(undefined, { lab: "IDEXX", value: "1.4" });
+  expect(form.field("Vet").value).toBe("");
+  form.type("Lab", "Antech");
+
+  rtl.fireEvent.click(page.getByRole("button", { name: "New vet" }));
+  form.type("Name", "Dr. Okafor");
+  form.type("Clinic or practice", "Northside Animal Hospital");
+  rtl.fireEvent.click(page.getByRole("button", { name: "Save" }));
+
+  // The new vet is chosen, and what was typed into the report is still there, unsaved.
+  const picker = page.getByLabelText<HTMLSelectElement>("Vet");
+  await rtl.waitFor(() =>
+    expect(picker.selectedOptions[0]?.textContent).toBe("Dr. Okafor · Northside Animal Hospital"),
+  );
+  expect(form.field("Lab").value).toBe("Antech");
+  expect(await form.labs()).toMatchObject([{ lab: "IDEXX", vetId: null }]);
+
+  rtl.fireEvent.click(page.getByRole("button", { name: "Save results" }));
+  await rtl.waitFor(async () => expect((await form.labs())[0]!.lab).toBe("Antech"));
+  expect((await form.labs())[0]!.vetId).toBe(Number(form.field("Vet").value));
 });

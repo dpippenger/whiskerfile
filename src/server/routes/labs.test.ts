@@ -18,6 +18,7 @@ const PET = {
   microchip: null,
   chipRegistryId: null,
   photoFileId: null,
+  vetId: null,
   notes: null,
   deceasedOn: null,
 };
@@ -44,6 +45,7 @@ const report = (results: object[], fields: object = {}) => ({
   accession: "A123",
   notes: "",
   entryId: null,
+  vetId: null,
   results,
   ...fields,
 });
@@ -119,7 +121,7 @@ test("a report naming an unknown test, file or another pet's visit is refused an
   const otherVisit = await json<{ id: number }>(
     call(`/api/pets/${otherPet}/entries`, {
       method: "POST",
-      body: { kind: "vet", date: "2026-11-01", clinic: "", vet: "", reason: "", notes: "", vitals: {} },
+      body: { kind: "vet", date: "2026-11-01", vetId: null, reason: "", notes: "", vitals: {} },
     }),
   );
   const crea = { analyteId: analyte("CREA"), valueText: "2.6", unit: "mg/dL", refLow: 0.6, refHigh: 2.4 };
@@ -132,7 +134,7 @@ test("a report naming an unknown test, file or another pet's visit is refused an
   const homeExam = await json<{ id: number }>(
     call(`/api/pets/${petId}/entries`, {
       method: "POST",
-      body: { kind: "home", date: "2026-11-01", clinic: "", vet: "", reason: "", notes: "", vitals: {} },
+      body: { kind: "home", date: "2026-11-01", vetId: null, reason: "", notes: "", vitals: {} },
     }),
   );
 
@@ -192,7 +194,7 @@ test("a report can't attach another pet's file, but keeps its own across an edit
 
 test("turning a report's visit into a home exam unlinks the report, which can still be edited", async () => {
   const { call, json, analyte, labs, petId } = await setup();
-  const entry = { date: "2026-11-06", clinic: "", vet: "", reason: "", notes: "", vitals: {} };
+  const entry = { date: "2026-11-06", vetId: null, reason: "", notes: "", vitals: {} };
   const visit = await json<{ id: number }>(
     call(`/api/pets/${petId}/entries`, { method: "POST", body: { ...entry, kind: "vet" } }),
   );
@@ -219,7 +221,7 @@ test("deleting a visit unlinks its report; deleting the report keeps the stored 
   const visit = await json<{ id: number }>(
     call(`/api/pets/${petId}/entries`, {
       method: "POST",
-      body: { kind: "vet", date: "2026-11-06", clinic: "", vet: "", reason: "", notes: "", vitals: {} },
+      body: { kind: "vet", date: "2026-11-06", vetId: null, reason: "", notes: "", vitals: {} },
     }),
   );
   const doc = await upload("chem", "chem.pdf");

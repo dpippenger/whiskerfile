@@ -3,7 +3,7 @@ import { z } from "zod";
 import { isIsoDate } from "../../shared/dates";
 import { WEIGHT_UNITS } from "../../shared/records";
 import type { Db } from "../db";
-import { chipRegistries, files, measurements, pets } from "../db/schema";
+import { chipRegistries, files, measurements, pets, vets } from "../db/schema";
 import { uploadPath } from "../files";
 import { error, idParam, type AppContext, type Authed } from "../http";
 import { trendChart, weightChart } from "../report/charts";
@@ -113,6 +113,7 @@ export function reportRoutes({ db, dataDir, renderPdf }: AppContext, authed: Aut
                 .all(),
               labs: petLabReports(db, pet.pet.id),
               health: petHealth(db, pet.pet.id),
+              vets: db.select().from(vets).all(),
             },
             query.data,
           );

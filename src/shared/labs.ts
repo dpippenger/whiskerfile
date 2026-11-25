@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isFutureDate, isIsoDate } from "./dates";
+import { vetIdInput } from "./vets";
 
 // A lab result is kept exactly as printed ("1.20", "<0.5", "Negative"), with
 // the number and comparator parsed from it for flags and trends. Reference
@@ -154,6 +155,8 @@ export const labReportInput = z
       .string()
       .refine(isIsoDate, "Use a valid date")
       .refine((s) => !isIsoDate(s) || !isFutureDate(s), "Can't be in the future"),
+    // The vet who ordered the test, if saved.
+    vetId: vetIdInput,
     source: z.enum(LAB_SOURCES),
     lab: optionalText(80),
     accession: optionalText(60),

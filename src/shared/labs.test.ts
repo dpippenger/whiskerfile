@@ -93,6 +93,7 @@ test("a report needs results, valid ranges and no analyte twice", () => {
     accession: "",
     notes: "",
     entryId: null,
+    vetId: null,
     results,
   });
   const result = (fields: object = {}) => ({

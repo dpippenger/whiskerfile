@@ -16,6 +16,7 @@ import type { HealthEditing } from "./health-tab";
 import { LabReportRow } from "./labs";
 import { medicationDates, timelineItems, type TimelineItem } from "../lib/timeline-items";
 import { Badge } from "./ui/badge";
+import { VetLink } from "./vets";
 import { Card } from "./ui/card";
 
 export type Editing =
@@ -39,7 +40,6 @@ function EditButton({ label, onClick }: { label: string; onClick: () => void }) 
 
 function EntryCard({ entry, units, onEdit }: { entry: EntryWithVitals; units: Units; onEdit: () => void }) {
   const Icon = entry.kind === "vet" ? Stethoscope : House;
-  const where = [entry.clinic, entry.vet].filter(Boolean).join(" · ");
   const vitals = VITALS.filter((kind) => entry.vitals[kind] != null);
   return (
     <Card className="space-y-3 p-4 md:p-5">
@@ -53,7 +53,9 @@ function EntryCard({ entry, units, onEdit }: { entry: EntryWithVitals; units: Un
             <span className="tabular-nums text-foreground-secondary">{formatDate(entry.date)}</span>
           </div>
           {entry.reason && <h3 className="mt-1 font-semibold">{entry.reason}</h3>}
-          {where && <p className="text-muted-foreground">{where}</p>}
+          <p className="text-muted-foreground empty:hidden">
+            <VetLink vetId={entry.vetId} />
+          </p>
         </div>
         <EditButton
           label={`Edit ${ENTRY_KIND_LABEL[entry.kind].toLowerCase()} of ${formatDate(entry.date)}`}
@@ -139,7 +141,7 @@ function HealthRow({
 }: {
   icon: typeof Syringe;
   title: ReactNode;
-  detail: string;
+  detail: ReactNode;
   author: string;
   label: string;
   onEdit: () => void;
@@ -195,7 +197,12 @@ function itemRow(
         <HealthRow
           icon={Syringe}
           title={<span className="font-medium">{v.vaccine}</span>}
-          detail={["Vaccinated " + formatDate(v.dateGiven), v.clinic].filter(Boolean).join(" · ")}
+          detail={
+            <>
+              Vaccinated {formatDate(v.dateGiven)}
+              <VetLink vetId={v.vetId} prefix=" · " />
+            </>
+          }
           author={v.author}
           label={`Edit ${v.vaccine} of ${formatDate(v.dateGiven)}`}
           onEdit={() => onEdit({ type: "vaccination", record: v })}

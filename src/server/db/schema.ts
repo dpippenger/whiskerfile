@@ -59,6 +59,20 @@ export const files = sqliteTable(
   (t) => [index("files_sha256").on(t.sha256)],
 );
 
+/** A vet and their practice, saved once and named by the records they were involved in. */
+export const vets = sqliteTable("vets", {
+  id: integer().primaryKey({ autoIncrement: true }),
+  name: text().notNull(),
+  clinic: text(),
+  phone: text(),
+  email: text(),
+  address: text(),
+  website: text(),
+  notes: text(),
+  createdAt: integer().notNull(),
+  updatedAt: integer().notNull(),
+});
+
 export const pets = sqliteTable("pets", {
   id: integer().primaryKey({ autoIncrement: true }),
   name: text().notNull(),
@@ -74,6 +88,8 @@ export const pets = sqliteTable("pets", {
   microchip: text(),
   chipRegistryId: integer().references(() => chipRegistries.id),
   photoFileId: integer().references(() => files.id),
+  // The pet's usual vet.
+  vetId: integer().references(() => vets.id, { onDelete: "set null" }),
   notes: text(),
   deceasedOn: text(),
   createdBy: integer()
@@ -83,7 +99,10 @@ export const pets = sqliteTable("pets", {
   updatedAt: integer().notNull(),
 });
 
-/** A vet visit or a home exam. Deleting the pet deletes these, and their vitals. */
+/**
+ * A vet visit or a home exam. Deleting the pet deletes these, and their vitals;
+ * deleting a vet only clears the link, here and on every other record.
+ */
 export const entries = sqliteTable(
   "entries",
   {
@@ -93,8 +112,7 @@ export const entries = sqliteTable(
       .references(() => pets.id, { onDelete: "cascade" }),
     kind: text({ enum: ENTRY_KINDS }).notNull(),
     date: text().notNull(),
-    clinic: text(),
-    vet: text(),
+    vetId: integer().references(() => vets.id, { onDelete: "set null" }),
     reason: text(),
     notes: text(),
     createdBy: integer()
@@ -150,6 +168,8 @@ export const labReports = sqliteTable(
       .references(() => pets.id, { onDelete: "cascade" }),
     entryId: integer().references(() => entries.id, { onDelete: "set null" }),
     date: text().notNull(),
+    // The vet who ordered the test; `lab` names the laboratory that ran it.
+    vetId: integer().references(() => vets.id, { onDelete: "set null" }),
     source: text({ enum: LAB_SOURCES }).notNull(),
     lab: text(),
     accession: text(),
@@ -233,7 +253,7 @@ export const vaccinations = sqliteTable(
     dateGiven: text().notNull(),
     dueDate: text(),
     lot: text(),
-    clinic: text(),
+    vetId: integer().references(() => vets.id, { onDelete: "set null" }),
     notes: text(),
     createdBy: integer()
       .notNull()
@@ -290,6 +310,7 @@ export const conditions = sqliteTable(
 export type User = typeof users.$inferSelect;
 export type ChipRegistry = typeof chipRegistries.$inferSelect;
 export type StoredFile = typeof files.$inferSelect;
+export type Vet = typeof vets.$inferSelect;
 export type Pet = typeof pets.$inferSelect;
 export type Entry = typeof entries.$inferSelect;
 export type Measurement = typeof measurements.$inferSelect;

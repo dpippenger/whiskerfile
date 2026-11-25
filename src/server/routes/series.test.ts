@@ -15,6 +15,7 @@ const PET = {
   microchip: null,
   chipRegistryId: null,
   photoFileId: null,
+  vetId: null,
   notes: null,
   deceasedOn: null,
 };
@@ -46,6 +47,7 @@ test("every pet's weights or results for one test come back in one shape", async
       accession: null,
       notes: null,
       entryId: null,
+      vetId: null,
       results: [
         { analyteId: analyte("CREA"), valueText: "2.6", unit: "mg/dL", refLow: 0.6, refHigh: 2.4 },
         { analyteId: analyte("FELV"), valueText: "Negative", unit: null, refLow: null, refHigh: null },

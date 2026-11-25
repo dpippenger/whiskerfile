@@ -237,7 +237,7 @@ function Report({ m, assets }: { m: ReportModel; assets: ReportAssets }) {
                 <th>Vaccine</th>
                 <th>Given</th>
                 <th>Next due</th>
-                <th>Clinic</th>
+                <th>Vet</th>
                 <th>Lot</th>
               </tr>
             </thead>
@@ -258,7 +258,7 @@ function Report({ m, assets }: { m: ReportModel; assets: ReportAssets }) {
                     {v.status === "overdue" && <span className="high"> · Overdue</span>}
                     {v.status === "due-soon" && <span className="low"> · Due soon</span>}
                   </td>
-                  <td>{v.clinic}</td>
+                  <td>{v.vet}</td>
                   <td className="mono">{v.lot}</td>
                 </tr>
               ))}

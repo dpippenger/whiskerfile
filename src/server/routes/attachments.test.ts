@@ -16,6 +16,7 @@ const PET = {
   microchip: null,
   chipRegistryId: null,
   photoFileId: null,
+  vetId: null,
   notes: null,
   deceasedOn: null,
 };
@@ -23,8 +24,7 @@ const PET = {
 const visit = (fields: object = {}) => ({
   kind: "vet",
   date: "2026-10-01",
-  clinic: "",
-  vet: "",
+  vetId: null,
   reason: "Bloodwork",
   notes: "",
   vitals: {},
@@ -189,6 +189,7 @@ test("a visit's or a report's files change only with the visit or the report", a
       accession: "",
       notes: "",
       entryId: null,
+      vetId: null,
       fileIds: [doc.id],
       results: [{ analyteId: catalog[0]!.id, valueText: "1.0", unit: "", refLow: null, refHigh: null }],
     },

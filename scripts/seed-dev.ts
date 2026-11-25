@@ -69,6 +69,19 @@ const registries = (await (await fetch(new URL("/api/chip-registries", base))).j
 }[];
 const registry = (name: string) => registries.find((r) => r.name === name)?.id ?? null;
 
+// One vet with contact details (the phone number is from the fictional 555-01xx range).
+const northside = (
+  await call<{ id: number }>("/vets", "POST", {
+    name: "Dr. Okafor",
+    clinic: "Northside Animal Hospital",
+    phone: "(555) 010-0142",
+    email: "frontdesk@northside.example",
+    address: "1200 Northside Avenue\nSpringfield",
+    website: "https://northside.example",
+    notes: "Open Monday to Saturday. Out of hours: (555) 010-0199.",
+  })
+).id;
+
 const blank = {
   breed: null,
   sex: "unknown",
@@ -80,6 +93,7 @@ const blank = {
   microchip: null,
   chipRegistryId: null,
   photoFileId: null,
+  vetId: null,
   notes: null,
   deceasedOn: null,
 };
@@ -97,6 +111,7 @@ const pets = [
     eyeColor: "Green",
     microchip: "985112345678903",
     chipRegistryId: registry("HomeAgain"),
+    vetId: northside,
     photoFileId: await photo("miso", [217, 119, 6], [30, 27, 75]),
     notes: "Hyperthyroid since 2023. Eats a renal diet.\nHates the carrier; spray Feliway 15 minutes before vet trips.",
   },
@@ -170,8 +185,7 @@ const visits = [
   {
     kind: "vet",
     date: daysAgo(200),
-    clinic: "Northside Animal Hospital",
-    vet: "Dr. Okafor",
+    vetId: northside,
     reason: "Senior wellness exam",
     notes: "Mild dental tartar. T4 at top of range; recheck in 6 months.\nBlood pressure 150 systolic.",
     vitals: { weight: 4120, temperature: 38.6, heart_rate: 196, respiratory_rate: 28, body_condition: 5 },
@@ -179,8 +193,7 @@ const visits = [
   {
     kind: "home",
     date: daysAgo(45),
-    clinic: "",
-    vet: "",
+    vetId: null,
     reason: "Weekly check",
     notes: "Eating well, drinking a little more than usual.",
     vitals: { weight: 4050, respiratory_rate: 24 },
@@ -188,8 +201,7 @@ const visits = [
   {
     kind: "vet",
     date: daysAgo(12),
-    clinic: "Northside Animal Hospital",
-    vet: "Dr. Okafor",
+    vetId: northside,
     reason: "Thyroid recheck",
     notes: "Weight down 70 g since spring. Started methimazole 2.5 mg twice daily.",
     vitals: { weight: 3980, temperature: 38.9, heart_rate: 210, body_condition: 4 },
@@ -295,6 +307,7 @@ for (const lab of labs) {
     accession: `S-${lab.visit.id}0042`,
     notes: null,
     entryId: lab.visit.id,
+    vetId: northside,
     fileIds: lab.fileIds,
     results: results(lab.rows),
   });
@@ -309,6 +322,7 @@ await call(`/pets/${misoId}/labs`, "POST", {
   accession: null,
   notes: null,
   entryId: null,
+  vetId: null,
   results: results([
     ["CREA", "1.6", "mg/dL", 0.8, 2.2],
     ["BUN", "27", "mg/dL", 14, 36],
@@ -328,6 +342,7 @@ for (const [days, crea, unit, low, high] of [
     accession: null,
     notes: null,
     entryId: null,
+    vetId: null,
     results: results([["CREA", crea, unit, low, high]]),
   });
 }
@@ -346,7 +361,7 @@ const health: [number, string, object][] = [
       dateGiven: daysAgo(1100),
       dueDate: daysAgo(400),
       lot: "RB-1102",
-      clinic: "Northside Animal Hospital",
+      vetId: northside,
       notes: null,
     },
   ],
@@ -358,7 +373,7 @@ const health: [number, string, object][] = [
       dateGiven: daysAgo(380),
       dueDate: daysAhead(715),
       lot: "RB-2290",
-      clinic: "Northside Animal Hospital",
+      vetId: northside,
       notes: null,
     },
   ],
@@ -370,14 +385,14 @@ const health: [number, string, object][] = [
       dateGiven: daysAgo(400),
       dueDate: daysAgo(35),
       lot: null,
-      clinic: "Northside Animal Hospital",
+      vetId: northside,
       notes: null,
     },
   ],
   [
     misoId,
     "vaccinations",
-    { vaccine: "FeLV", dateGiven: daysAgo(350), dueDate: daysAhead(14), lot: null, clinic: null, notes: null },
+    { vaccine: "FeLV", dateGiven: daysAgo(350), dueDate: daysAhead(14), lot: null, vetId: null, notes: null },
   ],
   [
     misoId,
@@ -435,7 +450,7 @@ const health: [number, string, object][] = [
   [
     idOf("Pepper"),
     "vaccinations",
-    { vaccine: "Rabies", dateGiven: "2019-06-01", dueDate: "2020-06-01", lot: null, clinic: null, notes: null },
+    { vaccine: "Rabies", dateGiven: "2019-06-01", dueDate: "2020-06-01", lot: null, vetId: null, notes: null },
   ],
   [
     idOf("Pepper"),

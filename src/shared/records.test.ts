@@ -45,7 +45,7 @@ test("vitals are shown in the reader's units", () => {
 test("implausible readings are refused", () => {
   const entry = (vitals: object) =>
     entryInput
-      .safeParse({ kind: "home", date: "2026-11-01", clinic: "", vet: "", reason: "", notes: "", vitals })
+      .safeParse({ kind: "home", date: "2026-11-01", vetId: null, reason: "", notes: "", vitals })
       .error?.issues.map((i) => i.path.join("."));
   expect(entry({ weight: 4649, temperature: 38.6 })).toBeUndefined();
   expect(entry({ temperature: 101.5 })).toEqual(["vitals.temperature"]);
@@ -58,7 +58,7 @@ test("implausible readings are refused", () => {
 });
 
 test("record dates can't be in the future", () => {
-  const entry = { kind: "vet", date: "2999-01-01", clinic: "", vet: "", reason: "", notes: "", vitals: {} };
+  const entry = { kind: "vet", date: "2999-01-01", vetId: null, reason: "", notes: "", vitals: {} };
   expect(entryInput.safeParse(entry).error?.issues.map((i) => [i.path.join("."), i.message])).toEqual([
     ["date", "Can't be in the future"],
   ]);

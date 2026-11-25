@@ -75,6 +75,8 @@ export const petInput = z
     microchip: optionalText(32),
     chipRegistryId: z.number().int().positive().nullable(),
     photoFileId: z.number().int().positive().nullable(),
+    // The pet's usual vet.
+    vetId: z.number().int().positive().nullable(),
     notes: optionalText(4000),
     deceasedOn: optionalDate,
   })

@@ -17,6 +17,7 @@ const PET = {
   microchip: null,
   chipRegistryId: null,
   photoFileId: null,
+  vetId: null,
   notes: null,
   deceasedOn: null,
 };
@@ -24,8 +25,7 @@ const PET = {
 const visit = (fields: object = {}) => ({
   kind: "vet",
   date: "2026-10-01",
-  clinic: "Northside Animal Hospital",
-  vet: "Dr. Okafor",
+  vetId: null,
   reason: "Senior wellness",
   notes: "Teeth look good.",
   vitals: { weight: 4649, temperature: 38.6, heart_rate: 180 },
@@ -48,7 +48,7 @@ test("a visit is saved with its vitals and its author", async () => {
   expect(list).toHaveLength(1);
   expect(list[0]).toMatchObject({
     kind: "vet",
-    clinic: "Northside Animal Hospital",
+    vetId: null,
     author: "a",
     vitals: { weight: 4649, temperature: 38.6, heart_rate: 180 },
   });

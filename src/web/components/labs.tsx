@@ -18,6 +18,7 @@ import { cn } from "../lib/utils";
 import { FileChip, fileRef } from "./attachments";
 import { Badge } from "./ui/badge";
 import { Card } from "./ui/card";
+import { VetLink } from "./vets";
 
 const flagOf = (r: LabResultRow) => flagResult(r);
 
@@ -147,6 +148,14 @@ export function LabReportView({
             <div className="flex gap-1.5">
               <dt>Accession</dt>
               <dd className="font-mono text-foreground">{report.accession}</dd>
+            </div>
+          )}
+          {report.vetId != null && (
+            <div className="flex gap-1.5">
+              <dt>Vet</dt>
+              <dd>
+                <VetLink vetId={report.vetId} />
+              </dd>
             </div>
           )}
           {visit && (

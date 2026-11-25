@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isFutureDate, isIsoDate } from "./dates";
+import { vetIdInput } from "./vets";
 
 // Measurements are stored in one canonical unit each and converted only for
 // display and input: weight in grams, temperature in °C.
@@ -124,8 +125,8 @@ export const ENTRY_KIND_LABEL = { vet: "Vet visit", home: "Home exam" } as const
 export const entryInput = z.object({
   kind: z.enum(ENTRY_KINDS),
   date,
-  clinic: optionalText(120),
-  vet: optionalText(120),
+  // The vet seen at a vet visit; a home exam is saved without one.
+  vetId: vetIdInput,
   reason: optionalText(200),
   notes: optionalText(8000),
   vitals: vitalsInput,

@@ -16,6 +16,7 @@ import { Link, useLocation } from "wouter";
 import type { Condition, Medication, Pet, Vaccination } from "../../server/db/schema";
 import { formatAge, formatDate, localToday } from "../../shared/dates";
 import { CHIP_LOOKUP_URL, reproductiveLabel, SEX_LABEL, SPECIES_LABEL } from "../../shared/pets";
+import { telHref } from "../../shared/vets";
 import { Page } from "../components/page";
 import { PetPhoto } from "../components/pet-photo";
 import { FileForm, FilesTab } from "../components/attachments";
@@ -31,7 +32,8 @@ import { Button } from "../components/ui/button";
 import { Dialog } from "../components/ui/dialog";
 import { WeightTab } from "../components/weight-tab";
 import { Card } from "../components/ui/card";
-import { useHealth, useLabs, usePet, useRecords, useRegistries, useWeights } from "../lib/queries";
+import { VetLink } from "../components/vets";
+import { useHealth, useLabs, usePet, useRecords, useRegistries, useVets, useWeights } from "../lib/queries";
 import { useUnits } from "../lib/units";
 import { cn } from "../lib/utils";
 
@@ -292,6 +294,7 @@ function Records({
 
 export function PetProfile({ id, tab = "timeline", reportId }: { id: number; tab?: ProfileTab; reportId?: number }) {
   const query = usePet(id);
+  const vets = useVets();
   const today = localToday();
 
   // A non-integer address ("/pets/abc") never loads, so it would render nothing.
@@ -304,6 +307,7 @@ export function PetProfile({ id, tab = "timeline", reportId }: { id: number; tab
   }
   const pet = query.data;
   if (!pet) return null;
+  const usualVet = vets.data?.find((v) => v.id === pet.vetId);
 
   const age = pet.dob ? formatAge(pet.dob, pet.deceasedOn ?? today, pet.dobEstimated) : null;
   const badges = (
@@ -352,6 +356,21 @@ export function PetProfile({ id, tab = "timeline", reportId }: { id: number; tab
             <Detail label="Microchip">
               <Microchip pet={pet} />
             </Detail>
+            {usualVet && (
+              <Detail label="Usual vet">
+                <span className="flex flex-col items-end gap-1">
+                  <VetLink vetId={usualVet.id} />
+                  {usualVet.phone && (
+                    <a
+                      href={telHref(usualVet.phone)}
+                      className="text-foreground-secondary tabular-nums hover:underline"
+                    >
+                      {usualVet.phone}
+                    </a>
+                  )}
+                </span>
+              </Detail>
+            )}
           </dl>
         </Card>
 
