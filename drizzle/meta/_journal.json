@@ -85,6 +85,13 @@
       "when": 1795630222563,
       "tag": "0011_drop_vet_text",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1795653629461,
+      "tag": "0012_appointments",
+      "breakpoints": true
     }
   ]
 }

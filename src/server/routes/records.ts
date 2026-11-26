@@ -3,6 +3,7 @@ import { alias } from "drizzle-orm/sqlite-core";
 import { attachmentInput, entryInput, measurementInput, VITALS, type Vital } from "../../shared/records";
 import type { Db } from "../db";
 import {
+  appointments,
   attachments,
   entries,
   files,
@@ -70,9 +71,21 @@ export function alreadyAttached(db: Pick<Db, "select">, fileId: number, record: 
 export const unknownFileError = (field: "fileId" | "fileIds") =>
   error(400, "Some fields are invalid", { [field]: "Unknown file" });
 
+/** A 400 response when a visit names an appointment that isn't this pet's, otherwise null. */
+function unknownAppointment(db: Db, petId: number, id: number | undefined): Response | null {
+  if (id === undefined) return null;
+  const found = db
+    .select({ id: appointments.id })
+    .from(appointments)
+    .where(and(eq(appointments.id, id), eq(appointments.petId, petId)))
+    .get();
+  return found ? null : error(400, "Some fields are invalid", { appointmentId: "Unknown appointment" });
+}
+
 /**
  * Saves a visit with its vitals and attached files in one transaction, so they
- * always share its date. Omitting `fileIds` leaves the attached files as they are.
+ * always share its date. Omitting `fileIds` leaves the attached files as they
+ * are. A visit booked as an appointment replaces it: the appointment is deleted.
  */
 function saveEntry(
   db: Db,
@@ -82,7 +95,7 @@ function saveEntry(
   existingId?: number,
 ): Entry | undefined {
   return db.transaction((tx) => {
-    const { vitals, fileIds, ...typed } = input;
+    const { vitals, fileIds, appointmentId, ...typed } = input;
     // Only a vet visit has a vet.
     const fields = { ...typed, vetId: typed.kind === "vet" ? typed.vetId : null };
     const now = Date.now();
@@ -99,6 +112,7 @@ function saveEntry(
           .returning()
           .get();
     if (!entry) return undefined;
+    if (appointmentId) tx.delete(appointments).where(eq(appointments.id, appointmentId)).run();
     // Only a vet visit can be a lab report's visit.
     if (existingId && entry.kind !== "vet") {
       tx.update(labReports).set({ entryId: null }).where(eq(labReports.entryId, entry.id)).run();
@@ -269,8 +283,8 @@ export function recordRoutes({ db }: AppContext, authed: Authed) {
         const parsed = await parseJson(req, entryInput);
         if ("response" in parsed) return parsed.response;
         if (unknownFiles(db, parsed.data.fileIds ?? []).length) return unknownFileError("fileIds");
-        const badVet = unknownVet(db, parsed.data.vetId);
-        if (badVet) return badVet;
+        const invalid = unknownVet(db, parsed.data.vetId) ?? unknownAppointment(db, petId, parsed.data.appointmentId);
+        if (invalid) return invalid;
         return Response.json(saveEntry(db, petId, user.id, parsed.data), { status: 201 });
       }),
     },
@@ -283,8 +297,9 @@ export function recordRoutes({ db }: AppContext, authed: Authed) {
         const parsed = await parseJson(req, entryInput);
         if ("response" in parsed) return parsed.response;
         if (unknownFiles(db, parsed.data.fileIds ?? []).length) return unknownFileError("fileIds");
-        const badVet = unknownVet(db, parsed.data.vetId);
-        if (badVet) return badVet;
+        const invalid =
+          unknownVet(db, parsed.data.vetId) ?? unknownAppointment(db, existing.petId, parsed.data.appointmentId);
+        if (invalid) return invalid;
         return Response.json(saveEntry(db, existing.petId, user.id, parsed.data, existing.id));
       }),
       DELETE: authed<"/api/entries/:id">((req) => {

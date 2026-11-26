@@ -4,6 +4,7 @@ import type { Authenticate } from "./auth";
 import { users } from "./db/schema";
 import { authedWith, error, parseJson, type AppContext } from "./http";
 import { backupRoutes } from "./routes/backups";
+import { calendarRoutes } from "./routes/calendar";
 import { fileRoutes } from "./routes/files";
 import { healthRoutes } from "./routes/health";
 import { labImportRoutes } from "./routes/lab-import";
@@ -38,6 +39,7 @@ export function apiRoutes(ctx: AppContext, authenticate: Authenticate) {
     ...healthRoutes(ctx, authed),
     ...registryRoutes(ctx, authed),
     ...vetRoutes(ctx, authed),
+    ...calendarRoutes(ctx, authed),
     ...reportRoutes(ctx, authed),
     "/api/*": authed(() => error(404, "Not found")),
   };
