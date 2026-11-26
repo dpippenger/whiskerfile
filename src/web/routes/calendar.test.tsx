@@ -83,6 +83,7 @@ const pet = (name: string, deceasedOn: string | null = null) => ({
   notes: null,
   deceasedOn,
 });
+const VET = { name: "", clinic: "", phone: "", email: "", address: "", website: "", notes: "" };
 const booked = (date: string, time: string, reason: string) => ({ date, time, vetId: null, reason, notes: "" });
 
 /**
@@ -118,7 +119,8 @@ async function open(today: string | null = TODAY, address = "/calendar", view: "
     notes: "",
   });
   const recheck = await post(`/api/pets/${miso}/appointments`, booked("2026-11-20", "", "Blood pressure recheck"));
-  await post(`/api/pets/${miso}/appointments`, booked("2026-12-08", "14:30", "Thyroid recheck"));
+  const vet = await post("/api/vets", { ...VET, name: "Dr. Okafor" });
+  await post(`/api/pets/${miso}/appointments`, { ...booked("2026-12-08", "14:30", "Thyroid recheck"), vetId: vet });
   await post(`/api/pets/${pepper}/appointments`, booked("2026-11-27", "", "Pepper's check-up"));
 
   // An address held in memory: the router's own listens to the window it was
@@ -145,7 +147,7 @@ async function open(today: string | null = TODAY, address = "/calendar", view: "
   const attention = () => page.queryByRole("region", { name: "Needs attention" });
   const inAgenda = () => rtl.within(page.getByRole("list", { name: "Agenda" }));
   const dialog = (name: string) => rtl.within(page.getByRole("dialog", { name }));
-  return { ...api, miso, zeus, recheck, visited, texts, agenda, attention, inAgenda, dialog };
+  return { ...api, miso, zeus, vet, recheck, visited, texts, agenda, attention, inAgenda, dialog };
 }
 
 test("the month lists living pets' events, and what is late is called out", async () => {
@@ -325,6 +327,9 @@ test("a visit for an appointment someone else already dealt with says so and sav
   expect(await visit.findByText(/This appointment has already been recorded or deleted\./)).toBeTruthy();
   expect(visit.queryByText("Check the highlighted fields.")).toBeNull();
   expect(screen.db.select().from(entries).all()).toEqual([]);
+  // Cancelling, as the message says to, brings the calendar up to date.
+  rtl.fireEvent.click(visit.getByRole("button", { name: "Cancel" }));
+  await rtl.waitFor(() => expect(screen.texts(screen.attention()!)).toHaveLength(1));
 });
 
 test("midnight moves today while the calendar stays open", async () => {
@@ -355,6 +360,9 @@ test("a pet's page lists its appointments, soonest first, and edits them in plac
   expect(booked()[0]).toMatch(/Blood pressure recheck.*Nov.*20.*Not recorded$/);
   expect(booked()[1]).toMatch(/Thyroid recheck.*Dec.*8.*(2:30|14:30)/);
   expect(booked()[1]).not.toContain("Not recorded");
+  // The vet is a link to their page, beside the row rather than inside its button.
+  const vet = rtl.within(page.getByRole("list", { name: "Appointments" })).getByRole("link", { name: "Dr. Okafor" });
+  expect(vet.getAttribute("href")).toBe(`/vets/${screen.vet}`);
 
   // Add record offers an appointment, for this pet without asking which.
   rtl.fireEvent.click(page.getByRole("button", { name: "Add record" }));
@@ -363,22 +371,61 @@ test("a pet's page lists its appointments, soonest first, and edits them in plac
   );
   const form = screen.dialog("Add appointment");
   expect(form.queryByLabelText("Pet")).toBeNull();
-  rtl.fireEvent.change(form.getByLabelText("Date"), { target: { value: "2026-11-30" } });
-  rtl.fireEvent.change(form.getByLabelText("Reason"), { target: { value: "Nail trim" } });
+  // Pre-filled with the clock's day; left without a reason.
+  expect((form.getByLabelText("Date") as HTMLInputElement).value).toBe("2026-11-26");
   rtl.fireEvent.click(form.getByRole("button", { name: "Save" }));
   await rtl.waitFor(() => expect(booked()).toHaveLength(3));
-  expect(booked()[1]).toContain("Nail trim");
+  expect(booked()[1]).toMatch(/^Appointment.*Nov.*26.*Today$/);
   expect(screen.db.select().from(appointments).all()).toContainEqual(
-    expect.objectContaining({ petId: screen.miso, date: "2026-11-30", reason: "Nail trim" }),
+    expect.objectContaining({ petId: screen.miso, date: "2026-11-26", reason: null }),
   );
+
+  // And deleted again from the list.
+  rtl.fireEvent.click(page.getByRole("button", { name: /^Appointment/ }));
+  rtl.fireEvent.click(screen.dialog("Edit appointment").getByRole("button", { name: "Delete" }));
+  rtl.fireEvent.click(screen.dialog("Edit appointment").getByRole("button", { name: "Confirm delete" }));
+  await rtl.waitFor(() => expect(booked()).toHaveLength(2));
+  expect(screen.db.select().from(appointments).all()).toHaveLength(3);
 
   // One whose day has come is recorded as a visit from here too, and leaves the list.
   rtl.fireEvent.click(page.getByRole("button", { name: /Blood pressure recheck/ }));
   rtl.fireEvent.click(screen.dialog("Edit appointment").getByRole("button", { name: "Record the visit" }));
   rtl.fireEvent.click(screen.dialog("Add vet visit").getByRole("button", { name: "Save" }));
-  await rtl.waitFor(() => expect(booked()).toHaveLength(2));
+  await rtl.waitFor(() => expect(booked()).toHaveLength(1));
   expect(booked().join()).not.toContain("Blood pressure recheck");
   expect(screen.db.select().from(entries).all()).toMatchObject([
     { petId: screen.miso, kind: "vet", date: "2026-11-20", reason: "Blood pressure recheck" },
   ]);
+});
+
+test("a pet's page says so when its appointments can't be read, and reads them on a retry", async () => {
+  const api = await startApi();
+  const petId = ((await (await api.call("/api/pets", { method: "POST", body: pet("Miso") })).json()) as { id: number })
+    .id;
+  await api.call(`/api/pets/${petId}/appointments`, {
+    method: "POST",
+    body: booked("2026-12-08", "", "Thyroid recheck"),
+  });
+  let failing = true;
+  globalThis.fetch = ((path: string, init?: RequestInit) =>
+    failing && path === "/api/calendar"
+      ? Promise.resolve(Response.json({ error: "The database is busy" }, { status: 500 }))
+      : api.call(path, { method: init?.method })) as unknown as typeof fetch;
+
+  const route = memoryLocation({ path: `/pets/${petId}` });
+  page = rtl.within(document.body);
+  rtl.render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <wouter.Router hook={route.hook} searchHook={route.searchHook}>
+        <PetProfile id={petId} />
+      </wouter.Router>
+    </QueryClientProvider>,
+  );
+  expect(await page.findByText("Appointments couldn't be loaded: The database is busy")).toBeTruthy();
+  expect(page.queryByRole("list", { name: "Appointments" })).toBeNull();
+
+  failing = false;
+  rtl.fireEvent.click(page.getByRole("button", { name: "Try again" }));
+  const list = await page.findByRole("list", { name: "Appointments" });
+  expect(list.textContent).toContain("Thyroid recheck");
 });

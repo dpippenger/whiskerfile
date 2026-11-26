@@ -12,6 +12,7 @@ import {
   Stethoscope,
   Syringe,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import type { Condition, Medication, Pet, Vaccination } from "../../server/db/schema";
@@ -37,6 +38,7 @@ import { WeightTab } from "../components/weight-tab";
 import { Card } from "../components/ui/card";
 import { VetLink } from "../components/vets";
 import { useHealth, useLabs, usePet, useRecords, useRegistries, useVets, useWeights } from "../lib/queries";
+import { useLocalToday } from "../lib/today";
 import { useUnits } from "../lib/units";
 import { cn } from "../lib/utils";
 
@@ -174,7 +176,13 @@ function Records({
   const units = useUnits();
   const [dialog, setDialog] = useState<DialogState>(null);
   const [, navigate] = useLocation();
-  const close = () => setDialog(null);
+  const queryClient = useQueryClient();
+  const today = useLocalToday();
+  // Appointments are refetched on every close, a cancel included: a refused save means the list is out of date.
+  const close = () => {
+    setDialog(null);
+    void queryClient.invalidateQueries({ queryKey: ["calendar"] });
+  };
 
   const edit = (editing: Editing) =>
     setDialog(
@@ -220,7 +228,7 @@ function Records({
         <PetAppointments
           petId={petId}
           deceasedOn={deceasedOn}
-          today={localToday()}
+          today={today}
           onOpen={(appointment) => setDialog({ mode: "appointment", appointment })}
         />
       )}
@@ -308,7 +316,7 @@ function Records({
           <AppointmentForm
             pets={[{ id: petId, name, chartColor: color, deceasedOn }]}
             appointment={dialog.appointment}
-            today={localToday()}
+            today={today}
             onDone={close}
             onRecordVisit={(appointment) => setDialog({ mode: "entry", kind: "vet", appointment })}
           />

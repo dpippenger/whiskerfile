@@ -102,7 +102,7 @@ Health records, visits, vets and pet profiles have their own specs and appear he
 2. THE form on the Calendar screen SHALL offer the living pets, pre-selected to the filtered pet if there is one, a date pre-filled with Local_Today, an optional time, a vet picker (vets spec, Requirement 6), a reason and notes. WHEN editing, THE pet SHALL be shown but not changeable. (manual)
 3. WHEN the user saves, THE form SHALL validate with the `appointmentInput` schema the server uses and mark each failing field, with "Check the highlighted fields." beside the actions; field errors the server returns SHALL be shown the same way. (manual)
 4. WHEN editing, THE form SHALL offer Delete with a second, confirming press. (manual)
-5. WHEN a save or delete succeeds, THE screen SHALL refetch Calendar_Data and close the dialog. (`src/web/routes/calendar.test.tsx`)
+5. WHEN a save or delete succeeds, THE dialog SHALL close. WHEN the dialog closes for any reason, a cancel included, THE screen SHALL refetch Calendar_Data, so that an Appointment another device has already recorded or deleted stops being listed. (`src/web/routes/calendar.test.tsx`)
 
 ### Requirement 7: Turning an appointment into a vet visit
 
@@ -123,12 +123,13 @@ Health records, visits, vets and pet profiles have their own specs and appear he
 
 #### Acceptance Criteria
 
-1. THE Timeline tab of a pet's page SHALL list the pet's Appointments under "Appointments", above the timeline, soonest first, each with its reason (or "Appointment"), date, time when it has one, and vet as a link to the vet's page; with none it SHALL show no such block. (`src/web/routes/calendar.test.tsx`)
+1. THE Timeline tab of a pet's page SHALL list the pet's Appointments under "Appointments", above the timeline, soonest first, each with its reason (or "Appointment"), date, time when it has one, and vet as a link to the vet's page; with none it SHALL show no such block (manual). IF the Appointments cannot be read, THEN it SHALL say so with the server's message and offer **Try again**. (`src/web/routes/calendar.test.tsx`)
 2. THE list SHALL mark an Appointment before Local_Today with a danger badge "Not recorded" and one on Local_Today with "Today", and SHALL show neither for a Deceased_Pet, whose Appointments stay listed so they can be deleted. (`src/web/routes/calendar.test.tsx` for the badges; a Deceased_Pet is manual)
 3. WHEN an Appointment in the list is pressed, THE pet's page SHALL open the Appointment form (Requirement 6) with **Record the visit** (Requirement 7). (`src/web/routes/calendar.test.tsx`)
 4. THE "Add record" chooser SHALL offer **Appointment**, opening the Appointment form for that pet. (`src/web/routes/calendar.test.tsx`)
 5. THE Appointment form SHALL show its pet field only when there is more than one pet to choose from, so not on a pet's page. (`src/web/routes/calendar.test.tsx`)
-6. WHEN an Appointment is saved, deleted or recorded as a visit, on either screen, THE list and the Calendar SHALL both show the change without a reload. (`src/web/routes/calendar.test.tsx`)
+6. WHEN an Appointment is saved, deleted or recorded as a visit from the pet's page, THE list SHALL show the change without a reload. (`src/web/routes/calendar.test.tsx`)
+7. THE list SHALL judge "Not recorded" and "Today" from Local_Today, read again each minute and whenever the tab is shown again, as the Calendar screen does. (manual)
 
 ## Diagrams
 
@@ -189,7 +190,7 @@ stateDiagram-v2
 - Appointments live in the `appointments` table (`src/server/db/schema.ts`): `pet_id` cascades on delete, `vet_id` is set null on delete. An Appointment turned into a visit is deleted; the visit is its record.
 - An Appointment's time is the clock time at the clinic, stored as typed with no time zone, and shown in the browser's locale format.
 - Every `/api/*` handler is wrapped in `authed()` and listed in the 401 checks in `src/server/app.test.ts`. Any signed-in user can read and change any Appointment.
-- The Calendar screen and a pet's Appointments list read the same Calendar_Data, refetched each time either is opened and after any Appointment or visit is saved or deleted.
+- The Calendar screen and a pet's Appointments list read the same Calendar_Data, refetched each time either is opened and each time one of their dialogs closes.
 - Every screen works at desktop and phone widths; layout follows the main content width (`@container` queries), not the viewport. The UI is dark only.
 
 ## Correctness Properties

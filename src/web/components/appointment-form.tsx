@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { CalendarClock, Stethoscope } from "lucide-react";
 import { useId, useState, type FormEvent } from "react";
 import { appointmentInput, type CalendarAppointment, type CalendarPet } from "../../shared/calendar";
@@ -33,13 +33,7 @@ export function AppointmentForm({
   onRecordVisit: (appointment: CalendarAppointment) => void;
 }) {
   const id = useId();
-  const queryClient = useQueryClient();
   const [errors, setErrors] = useState<Errors>({});
-  // Refreshes the calendar and the pet's page, which both list appointments, then closes.
-  const saved = () => {
-    void queryClient.invalidateQueries({ queryKey: ["calendar"] });
-    onDone();
-  };
   const [form, setForm] = useState({
     petId: String(appointment?.petId ?? defaultPetId ?? pets[0]?.id ?? ""),
     date: appointment?.date ?? today,
@@ -61,12 +55,12 @@ export function AppointmentForm({
       appointment
         ? api(`/appointments/${appointment.id}`, { method: "PUT", body: body() })
         : api(`/pets/${form.petId}/appointments`, { method: "POST", body: body() }),
-    onSuccess: saved,
+    onSuccess: onDone,
     onError: (err) => err instanceof ApiError && setErrors(err.fields),
   });
   const remove = useMutation({
     mutationFn: () => api(`/appointments/${appointment!.id}`, { method: "DELETE" }),
-    onSuccess: saved,
+    onSuccess: onDone,
   });
 
   /** The form as the schema reads it, or nothing (with each failing field marked) when it is invalid. */
@@ -152,7 +146,7 @@ export function AppointmentForm({
 
 /**
  * A pet's booked visits, soonest first, each opening its form; nothing when
- * there are none. One whose day has passed reads "Not recorded", except for a
+ * there are none, and an error with a retry when they can't be read. One whose day has passed reads "Not recorded", except for a
  * pet that has passed away, for which nothing is ever late.
  */
 export function PetAppointments({
@@ -166,9 +160,19 @@ export function PetAppointments({
   today: string;
   onOpen: (appointment: CalendarAppointment) => void;
 }) {
-  const booked = (useCalendar().data?.appointments ?? [])
+  const calendar = useCalendar();
+  const booked = (calendar.data?.appointments ?? [])
     .filter((a) => a.petId === petId)
     .sort((a, b) => a.date.localeCompare(b.date) || (a.time ?? "").localeCompare(b.time ?? ""));
+  // Not knowing is not the same as having none booked.
+  if (calendar.error) {
+    return (
+      <Card className="flex flex-wrap items-center justify-between gap-2 p-3 md:p-4">
+        <p className="text-danger">Appointments couldn't be loaded: {calendar.error.message}</p>
+        <Button onClick={() => void calendar.refetch()}>Try again</Button>
+      </Card>
+    );
+  }
   if (booked.length === 0) return null;
   return (
     <Card className="p-2 md:p-3">

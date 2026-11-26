@@ -1,8 +1,9 @@
 import { CalendarClock, ChevronLeft, ChevronRight, Pill, Plus, Syringe, TriangleAlert } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "wouter";
 import { calendarEvents, type CalendarAppointment, type CalendarEvent } from "../../shared/calendar";
-import { addMonths, formatDate, formatTime, isIsoMonth, localToday, monthOf, monthWeeks } from "../../shared/dates";
+import { addMonths, formatDate, formatTime, isIsoMonth, monthOf, monthWeeks } from "../../shared/dates";
 import { ENTRY_KIND_LABEL } from "../../shared/records";
 import { AppointmentForm } from "../components/appointment-form";
 import { Page } from "../components/page";
@@ -12,6 +13,7 @@ import { Button } from "../components/ui/button";
 import { Dialog } from "../components/ui/dialog";
 import { Select } from "../components/ui/field";
 import { useCalendar } from "../lib/queries";
+import { useLocalToday } from "../lib/today";
 import { useUnits } from "../lib/units";
 import { cn } from "../lib/utils";
 
@@ -25,24 +27,6 @@ function weekStart(): number {
   );
   // 1 (Monday) to 7 (Sunday).
   return ((locale.getWeekInfo?.() ?? locale.weekInfo)?.firstDay ?? 1) % 7;
-}
-
-/**
- * The browser's date, kept current while the page stays open: checked each
- * minute and whenever the tab is shown again, so midnight moves "today".
- */
-function useLocalToday(): string {
-  const [today, setToday] = useState(localToday);
-  useEffect(() => {
-    const check = () => setToday(localToday());
-    const timer = setInterval(check, 60_000);
-    document.addEventListener("visibilitychange", check);
-    return () => {
-      clearInterval(timer);
-      document.removeEventListener("visibilitychange", check);
-    };
-  }, []);
-  return today;
 }
 
 type Open = (appointment: CalendarAppointment) => void;
@@ -181,7 +165,12 @@ export function Calendar({ today: fixedToday }: { today?: string }) {
       },
       { replace },
     );
-  const close = () => setDialog(null);
+  const queryClient = useQueryClient();
+  // Refetched on every close, a cancel included: a refused save means the list is out of date.
+  const close = () => {
+    setDialog(null);
+    void queryClient.invalidateQueries({ queryKey: ["calendar"] });
+  };
   const open: Open = (appointment) => setDialog({ mode: "appointment", appointment });
 
   const weeks = monthWeeks(month, weekStart());
