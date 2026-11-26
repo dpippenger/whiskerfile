@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { Route, Switch } from "wouter";
 import { AppShell } from "./components/app-shell";
 import { Page } from "./components/page";
+import { Calendar } from "./routes/calendar";
 import { Compare } from "./routes/compare";
 import { Dashboard } from "./routes/dashboard";
 import { LabEntry } from "./routes/lab-form";
@@ -32,6 +33,9 @@ createRoot(document.getElementById("root")!).render(
         <Route path="/pets/:id/labs">{({ id }) => <PetProfile id={Number(id)} tab="labs" />}</Route>
         <Route path="/pets/:id/labs/:reportId">
           {({ id, reportId }) => <PetProfile id={Number(id)} tab="labs" reportId={Number(reportId)} />}
+        </Route>
+        <Route path="/calendar">
+          <Calendar />
         </Route>
         <Route path="/vets" component={Vets} />
         <Route path="/vets/:id">{({ id }) => <VetPage key={id} id={Number(id)} />}</Route>
