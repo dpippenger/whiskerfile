@@ -1,4 +1,5 @@
 import {
+  CalendarClock,
   ExternalLink,
   FileText,
   FlaskConical,
@@ -14,11 +15,13 @@ import {
 import { useState, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import type { Condition, Medication, Pet, Vaccination } from "../../server/db/schema";
+import type { CalendarAppointment } from "../../shared/calendar";
 import { formatAge, formatDate, localToday } from "../../shared/dates";
 import { CHIP_LOOKUP_URL, reproductiveLabel, SEX_LABEL, SPECIES_LABEL } from "../../shared/pets";
 import { telHref } from "../../shared/vets";
 import { Page } from "../components/page";
 import { PetPhoto } from "../components/pet-photo";
+import { AppointmentForm, PetAppointments } from "../components/appointment-form";
 import { FileForm, FilesTab } from "../components/attachments";
 import { ConditionForm, MedicationForm, VaccinationForm } from "../components/health-forms";
 import { HealthTab } from "../components/health-tab";
@@ -97,7 +100,14 @@ const TABS: { tab: ProfileTab; label: string; path: string }[] = [
 
 type DialogState =
   | { mode: "choose" }
-  | { mode: "entry"; kind: "vet" | "home"; entry?: Extract<Editing, { type: "entry" }>["entry"] }
+  | {
+      mode: "entry";
+      kind: "vet" | "home";
+      entry?: Extract<Editing, { type: "entry" }>["entry"];
+      /** The appointment a new visit is being recorded from. */
+      appointment?: CalendarAppointment;
+    }
+  | { mode: "appointment"; appointment?: CalendarAppointment }
   | { mode: "weight"; measurement?: Extract<Editing, { type: "weight" }>["measurement"] }
   | { mode: "file"; attachment?: Extract<Editing, { type: "file" }>["attachment"] }
   | { mode: "vaccination"; record?: Vaccination }
@@ -114,6 +124,7 @@ const CHOICES = [
     icon: Stethoscope,
   },
   { mode: "entry", kind: "home", label: "Home exam", hint: "Your own check at home", icon: House },
+  { mode: "appointment", kind: "vet", label: "Appointment", hint: "A visit that is booked", icon: CalendarClock },
   { mode: "weight", kind: "vet", label: "Weight", hint: "A quick weigh-in", icon: Scale },
   {
     mode: "labs",
@@ -130,6 +141,7 @@ const CHOICES = [
 
 function dialogTitle(state: Exclude<DialogState, null>): string {
   if (state.mode === "choose") return "Add record";
+  if (state.mode === "appointment") return state.appointment ? "Edit appointment" : "Add appointment";
   if (state.mode === "weight") return state.measurement ? "Edit weight" : "Add weight";
   if (state.mode === "file") return state.attachment ? "Edit file" : "Add file";
   if (state.mode === "vaccination") return state.record ? "Edit vaccination" : "Add vaccination";
@@ -142,12 +154,14 @@ function dialogTitle(state: Exclude<DialogState, null>): string {
 /** The record tabs and the add/edit dialog for one pet. */
 function Records({
   petId,
+  name,
   color,
   tab,
   reportId,
   deceasedOn,
 }: {
   petId: number;
+  name: string;
   color: string;
   tab: ProfileTab;
   reportId?: number;
@@ -201,6 +215,15 @@ function Records({
       </div>
 
       {error && <p className="text-danger">{error.message}</p>}
+      {/* What is booked sits above what has happened. */}
+      {tab === "timeline" && (
+        <PetAppointments
+          petId={petId}
+          deceasedOn={deceasedOn}
+          today={localToday()}
+          onOpen={(appointment) => setDialog({ mode: "appointment", appointment })}
+        />
+      )}
       {records.data && labs.data && health.data && tab === "timeline" && (
         <Timeline
           records={records.data}
@@ -274,10 +297,20 @@ function Records({
             petId={petId}
             units={units}
             entry={dialog.entry}
+            appointment={dialog.appointment}
             initialKind={dialog.kind}
             // Keeps the title in step when the form switches between vet visit and home exam.
             onKindChange={(kind) => setDialog((d) => (d?.mode === "entry" ? { ...d, kind } : d))}
             onDone={close}
+          />
+        )}
+        {dialog?.mode === "appointment" && (
+          <AppointmentForm
+            pets={[{ id: petId, name, chartColor: color, deceasedOn }]}
+            appointment={dialog.appointment}
+            today={localToday()}
+            onDone={close}
+            onRecordVisit={(appointment) => setDialog({ mode: "entry", kind: "vet", appointment })}
           />
         )}
         {dialog?.mode === "weight" && (
@@ -385,7 +418,14 @@ export function PetProfile({ id, tab = "timeline", reportId }: { id: number; tab
               <p className="whitespace-pre-wrap">{pet.notes}</p>
             </Card>
           )}
-          <Records petId={pet.id} color={pet.chartColor} tab={tab} reportId={reportId} deceasedOn={pet.deceasedOn} />
+          <Records
+            petId={pet.id}
+            name={pet.name}
+            color={pet.chartColor}
+            tab={tab}
+            reportId={reportId}
+            deceasedOn={pet.deceasedOn}
+          />
         </div>
       </div>
     </Page>

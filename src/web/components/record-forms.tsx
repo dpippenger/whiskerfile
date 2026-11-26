@@ -38,6 +38,8 @@ function useRecordsChanged(petId: number) {
   return () => {
     void queryClient.invalidateQueries({ queryKey: ["pets", petId] });
     void queryClient.invalidateQueries({ queryKey: ["pets"], exact: true });
+    // A visit recorded from an appointment removes it.
+    void queryClient.invalidateQueries({ queryKey: ["calendar"] });
   };
 }
 

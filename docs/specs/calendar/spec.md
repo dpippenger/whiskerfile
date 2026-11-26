@@ -99,7 +99,7 @@ Health records, visits, vets and pet profiles have their own specs and appear he
 #### Acceptance Criteria
 
 1. THE Calendar screen SHALL offer **Add appointment** when the household has a living pet, opening a dialog titled "Add appointment"; opening an Appointment SHALL use "Edit appointment". (`src/web/routes/calendar.test.tsx`)
-2. THE form SHALL offer the living pets, pre-selected to the filtered pet if there is one, a date pre-filled with Local_Today, an optional time, a vet picker (vets spec, Requirement 6), a reason and notes. WHEN editing, THE pet SHALL be shown but not changeable. (manual)
+2. THE form on the Calendar screen SHALL offer the living pets, pre-selected to the filtered pet if there is one, a date pre-filled with Local_Today, an optional time, a vet picker (vets spec, Requirement 6), a reason and notes. WHEN editing, THE pet SHALL be shown but not changeable. (manual)
 3. WHEN the user saves, THE form SHALL validate with the `appointmentInput` schema the server uses and mark each failing field, with "Check the highlighted fields." beside the actions; field errors the server returns SHALL be shown the same way. (manual)
 4. WHEN editing, THE form SHALL offer Delete with a second, confirming press. (manual)
 5. WHEN a save or delete succeeds, THE screen SHALL refetch Calendar_Data and close the dialog. (`src/web/routes/calendar.test.tsx`)
@@ -116,6 +116,19 @@ Health records, visits, vets and pet profiles have their own specs and appear he
 4. IF `appointmentId` names no Appointment, or one that belongs to another pet, THEN THE System SHALL respond 400 with `appointmentId: "Unknown appointment"` and write nothing. (`src/server/routes/calendar.test.ts`)
 5. IF the server refuses the visit's `appointmentId`, THEN THE visit form SHALL say "This appointment has already been recorded or deleted. Cancel and check the pet's timeline." in place of "Check the highlighted fields." (`src/web/routes/calendar.test.tsx`)
 6. WHEN the visit is saved, THE Calendar screen SHALL no longer show the Appointment, and the visit SHALL appear on the pet's timeline. (`src/web/routes/calendar.test.tsx` for the Calendar; the timeline is manual)
+
+### Requirement 8: Appointments on the pet's page
+
+**User Story:** As a household member looking at one pet, I want its booked visits in front of me and to book another without leaving, so that the pet's page says what is next as well as what has happened.
+
+#### Acceptance Criteria
+
+1. THE Timeline tab of a pet's page SHALL list the pet's Appointments under "Appointments", above the timeline, soonest first, each with its reason (or "Appointment"), date, time when it has one, and vet as a link to the vet's page; with none it SHALL show no such block. (`src/web/routes/calendar.test.tsx`)
+2. THE list SHALL mark an Appointment before Local_Today with a danger badge "Not recorded" and one on Local_Today with "Today", and SHALL show neither for a Deceased_Pet, whose Appointments stay listed so they can be deleted. (`src/web/routes/calendar.test.tsx` for the badges; a Deceased_Pet is manual)
+3. WHEN an Appointment in the list is pressed, THE pet's page SHALL open the Appointment form (Requirement 6) with **Record the visit** (Requirement 7). (`src/web/routes/calendar.test.tsx`)
+4. THE "Add record" chooser SHALL offer **Appointment**, opening the Appointment form for that pet. (`src/web/routes/calendar.test.tsx`)
+5. THE Appointment form SHALL show its pet field only when there is more than one pet to choose from, so not on a pet's page. (`src/web/routes/calendar.test.tsx`)
+6. WHEN an Appointment is saved, deleted or recorded as a visit, on either screen, THE list and the Calendar SHALL both show the change without a reload. (`src/web/routes/calendar.test.tsx`)
 
 ## Diagrams
 
@@ -176,7 +189,7 @@ stateDiagram-v2
 - Appointments live in the `appointments` table (`src/server/db/schema.ts`): `pet_id` cascades on delete, `vet_id` is set null on delete. An Appointment turned into a visit is deleted; the visit is its record.
 - An Appointment's time is the clock time at the clinic, stored as typed with no time zone, and shown in the browser's locale format.
 - Every `/api/*` handler is wrapped in `authed()` and listed in the 401 checks in `src/server/app.test.ts`. Any signed-in user can read and change any Appointment.
-- The Calendar screen refetches Calendar_Data each time it is opened, so changes made on a pet's page show without a reload.
+- The Calendar screen and a pet's Appointments list read the same Calendar_Data, refetched each time either is opened and after any Appointment or visit is saved or deleted.
 - Every screen works at desktop and phone widths; layout follows the main content width (`@container` queries), not the viewport. The UI is dark only.
 
 ## Correctness Properties
@@ -218,6 +231,6 @@ stateDiagram-v2
 - The next dose of a recurring medication, a prescription's estimated run-out date, and progress through a short course. Each is added as a Calendar_Event kind by the feature that adds its records.
 - Events for the start of a medication, conditions, lab reports, birthdays, or past visits and weigh-ins; the pet's timeline is the history.
 - Repeating appointments, appointments for several pets at once, an appointment's duration, and moving an Appointment to another pet.
-- Appointments on the pet's page, the dashboard, the vet's page and the PDF health report.
+- Appointments on the dashboard, the vet's page and the PDF health report, and other Calendar events on the pet's page (its Health tab already shows them).
 - Week and day views, and dragging an event to another day.
 - Per-pet or per-user permissions and edit history.

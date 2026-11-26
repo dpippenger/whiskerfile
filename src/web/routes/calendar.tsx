@@ -1,4 +1,3 @@
-import { useQueryClient } from "@tanstack/react-query";
 import { CalendarClock, ChevronLeft, ChevronRight, Pill, Plus, Syringe, TriangleAlert } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "wouter";
@@ -153,7 +152,6 @@ export function Calendar({ today: fixedToday }: { today?: string }) {
   const today = fixedToday ?? localDay;
   const calendar = useCalendar();
   const units = useUnits();
-  const queryClient = useQueryClient();
   const [params, setParams] = useSearchParams();
   const [dialog, setDialog] = useState<DialogState>(null);
 
@@ -183,10 +181,7 @@ export function Calendar({ today: fixedToday }: { today?: string }) {
       },
       { replace },
     );
-  const close = () => {
-    setDialog(null);
-    void queryClient.invalidateQueries({ queryKey: ["calendar"] });
-  };
+  const close = () => setDialog(null);
   const open: Open = (appointment) => setDialog({ mode: "appointment", appointment });
 
   const weeks = monthWeeks(month, weekStart());

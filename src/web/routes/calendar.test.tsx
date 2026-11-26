@@ -13,6 +13,7 @@ import { startApi } from "../../server/test-support";
 
 let rtl: typeof import("@testing-library/react/pure");
 let Calendar: typeof import("./calendar").Calendar;
+let PetProfile: typeof import("./pet-profile").PetProfile;
 let wouter: typeof import("wouter");
 let memoryLocation: typeof import("wouter/memory-location").memoryLocation;
 let page: ReturnType<typeof within<typeof queries>>;
@@ -47,6 +48,7 @@ beforeAll(async () => {
   rtl = await import("@testing-library/react/pure");
   globals.IS_REACT_ACT_ENVIRONMENT = true;
   ({ Calendar } = await import("./calendar"));
+  ({ PetProfile } = await import("./pet-profile"));
   wouter = await import("wouter");
   ({ memoryLocation } = await import("wouter/memory-location"));
 });
@@ -84,11 +86,12 @@ const pet = (name: string, deceasedOn: string | null = null) => ({
 const booked = (date: string, time: string, reason: string) => ({ date, time, vetId: null, reason, notes: "" });
 
 /**
- * The screen on `today` (null: whatever the clock says), at `address`, for a household with Miso (a vaccine
+ * The Calendar on `today` (null: whatever the clock says) at `address`, or
+ * Miso's page (`view` "pet", always on the clock's day), for a household with Miso (a vaccine
  * overdue since October, a visit on Nov 20 and one on Dec 8), Zeus (a course
  * ending Nov 30) and Pepper, who has passed away but still has rows.
  */
-async function open(today: string | null = TODAY, address = "/calendar") {
+async function open(today: string | null = TODAY, address = "/calendar", view: "calendar" | "pet" = "calendar") {
   const api = await startApi();
   const { call } = api;
   const post = async (path: string, body: object) =>
@@ -125,14 +128,15 @@ async function open(today: string | null = TODAY, address = "/calendar") {
   rtl.render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <wouter.Router hook={route.hook} searchHook={route.searchHook}>
-        <Calendar today={today ?? undefined} />
+        {view === "calendar" ? <Calendar today={today ?? undefined} /> : <PetProfile id={miso} />}
       </wouter.Router>
     </QueryClientProvider>,
   );
   /** Every address visited, oldest first. */
   const visited = route.history!;
-  // The pet filter fills in once the calendar has loaded.
-  await page.findByRole("option", { name: "Miso" });
+  // The pet filter fills in once the calendar has loaded; a pet's page lists its appointments.
+  if (view === "calendar") await page.findByRole("option", { name: "Miso" });
+  else await page.findByRole("list", { name: "Appointments" });
 
   const texts = (list: HTMLElement) => rtl.within(list).queryAllByRole("listitem");
   /** The agenda as text: each day's heading followed by its events. */
@@ -336,4 +340,45 @@ test("midnight moves today while the calendar stays open", async () => {
   rtl.act(() => void document.dispatchEvent(new Event("visibilitychange")));
   expect(screen.agenda()[0]).toMatch(/Thyroid recheck.*Not recorded$/);
   expect(screen.texts(screen.attention()!)).toHaveLength(3);
+});
+
+test("a pet's page lists its appointments, soonest first, and edits them in place", async () => {
+  // The pet's page reads the clock: the day between Miso's two appointments.
+  setSystemTime(new Date(2026, 10, 26, 12));
+  const screen = await open(null, "/pets/1", "pet");
+  const booked = () =>
+    rtl
+      .within(page.getByRole("list", { name: "Appointments" }))
+      .getAllByRole("listitem")
+      .map((item) => item.textContent!.replace(/\s+/g, " "));
+  expect(booked()).toHaveLength(2);
+  expect(booked()[0]).toMatch(/Blood pressure recheck.*Nov.*20.*Not recorded$/);
+  expect(booked()[1]).toMatch(/Thyroid recheck.*Dec.*8.*(2:30|14:30)/);
+  expect(booked()[1]).not.toContain("Not recorded");
+
+  // Add record offers an appointment, for this pet without asking which.
+  rtl.fireEvent.click(page.getByRole("button", { name: "Add record" }));
+  rtl.fireEvent.click(
+    rtl.within(page.getByRole("dialog", { name: "Add record" })).getByRole("button", { name: /Appointment/ }),
+  );
+  const form = screen.dialog("Add appointment");
+  expect(form.queryByLabelText("Pet")).toBeNull();
+  rtl.fireEvent.change(form.getByLabelText("Date"), { target: { value: "2026-11-30" } });
+  rtl.fireEvent.change(form.getByLabelText("Reason"), { target: { value: "Nail trim" } });
+  rtl.fireEvent.click(form.getByRole("button", { name: "Save" }));
+  await rtl.waitFor(() => expect(booked()).toHaveLength(3));
+  expect(booked()[1]).toContain("Nail trim");
+  expect(screen.db.select().from(appointments).all()).toContainEqual(
+    expect.objectContaining({ petId: screen.miso, date: "2026-11-30", reason: "Nail trim" }),
+  );
+
+  // One whose day has come is recorded as a visit from here too, and leaves the list.
+  rtl.fireEvent.click(page.getByRole("button", { name: /Blood pressure recheck/ }));
+  rtl.fireEvent.click(screen.dialog("Edit appointment").getByRole("button", { name: "Record the visit" }));
+  rtl.fireEvent.click(screen.dialog("Add vet visit").getByRole("button", { name: "Save" }));
+  await rtl.waitFor(() => expect(booked()).toHaveLength(2));
+  expect(booked().join()).not.toContain("Blood pressure recheck");
+  expect(screen.db.select().from(entries).all()).toMatchObject([
+    { petId: screen.miso, kind: "vet", date: "2026-11-20", reason: "Blood pressure recheck" },
+  ]);
 });
