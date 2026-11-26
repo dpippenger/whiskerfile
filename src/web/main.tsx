@@ -9,6 +9,7 @@ import { LabEntry } from "./routes/lab-form";
 import { EditPet, NewPet } from "./routes/pet-form";
 import { PetProfile } from "./routes/pet-profile";
 import { Settings } from "./routes/settings";
+import { VetPage, Vets } from "./routes/vets";
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1 } } });
 
@@ -32,6 +33,8 @@ createRoot(document.getElementById("root")!).render(
         <Route path="/pets/:id/labs/:reportId">
           {({ id, reportId }) => <PetProfile id={Number(id)} tab="labs" reportId={Number(reportId)} />}
         </Route>
+        <Route path="/vets" component={Vets} />
+        <Route path="/vets/:id">{({ id }) => <VetPage key={id} id={Number(id)} />}</Route>
         <Route path="/compare" component={Compare} />
         <Route path="/settings" component={Settings} />
         <Route>

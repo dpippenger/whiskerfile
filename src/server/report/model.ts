@@ -3,7 +3,8 @@ import { medicationState, vaccineStatus, type DueStatus, type MedicationState } 
 import { flagResult, type Flag } from "../../shared/labs";
 import { fromGrams, type WeightUnit } from "../../shared/records";
 import { labSeries, type LabSeries } from "../../shared/series";
-import type { Pet } from "../db/schema";
+import { vetLabel } from "../../shared/vets";
+import type { Pet, Vet } from "../db/schema";
 import type { PetHealth } from "../routes/health";
 import type { LabReportWithResults, LabResultRow } from "../routes/labs";
 
@@ -24,6 +25,8 @@ export type ReportInput = {
   /** Newest first, as the API returns them. */
   labs: LabReportWithResults[];
   health: PetHealth;
+  /** Every saved vet, to name the one a dose links to. */
+  vets: Vet[];
 };
 
 export type Trend = { code: string; name: string; series: LabSeries };
@@ -33,11 +36,16 @@ export type Trend = { code: string; name: string; series: LabSeries };
  * the chosen period, statuses as of the reader's date, weights in the reader's
  * unit and a trend for every test with at least two results to draw.
  */
-export function reportModel({ pet, weights, labs, health }: ReportInput, opts: ReportOptions) {
+export function reportModel({ pet, weights, labs, health, vets }: ReportInput, opts: ReportOptions) {
   const { today, from, to } = opts;
   const inPeriod = (date: string) => (!from || date >= from) && (!to || date <= to);
   // A course or condition belongs to the period when any part of it falls inside.
   const overlaps = (start: string, end: string | null) => (!to || start <= to) && (!from || end == null || end >= from);
+
+  const vetOf = (vetId: number | null) => {
+    const vet = vets.find((v) => v.id === vetId);
+    return vet ? vetLabel(vet) : null;
+  };
 
   const reports = labs.filter((r) => inPeriod(r.date));
   const due = new Map(
@@ -62,7 +70,12 @@ export function reportModel({ pet, weights, labs, health }: ReportInput, opts: R
     })),
     vaccinations: health.vaccinations
       .filter((v) => inPeriod(v.dateGiven))
-      .map((v) => ({ ...v, status: (due.get(v.id) ?? null) as DueStatus | null, latest: due.has(v.id) })),
+      .map((v) => ({
+        ...v,
+        vet: vetOf(v.vetId),
+        status: (due.get(v.id) ?? null) as DueStatus | null,
+        latest: due.has(v.id),
+      })),
     medications: health.medications
       .filter((m) => overlaps(m.startDate, m.endDate))
       .map((m) => ({ ...m, state: medicationState(m, today, pet.deceasedOn) as MedicationState })),

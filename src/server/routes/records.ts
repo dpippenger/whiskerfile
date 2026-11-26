@@ -16,6 +16,7 @@ import {
   type StoredFile,
 } from "../db/schema";
 import { error, idParam, parseJson, type AppContext, type Authed } from "../http";
+import { unknownVet } from "./vets";
 import type { z } from "zod";
 
 export type AttachmentWithFile = Attachment & {
@@ -81,7 +82,9 @@ function saveEntry(
   existingId?: number,
 ): Entry | undefined {
   return db.transaction((tx) => {
-    const { vitals, fileIds, ...fields } = input;
+    const { vitals, fileIds, ...typed } = input;
+    // Only a vet visit has a vet.
+    const fields = { ...typed, vetId: typed.kind === "vet" ? typed.vetId : null };
     const now = Date.now();
     const entry = existingId
       ? tx
@@ -266,6 +269,8 @@ export function recordRoutes({ db }: AppContext, authed: Authed) {
         const parsed = await parseJson(req, entryInput);
         if ("response" in parsed) return parsed.response;
         if (unknownFiles(db, parsed.data.fileIds ?? []).length) return unknownFileError("fileIds");
+        const badVet = unknownVet(db, parsed.data.vetId);
+        if (badVet) return badVet;
         return Response.json(saveEntry(db, petId, user.id, parsed.data), { status: 201 });
       }),
     },
@@ -278,6 +283,8 @@ export function recordRoutes({ db }: AppContext, authed: Authed) {
         const parsed = await parseJson(req, entryInput);
         if ("response" in parsed) return parsed.response;
         if (unknownFiles(db, parsed.data.fileIds ?? []).length) return unknownFileError("fileIds");
+        const badVet = unknownVet(db, parsed.data.vetId);
+        if (badVet) return badVet;
         return Response.json(saveEntry(db, existing.petId, user.id, parsed.data, existing.id));
       }),
       DELETE: authed<"/api/entries/:id">((req) => {

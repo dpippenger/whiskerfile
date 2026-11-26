@@ -17,6 +17,7 @@ const pet = (fields: Record<string, unknown> = {}) => ({
   microchip: "985112345678903",
   chipRegistryId: null,
   photoFileId: null,
+  vetId: null,
   notes: "",
   deceasedOn: null,
   ...fields,

@@ -16,6 +16,7 @@ import {
   type LabResult,
 } from "../db/schema";
 import { error, idParam, parseJson, type AppContext, type Authed } from "../http";
+import { unknownVet } from "./vets";
 import { alreadyAttached, unknownFileError, unknownFiles, type AttachmentWithFile } from "./records";
 
 export type LabResultRow = LabResult & Pick<Analyte, "code" | "name" | "category" | "sortOrder">;
@@ -41,6 +42,8 @@ function checkReferences(db: Db, petId: number, input: Input): Response | null {
     // Only a vet visit of this pet; the form offers nothing else.
     if (entry?.petId !== petId || entry.kind !== "vet") return invalid({ entryId: "Not a visit of this pet" });
   }
+  const badVet = unknownVet(db, input.vetId);
+  if (badVet) return badVet;
   const ids = input.results.map((r) => r.analyteId);
   const known = new Set(
     db

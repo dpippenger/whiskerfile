@@ -17,6 +17,7 @@ const PET = {
   microchip: null,
   chipRegistryId: null,
   photoFileId: null,
+  vetId: null,
   notes: null,
   deceasedOn: null,
 };
@@ -26,7 +27,7 @@ const vaccine = (fields: object = {}) => ({
   dateGiven: "2025-12-01",
   dueDate: "2028-12-01",
   lot: "R123",
-  clinic: "Northside",
+  vetId: null,
   notes: "",
   ...fields,
 });

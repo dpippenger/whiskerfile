@@ -108,7 +108,7 @@ test("dates already lived through can't be in the future; planned dates can", ()
     dateGiven: future,
     dueDate: "",
     lot: "",
-    clinic: "",
+    vetId: null,
     notes: "",
   });
   expect(vac.error?.issues.map((i) => [i.path.join("."), i.message])).toEqual([
@@ -134,7 +134,7 @@ test("dates already lived through can't be in the future; planned dates can", ()
       dateGiven: "2026-01-01",
       dueDate: future,
       lot: "",
-      clinic: "",
+      vetId: null,
       notes: "",
     }).success,
   ).toBe(true);
@@ -151,7 +151,7 @@ test("inputs reject end dates before their start", () => {
       dateGiven: "2026-01-01",
       dueDate: "2025-01-01",
       lot: "",
-      clinic: "",
+      vetId: null,
       notes: "",
     }),
   ).toEqual(["dueDate"]);
@@ -179,7 +179,7 @@ test("inputs reject end dates before their start", () => {
     }),
   ).toEqual(["resolvedOn"]);
   expect(
-    paths(vaccinationInput, { vaccine: " ", dateGiven: "2026-01-01", dueDate: "", lot: "", clinic: "", notes: "" }),
+    paths(vaccinationInput, { vaccine: " ", dateGiven: "2026-01-01", dueDate: "", lot: "", vetId: null, notes: "" }),
   ).toEqual(["vaccine"]);
   expect(
     paths(medicationInput, {

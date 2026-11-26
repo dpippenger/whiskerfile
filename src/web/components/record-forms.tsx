@@ -18,10 +18,10 @@ import {
 } from "../../shared/records";
 import { api, ApiError } from "../lib/api";
 import { FileChip, FilePicker, fileRef, storedRef, uploadOriginal, type FileRef } from "./attachments";
-import { useRecords } from "../lib/queries";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { Field, Input, Select, Textarea } from "./ui/field";
+import { VetPicker } from "./vets";
 
 export type Errors = Record<string, string>;
 
@@ -110,7 +110,6 @@ export function EntryForm({
   onDone: () => void;
 }) {
   const id = useId();
-  const records = useRecords(petId);
   const changed = useRecordsChanged(petId);
   const [errors, setErrors] = useState<Errors>({});
   // Typed numbers are read in the units the form opened with, even if the preference changes meanwhile.
@@ -133,8 +132,7 @@ export function EntryForm({
   const [form, setForm] = useState({
     kind: entry?.kind ?? initialKind,
     date: entry?.date ?? localToday(),
-    clinic: entry?.clinic ?? "",
-    vet: entry?.vet ?? "",
+    vetId: entry?.vetId ? String(entry.vetId) : "",
     reason: entry?.reason ?? "",
     notes: entry?.notes ?? "",
     weight: shown.weight,
@@ -166,12 +164,10 @@ export function EntryForm({
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (upload.isPending) return;
-    const vet = form.kind === "vet";
     const body = {
       kind: form.kind,
       date: form.date,
-      clinic: vet ? form.clinic : "",
-      vet: vet ? form.vet : "",
+      vetId: form.kind === "vet" && form.vetId ? Number(form.vetId) : null,
       reason: form.reason,
       notes: form.notes,
       vitals: {
@@ -202,10 +198,6 @@ export function EntryForm({
   });
   const vital = (name: Vital) => ({ ...field(name, `vitals.${name}`), inputMode: "decimal" as const });
 
-  // Earlier clinics and vets, offered as suggestions.
-  const suggestions = (key: "clinic" | "vet") => [
-    ...new Set((records.data?.entries ?? []).map((e) => e[key]).filter((x): x is string => !!x)),
-  ];
   const labels = unitLabel(units);
 
   return (
@@ -234,9 +226,9 @@ export function EntryForm({
           </button>
         ))}
       </div>
-      {/* A home exam has no clinic or vet; warn before they are silently cleared on save. */}
-      {form.kind === "home" && !!(form.clinic.trim() || form.vet.trim()) && (
-        <p className="text-sm text-warning">Saving as a home exam removes the clinic and vet.</p>
+      {/* A home exam has no vet; warn before it is silently cleared on save. */}
+      {form.kind === "home" && !!form.vetId && (
+        <p className="text-sm text-warning">Saving as a home exam removes the vet.</p>
       )}
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -247,24 +239,14 @@ export function EntryForm({
           <Input {...field("reason")} placeholder={form.kind === "vet" ? "Annual check-up" : "Weekly check"} />
         </Field>
         {form.kind === "vet" && (
-          <>
-            <Field label="Clinic" htmlFor={`${id}-clinic`} error={errors.clinic}>
-              <Input {...field("clinic")} list={`${id}-clinics`} autoComplete="off" />
-            </Field>
-            <Field label="Vet" htmlFor={`${id}-vet`} error={errors.vet}>
-              <Input {...field("vet")} list={`${id}-vets`} autoComplete="off" />
-            </Field>
-            <datalist id={`${id}-clinics`}>
-              {suggestions("clinic").map((c) => (
-                <option key={c} value={c} />
-              ))}
-            </datalist>
-            <datalist id={`${id}-vets`}>
-              {suggestions("vet").map((c) => (
-                <option key={c} value={c} />
-              ))}
-            </datalist>
-          </>
+          <Field label="Vet" htmlFor={`${id}-vetId`} error={errors.vetId} className="sm:col-span-2">
+            <VetPicker
+              id={`${id}-vetId`}
+              value={form.vetId}
+              invalid={!!errors.vetId}
+              onChange={(vetId) => setForm((f) => ({ ...f, vetId }))}
+            />
+          </Field>
         )}
       </div>
 

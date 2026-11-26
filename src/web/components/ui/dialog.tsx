@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 
 /**
  * A modal built on the native <dialog>: focus trapping, Escape and the
@@ -21,6 +21,8 @@ export function Dialog({
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  // Its own id: a dialog can be open over another.
+  const titleId = useId();
 
   useEffect(() => {
     const dialog = ref.current;
@@ -34,15 +36,17 @@ export function Dialog({
     // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions
     <dialog
       ref={ref}
-      onClose={onClose}
+      // React hands a dialog's close event to its React ancestors too: a dialog
+      // opened from inside this one (the vet picker's) must not close this one.
+      onClose={(e) => e.target === ref.current && onClose()}
       onClick={(e) => dismissible && e.target === ref.current && onClose()}
-      aria-labelledby="dialog-title"
+      aria-labelledby={titleId}
       className="m-auto h-fit max-h-[85dvh] w-full max-w-lg rounded-xl border border-border-strong bg-elevated p-0 text-foreground backdrop:bg-black/70 max-md:m-0 max-md:h-dvh max-md:max-h-none max-md:max-w-none max-md:rounded-none max-md:border-0"
     >
       {open && (
         <div className="flex max-h-[inherit] flex-col max-md:h-full">
           <header className="flex items-center justify-between gap-2 border-b border-border px-4 py-2 md:px-6">
-            <h2 id="dialog-title" className="text-base font-semibold">
+            <h2 id={titleId} className="text-base font-semibold">
               {title}
             </h2>
             <button

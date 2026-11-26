@@ -14,6 +14,7 @@ This spec covers the test catalog, lab reports and their results, the reading ru
 - **Catalog**: the household's list of analytes, seeded with common tests and editable in Settings.
 - **Category**: one of `chemistry`, `electrolytes`, `cbc`, `endocrine`, `urinalysis`, `other` (`ANALYTE_CATEGORIES`).
 - **Lab_Report**: one set of results from one sample, with date, source, lab, accession, notes, optional visit and documents. Row in `lab_reports`.
+- **Vet**: the saved vet who ordered the test, if any (`vetId`, see `docs/specs/vets/spec.md`); the `lab` text names the laboratory that ran it.
 - **Source**: who ran the test: `reference_lab` ("Reference lab"), `in_house` ("In-clinic analyzer") or `other`.
 - **Lab_Result**: one analyte's result on a report. Row in `lab_results`.
 - **Value_Text**: the result exactly as printed (`1.20`, `<0.5`, `Negative`).

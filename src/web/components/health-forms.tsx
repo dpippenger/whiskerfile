@@ -14,6 +14,7 @@ import {
 import { api, ApiError } from "../lib/api";
 import { Field, Input, Select, Textarea } from "./ui/field";
 import { FormActions, issuesToErrors, type Errors } from "./record-forms";
+import { VetPicker } from "./vets";
 
 type Kind = "vaccinations" | "medications" | "conditions";
 
@@ -31,6 +32,8 @@ function useHealthForm<F extends Record<string, string>>(
   onDone: () => void,
   /** Fields for something that has already happened, so they can't be in the future. */
   pastOnly: (keyof F & string)[] = [],
+  /** The request body for a form whose fields are not all sent as typed. */
+  toBody: (form: F) => object = (form) => form,
 ) {
   const id = useId();
   const queryClient = useQueryClient();
@@ -44,8 +47,8 @@ function useHealthForm<F extends Record<string, string>>(
   const save = useMutation({
     mutationFn: () =>
       existingId
-        ? api(`/${path}/${existingId}`, { method: "PUT", body: form })
-        : api(`/pets/${petId}/${path}`, { method: "POST", body: form }),
+        ? api(`/${path}/${existingId}`, { method: "PUT", body: toBody(form) })
+        : api(`/pets/${petId}/${path}`, { method: "POST", body: toBody(form) }),
     onSuccess: done,
     onError: (err) => err instanceof ApiError && setErrors(err.fields),
   });
@@ -56,7 +59,7 @@ function useHealthForm<F extends Record<string, string>>(
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    const found = issuesToErrors(schema.safeParse(form).error?.issues);
+    const found = issuesToErrors(schema.safeParse(toBody(form)).error?.issues);
     for (const name of pastOnly) if (form[name] && form[name]! > localToday()) found[name] ??= "Can't be in the future";
     setErrors(found);
     if (Object.keys(found).length === 0) save.mutate();
@@ -79,7 +82,7 @@ function useHealthForm<F extends Record<string, string>>(
       }
     />
   );
-  return { id, errors, field, submit, actions };
+  return { id, form, setForm, errors, field, submit, actions };
 }
 
 export function VaccinationForm({
@@ -91,7 +94,7 @@ export function VaccinationForm({
   record?: Vaccination;
   onDone: () => void;
 }) {
-  const { id, errors, field, submit, actions } = useHealthForm(
+  const { id, form, setForm, errors, field, submit, actions } = useHealthForm(
     petId,
     "vaccinations",
     vaccinationInput,
@@ -100,12 +103,13 @@ export function VaccinationForm({
       dateGiven: record?.dateGiven ?? localToday(),
       dueDate: record?.dueDate ?? "",
       lot: record?.lot ?? "",
-      clinic: record?.clinic ?? "",
+      vetId: record?.vetId ? String(record.vetId) : "",
       notes: record?.notes ?? "",
     },
     record?.id,
     onDone,
     ["dateGiven"],
+    (f) => ({ ...f, vetId: f.vetId ? Number(f.vetId) : null }),
   );
   return (
     <form onSubmit={submit} noValidate className="space-y-5">
@@ -129,11 +133,16 @@ export function VaccinationForm({
         >
           <Input {...field("dueDate")} type="date" />
         </Field>
-        <Field label="Clinic" htmlFor={`${id}-clinic`} error={errors.clinic}>
-          <Input {...field("clinic")} autoComplete="off" />
-        </Field>
         <Field label="Lot number" htmlFor={`${id}-lot`} error={errors.lot}>
           <Input {...field("lot")} autoComplete="off" className="font-mono" />
+        </Field>
+        <Field label="Vet" htmlFor={`${id}-vetId`} error={errors.vetId} className="sm:col-span-2">
+          <VetPicker
+            id={`${id}-vetId`}
+            value={form.vetId}
+            invalid={!!errors.vetId}
+            onChange={(vetId) => setForm((f) => ({ ...f, vetId }))}
+          />
         </Field>
       </div>
       <Field label="Notes" htmlFor={`${id}-notes`} error={errors.notes}>

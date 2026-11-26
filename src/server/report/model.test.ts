@@ -70,7 +70,7 @@ const options = (fields: Partial<ReportOptions> = {}): ReportOptions => ({
 });
 
 test("everything is included by default, with statuses as of the reader's date", () => {
-  const m = reportModel({ pet, weights, labs, health }, options());
+  const m = reportModel({ pet, weights, labs, health, vets: [] }, options());
   expect(m.age).toBe("12 yr 8 mo");
   expect(m.weights).toEqual([
     { date: "2025-11-20", value: 4.28 },
@@ -94,7 +94,7 @@ test("everything is included by default, with statuses as of the reader's date",
 });
 
 test("a trend is drawn for each test with two or more results in one unit, in catalog order", () => {
-  const m = reportModel({ pet, weights, labs, health }, options());
+  const m = reportModel({ pet, weights, labs, health, vets: [] }, options());
   // GLU has two results, but in different units: only one can be drawn, so no trend.
   expect(m.trends.map((t) => [t.code, t.series.points.map((p) => p.value)])).toEqual([
     ["ALB", [3.4, 3.1]],
@@ -103,7 +103,7 @@ test("a trend is drawn for each test with two or more results in one unit, in ca
 });
 
 test("a period keeps records dated inside it, and courses and conditions that overlap it", () => {
-  const m = reportModel({ pet, weights, labs, health }, options({ from: "2026-01-01", to: "2026-06-30" }));
+  const m = reportModel({ pet, weights, labs, health, vets: [] }, options({ from: "2026-01-01", to: "2026-06-30" }));
   expect(m.weights).toEqual([]);
   expect(m.reports.map((r) => r.id)).toEqual([2]);
   // One report in the period: nothing to draw a line through.
@@ -113,14 +113,14 @@ test("a period keeps records dated inside it, and courses and conditions that ov
   // Hyperthyroidism began before the period and is still ongoing.
   expect(m.conditions.map((c) => c.title)).toEqual(["Dental extraction", "Hyperthyroidism"]);
 
-  const since = reportModel({ pet, weights, labs, health }, options({ from: "2026-11-01" }));
+  const since = reportModel({ pet, weights, labs, health, vets: [] }, options({ from: "2026-11-01" }));
   expect(since.conditions.map((c) => c.title)).toEqual(["Hyperthyroidism"]);
   expect(since.medications.map((x) => x.drug)).toEqual(["Methimazole"]);
 });
 
 test("a pet that has passed away has its age at death and nothing due or current", () => {
   const m = reportModel(
-    { pet: { ...pet, deceasedOn: "2022-01-12" }, weights, labs, health },
+    { pet: { ...pet, deceasedOn: "2022-01-12" }, weights, labs, health, vets: [] },
     options({ weightUnit: "lb" }),
   );
   expect(m.age).toBe("7 yr 9 mo");

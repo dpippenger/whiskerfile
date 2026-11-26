@@ -12,7 +12,7 @@ The spec describes the system as built. Where a criterion is proven by a test, t
 
 ## Glossary
 
-- **Entry**: a row in `entries`, either a vet visit (`kind: "vet"`) or a home exam (`kind: "home"`), with a date, clinic, vet, reason and notes.
+- **Entry**: a row in `entries`, either a vet visit (`kind: "vet"`) or a home exam (`kind: "home"`), with a date, vet (a link to a saved vet, see `docs/specs/vets/spec.md`), reason and notes.
 - **Vital**: one of `weight`, `temperature`, `heart_rate`, `respiratory_rate`, `body_condition`.
 - **Measurement**: one reading of a Vital in `measurements`. A Visit_Reading has an `entryId`; a Standalone_Reading (such as a weigh-in) does not.
 - **Stored_Unit**: grams for weight, °C for temperature, per minute for heart and respiratory rate, a 1–9 score for body condition.
@@ -31,7 +31,7 @@ The spec describes the system as built. Where a criterion is proven by a test, t
 #### Acceptance Criteria
 
 1. WHEN `POST /api/pets/:id/entries` receives a valid body, THE System SHALL store the Entry with the caller as `createdBy` and answer 201. (`src/server/routes/records.test.ts`)
-2. THE System SHALL require `kind`, `date`, `clinic`, `vet`, `reason`, `notes` and a `vitals` object in the body, SHALL trim the text fields, and SHALL store empty text as null. (manual)
+2. THE System SHALL require `kind`, `date`, `vetId`, `reason`, `notes` and a `vitals` object in the body, SHALL trim the text fields, and SHALL store empty text as null. (manual)
 3. WHEN `PUT /api/entries/:id` receives a valid body, THE System SHALL replace the Entry's fields and answer 200. (`src/server/routes/records.test.ts`) The replaced fields SHALL include `kind`, and `updatedAt` SHALL be set. (manual)
 4. WHEN `DELETE /api/entries/:id` is called, THE System SHALL delete the Entry and its Visit_Readings (`src/server/routes/records.test.ts`) and unlink any lab report linked to it (`src/server/routes/labs.test.ts`). It SHALL also delete the Entry's Attachments and answer 204. (manual)
 5. IF the pet does not exist, or the Entry does not exist on `PUT`, THE System SHALL answer 404 and write nothing. (`src/server/routes/records.test.ts`) A `DELETE` of an unknown Entry SHALL also answer 404. (manual)
@@ -86,7 +86,7 @@ The spec describes the system as built. Where a criterion is proven by a test, t
 
 1. THE System SHALL accept a Vital only within these limits, in Stored_Units: weight from 1 to 200,000 g (whole), temperature from 25 to 45 °C, heart rate from 10 to 400 (whole), respiratory rate from 2 to 200 (whole), body condition from 1 to 9 (whole). (`src/shared/records.test.ts`, `src/server/routes/records.test.ts`)
 2. THE System SHALL accept only real calendar dates in `YYYY-MM-DD` form, and SHALL refuse an Entry, measurement or Standalone_File date later than tomorrow in UTC with "Can't be in the future" (`isFutureDate`, `src/shared/dates.ts`: the server doesn't know the browser's time zone, and tomorrow in UTC covers every zone's today). (`src/shared/records.test.ts`, `src/server/routes/records.test.ts`, `src/server/routes/attachments.test.ts`)
-3. THE System SHALL limit clinic and vet to 120 characters, reason to 200, notes to 8,000, a Standalone_File label to 120, and an Entry's `fileIds` to 50 positive integers. (manual)
+3. THE System SHALL limit reason to 200 characters, notes to 8,000, a Standalone_File label to 120, and an Entry's `fileIds` to 50 positive integers. (manual)
 4. IF a body is invalid, THE System SHALL answer 400 `Some fields are invalid` with a message per field, keyed by path (such as `vitals.temperature`), and SHALL write nothing. (`src/server/routes/records.test.ts`)
 5. WHEN a form is submitted, THE web app SHALL run the same schema first and SHALL also reject a date after the browser's local today with "Can't be in the future", a stricter bound than the schema's own UTC one. (manual)
 
@@ -149,7 +149,7 @@ The spec describes the system as built. Where a criterion is proven by a test, t
 
 1. THE Timeline SHALL list Entries, Standalone_Readings, Standalone_Files, lab reports, vaccine doses (by date given), medications (by start date) and conditions (by the date they began). (`src/web/lib/timeline-items.test.ts`)
 2. THE Timeline SHALL order items newest date first and, within a day, newest `createdAt` first. (`src/web/lib/timeline-items.test.ts`)
-3. THE Timeline SHALL show an Entry as a card with its kind badge, date, reason as the heading, "clinic · vet", its Vitals in the reader's Display_Units, its notes, its Visit_Files as chips, "Added by <author>" and an edit button. (manual)
+3. THE Timeline SHALL show an Entry as a card with its kind badge, date, reason as the heading, its vet (a link to the vet's page), its Vitals in the reader's Display_Units, its notes, its Visit_Files as chips, "Added by <author>" and an edit button. (manual)
 4. THE Timeline SHALL show a Standalone_Reading as a row with its Vital, formatted value, date and author, with an edit button only for weight. (manual)
 5. THE Timeline SHALL show a Standalone_File as a chip (label, or the original name when there is none, and its size) that opens the file in a new tab, followed by its date, author and an edit button. (manual)
 6. THE Timeline SHALL show lab-report and health rows as their own specs describe. (manual)
@@ -175,8 +175,8 @@ The spec describes the system as built. Where a criterion is proven by a test, t
 
 1. WHEN "Add record" is pressed, THE web app SHALL offer Vet visit, Home exam, Weight, Lab results, Vaccination, Medication, Condition and File. Lab results SHALL open `/pets/:id/labs/new`; each of the others SHALL open its form in the dialog. (manual)
 2. THE dialog SHALL close on a backdrop click only while it shows the chooser, never while it shows a form. (manual)
-3. THE visit form SHALL switch between Vet visit and Home exam, with the dialog title following the selected kind. It SHALL show clinic and vet only for a vet visit, and SHALL send them as empty for a home exam, warning first that saving as a home exam removes a clinic or vet already entered. (manual)
-4. THE visit form SHALL suggest clinics and vets from this pet's earlier Entries, label the weight and temperature fields with the reader's Display_Units, and offer body condition 1–9 with 5 marked "(ideal)". (manual)
+3. THE visit form SHALL switch between Vet visit and Home exam, with the dialog title following the selected kind. It SHALL show the vet picker only for a vet visit, and SHALL send no vet for a home exam, warning first that saving as a home exam removes a vet already chosen. (manual)
+4. THE visit form SHALL label the weight and temperature fields with the reader's Display_Units, and offer body condition 1–9 with 5 marked "(ideal)". (manual)
 5. THE visit form SHALL upload picked files one after another, skip a file already attached, and refuse to save until every upload has finished; a document the saved visit already carries, picked again, is skipped when the visit is saved. (manual; `src/server/routes/attachments.test.ts` for the save)
 6. THE weight form SHALL require a weight. The file form SHALL require a file and fill the label from the file name without its extension. WHEN a form opens for a new record, its date SHALL default to today. (manual)
 7. WHEN deleting an Entry or a weigh-in, THE web app SHALL require a second click on "Confirm delete". A Standalone_File's "Remove" SHALL act on one click. (manual)

@@ -14,6 +14,7 @@ const base = {
   microchip: "",
   chipRegistryId: null,
   photoFileId: null,
+  vetId: null,
   notes: "",
   deceasedOn: "",
 };

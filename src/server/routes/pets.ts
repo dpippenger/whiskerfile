@@ -13,6 +13,7 @@ import {
 } from "../db/schema";
 import { IMAGE_TYPES } from "../files";
 import { error, idParam, parseJson, type AppContext, type Authed } from "../http";
+import { unknownVet } from "./vets";
 import type { z } from "zod";
 
 export type FlaggedResult = { code: string; name: string; valueText: string; unit: string | null; flag: Flag };
@@ -123,7 +124,7 @@ export function petRoutes({ db }: AppContext, authed: Authed) {
         });
       }
     }
-    return null;
+    return unknownVet(db, input.vetId);
   }
 
   return {

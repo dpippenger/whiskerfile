@@ -12,6 +12,7 @@ import {
   type Vaccination,
 } from "../db/schema";
 import { error, idParam, parseJson, type AppContext, type Authed } from "../http";
+import { unknownVet } from "./vets";
 
 type WithAuthor<T> = T & { author: string };
 export type PetHealth = {
@@ -69,6 +70,8 @@ export function healthRoutes({ db }: AppContext, authed: Authed) {
         if (!petId || !petExists(db, petId)) return error(404, "Pet not found");
         const parsed = await parseJson(req, vaccinationInput);
         if ("response" in parsed) return parsed.response;
+        const badVet = unknownVet(db, parsed.data.vetId);
+        if (badVet) return badVet;
         const row = db
           .insert(vaccinations)
           .values({ ...parsed.data, petId, createdBy: user.id, createdAt: Date.now() })
@@ -83,6 +86,8 @@ export function healthRoutes({ db }: AppContext, authed: Authed) {
         if (!id) return error(404, "Vaccination not found");
         const parsed = await parseJson(req, vaccinationInput);
         if ("response" in parsed) return parsed.response;
+        const badVet = unknownVet(db, parsed.data.vetId);
+        if (badVet) return badVet;
         const row = db.update(vaccinations).set(parsed.data).where(eq(vaccinations.id, id)).returning().get();
         return row ? Response.json(row) : error(404, "Vaccination not found");
       }),

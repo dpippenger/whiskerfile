@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import type { Analyte, ChipRegistry, Measurement, Pet, User } from "../../server/db/schema";
+import type { Analyte, ChipRegistry, Measurement, Pet, User, Vet } from "../../server/db/schema";
 import type { LabReportWithResults } from "../../server/routes/labs";
 import type { PetSummary } from "../../server/routes/pets";
 import type { PetHealth } from "../../server/routes/health";
 import type { PetRecords } from "../../server/routes/records";
 import type { MetricOption } from "../../server/routes/series";
+import type { VetWithRecords } from "../../server/routes/vets";
 import type { ComparePet } from "../../shared/series";
 import { api } from "./api";
 
@@ -26,6 +27,17 @@ export const useWeights = (petId: number) =>
 
 export const useRegistries = () =>
   useQuery({ queryKey: ["chip-registries"], queryFn: () => api<ChipRegistry[]>("/chip-registries") });
+
+/** Every saved vet, by name. */
+export const useVets = () => useQuery({ queryKey: ["vets"], queryFn: () => api<Vet[]>("/vets") });
+
+/** One vet with the records linked to it. */
+export const useVet = (id: number) =>
+  useQuery({
+    queryKey: ["vets", id],
+    queryFn: () => api<VetWithRecords>(`/vets/${id}`),
+    enabled: Number.isInteger(id),
+  });
 
 export const useMe = () => useQuery({ queryKey: ["me"], queryFn: () => api<User>("/me") });
 

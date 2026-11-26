@@ -19,6 +19,7 @@ const PET = {
   microchip: null,
   chipRegistryId: null,
   photoFileId: null,
+  vetId: null,
   notes: "Hates the carrier </p><script>alert(1)</script>",
   deceasedOn: null,
 };
@@ -61,7 +62,7 @@ test("a pet's report comes back as a PDF download named after the pet", async ()
       dateGiven: "2026-10-01",
       dueDate: null,
       lot: null,
-      clinic: null,
+      vetId: null,
       notes: "Sleepy for a day",
     },
     medications: {
@@ -126,6 +127,7 @@ test("the page carries the pet's details, flagged results with trends, and what 
     accession: "",
     notes: "",
     entryId: null,
+    vetId: null,
     results: [{ analyteId: crea, valueText, unit, refLow: 0.6, refHigh: 2.4 }],
     ...fields,
   });
@@ -136,12 +138,26 @@ test("the page carries the pet's details, flagged results with trends, and what 
   ]) {
     expect((await call(`/api/pets/${petId}/labs`, { method: "POST", body })).status).toBe(201);
   }
+  const vet = (await (
+    await call("/api/vets", {
+      method: "POST",
+      body: {
+        name: "Dr. Lee",
+        clinic: "Elm Street Vets",
+        phone: "",
+        email: "",
+        address: "",
+        website: "",
+        notes: "",
+      },
+    })
+  ).json()) as { id: number };
   const dose = (vaccine: string, dateGiven: string, dueDate: string | null) => ({
     vaccine,
     dateGiven,
     dueDate,
     lot: "L-42",
-    clinic: "Elm Street Vets",
+    vetId: vet.id,
     notes: null,
   });
   for (const body of [
@@ -179,7 +195,7 @@ test("the page carries the pet's details, flagged results with trends, and what 
   expect(html).toContain('<span class="muted">Superseded</span>');
   expect(html).toContain(`${formatDate("2026-10-01")}<span class="high"> · Overdue</span>`);
   expect(html).toContain(`${formatDate("2026-11-25")}<span class="low"> · Due soon</span>`);
-  expect(html).toContain('<td>Elm Street Vets</td><td class="mono">L-42</td>');
+  expect(html).toContain('<td>Dr. Lee · Elm Street Vets</td><td class="mono">L-42</td>');
 
   // The period is named whichever ends it has, and a pet that has died says when.
   await call(`/api/pets/${petId}`, { method: "PUT", body: { ...details, deceasedOn: "2026-11-10" } });

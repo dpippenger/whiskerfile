@@ -13,6 +13,7 @@ import {
 } from "../../shared/health";
 import { Badge } from "./ui/badge";
 import { Card } from "./ui/card";
+import { VetLink } from "./vets";
 
 export type HealthEditing =
   | { type: "vaccination"; record: Vaccination }
@@ -113,7 +114,7 @@ export function HealthTab({
             </div>
             <p className={sub}>
               Given {formatDate(dose.dateGiven)}
-              {dose.clinic && ` · ${dose.clinic}`}
+              <VetLink vetId={dose.vetId} prefix=" · " />
               {dose.lot && ` · lot ${dose.lot}`}
             </p>
             <Footnote notes={dose.notes} author={dose.author} />
@@ -130,7 +131,7 @@ export function HealthTab({
               >
                 <p className="text-xs">
                   Earlier dose · {formatDate(v.dateGiven)}
-                  {v.clinic && ` · ${v.clinic}`}
+                  <VetLink vetId={v.vetId} prefix=" · " />
                 </p>
               </Row>
             )),

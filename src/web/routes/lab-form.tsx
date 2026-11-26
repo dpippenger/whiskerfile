@@ -23,6 +23,7 @@ import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 import { Field, Input, Select, Textarea } from "../components/ui/field";
+import { VetPicker } from "../components/vets";
 import { api, ApiError } from "../lib/api";
 import { downsizeImage } from "../lib/image";
 import { useAnalytes, useLabs, usePet, useRecords } from "../lib/queries";
@@ -181,6 +182,7 @@ function LabForm({
     accession: report?.accession ?? "",
     notes: report?.notes ?? "",
     entryId: report?.entryId ? String(report.entryId) : "",
+    vetId: report?.vetId ? String(report.vetId) : "",
   });
   const [rows, setRows] = useState<Row[]>(() =>
     (report?.results ?? []).map((r) => ({
@@ -325,6 +327,7 @@ function LabForm({
     const body = {
       ...meta,
       entryId: meta.entryId ? Number(meta.entryId) : null,
+      vetId: meta.vetId ? Number(meta.vetId) : null,
       fileIds: files.map((f) => f.fileId),
       results: resultsBody(rows),
     };
@@ -387,6 +390,14 @@ function LabForm({
               </option>
             ))}
           </Select>
+        </Field>
+        <Field label="Vet" htmlFor={`${id}-vetId`} error={errors.vetId} className="sm:col-span-2">
+          <VetPicker
+            id={`${id}-vetId`}
+            value={meta.vetId}
+            invalid={!!errors.vetId}
+            onChange={(vetId) => setMeta((m) => ({ ...m, vetId }))}
+          />
         </Field>
         <div className="flex flex-col gap-1.5 sm:col-span-2">
           <span className="text-xs font-medium text-foreground-secondary">Original report</span>

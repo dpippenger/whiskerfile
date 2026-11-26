@@ -21,13 +21,15 @@ import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 import { Dialog } from "../components/ui/dialog";
 import { Field, Input, Select, Textarea } from "../components/ui/field";
+import { VetPicker } from "../components/vets";
 import { api, ApiError } from "../lib/api";
 import { downsizeImage } from "../lib/image";
 import { usePet, useRegistries } from "../lib/queries";
 import { cn } from "../lib/utils";
 
-type FormState = Omit<PetInput, "chipRegistryId" | "photoFileId" | "chartColor"> & {
+type FormState = Omit<PetInput, "chipRegistryId" | "vetId" | "photoFileId" | "chartColor"> & {
   chipRegistryId: string;
+  vetId: string;
   photoFileId: number | null;
   chartColor: string;
 };
@@ -46,6 +48,7 @@ function initialState(pet?: Pet): FormState {
     chartColor: pet?.chartColor ?? "",
     microchip: pet?.microchip ?? "",
     chipRegistryId: pet?.chipRegistryId ? String(pet.chipRegistryId) : "",
+    vetId: pet?.vetId ? String(pet.vetId) : "",
     photoFileId: pet?.photoFileId ?? null,
     notes: pet?.notes ?? "",
     deceasedOn: pet?.deceasedOn ?? "",
@@ -229,6 +232,7 @@ function PetForm({ pet }: { pet?: Pet }) {
       ...form,
       chartColor: form.chartColor || undefined,
       chipRegistryId: form.chipRegistryId ? Number(form.chipRegistryId) : null,
+      vetId: form.vetId ? Number(form.vetId) : null,
     };
     const result = petInput.safeParse(body);
     const found: Record<string, string> = {};
@@ -370,6 +374,17 @@ function PetForm({ pet }: { pet?: Pet }) {
             </Select>
           </Field>
         </Section>
+
+        <Card>
+          <Field label="Usual vet" htmlFor={fid("vetId")} error={errors.vetId}>
+            <VetPicker
+              id={fid("vetId")}
+              value={form.vetId}
+              invalid={!!errors.vetId}
+              onChange={(vetId) => set("vetId", vetId)}
+            />
+          </Field>
+        </Card>
 
         <Card className="space-y-4">
           <Field

@@ -13,7 +13,7 @@ Criteria name the test that proves them. Criteria marked "(manual)" are checked 
 ## Glossary
 
 - **Household_Member**: A person signed in through Cloudflare Access. All members have the same rights.
-- **Pet**: A row in the `pets` table: `id`, `name`, `species`, `breed`, `sex`, `reproductive`, `dob`, `dobEstimated`, `coatColor`, `eyeColor`, `chartColor`, `microchip`, `chipRegistryId`, `photoFileId`, `notes`, `deceasedOn`, `createdBy`, `createdAt`, `updatedAt`.
+- **Pet**: A row in the `pets` table: `id`, `name`, `species`, `breed`, `sex`, `reproductive`, `dob`, `dobEstimated`, `coatColor`, `eyeColor`, `chartColor`, `microchip`, `chipRegistryId`, `photoFileId`, `vetId` (the usual vet, see `docs/specs/vets/spec.md`), `notes`, `deceasedOn`, `createdBy`, `createdAt`, `updatedAt`.
 - **Pet_Input**: The `petInput` Zod schema in `src/shared/pets.ts`, used by both the server and the Pet_Form.
 - **Calendar_Date**: A `YYYY-MM-DD` string that names a real date (no time zone, see `src/shared/dates.ts`).
 - **Date_Of_Birth**: `dob`, an optional Calendar_Date.
@@ -124,7 +124,7 @@ Criteria name the test that proves them. Criteria marked "(manual)" are checked 
 
 #### Acceptance Criteria
 
-1. THE Pet_Form SHALL group fields into photo, About (name, species, breed, sex, spay/neuter), Birth (date of birth, "The date is an estimate", date of passing), Appearance (coat colour, eye colour, colour in charts), Microchip (chip number, registry) and Notes. (manual)
+1. THE Pet_Form SHALL group fields into photo, About (name, species, breed, sex, spay/neuter), Birth (date of birth, "The date is an estimate", date of passing), Appearance (coat colour, eye colour, colour in charts), Microchip (chip number, registry), Usual vet and Notes. (manual)
 2. WHEN adding a pet, THE Pet_Form SHALL default species to Cat, sex and spay/neuter to Unknown, and leave the chart colour unset with the hint "Chosen automatically if left unset." (manual)
 3. THE spay/neuter options SHALL be labelled for the selected sex (Requirement 3.2), and the registry list SHALL start with "Not registered / unknown". (manual)
 4. WHEN the form is submitted, THE Pet_Form SHALL validate it with Pet_Input, show the first message beside each bad field and "Check the highlighted fields.", and show the server's field errors the same way. (manual)
@@ -141,7 +141,7 @@ Criteria name the test that proves them. Criteria marked "(manual)" are checked 
 
 1. THE profile SHALL show the pet's name as the page title, with "Report" (pdf-health-reports spec) and "Edit" actions. (manual)
 2. THE profile SHALL show badges for species, Age (when known) and "In memory" for a Deceased_Pet. (manual)
-3. THE Details card SHALL list Breed (when set), Sex, Spayed / neutered, Born ("About" before the date for an Estimated_DOB, when set), Passed away (when set), Coat and Eyes (when set), and Microchip (Requirement 6.7). (manual)
+3. THE Details card SHALL list Breed (when set), Sex, Spayed / neutered, Born ("About" before the date for an Estimated_DOB, when set), Passed away (when set), Coat and Eyes (when set), Microchip (Requirement 6.7), and Usual vet (when set: the vet's name as a link to its page, and its phone as a `tel:` link). (manual)
 4. WHERE the pet has notes, THE profile SHALL show them above the records with their line breaks kept. (manual)
 5. WHILE the screen is narrower than the `lg` breakpoint, THE profile SHALL show a small photo with the badges above the records and move the Details card below them; on wider screens the card sits on the left with a large photo. (manual)
 6. IF the address names no pet — an unknown id, or one that is not an integer (`/pets/abc`, `/pets/1.5`) — THE profile and the edit page SHALL show "Pet not found" instead of an empty content area. (manual)

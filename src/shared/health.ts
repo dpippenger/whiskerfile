@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { addDays, isFutureDate, isIsoDate } from "./dates";
+import { vetIdInput } from "./vets";
 
 // Vaccinations, medications and conditions. Due dates are typed from the
 // certificate or the vet's reminder; nothing here derives a schedule or dose.
@@ -35,7 +36,7 @@ export const vaccinationInput = z
     dateGiven: pastDate,
     dueDate: optionalDate,
     lot: optionalText(40),
-    clinic: optionalText(120),
+    vetId: vetIdInput,
     notes: optionalText(2000),
   })
   .refine((v) => !v.dueDate || v.dueDate >= v.dateGiven, {
