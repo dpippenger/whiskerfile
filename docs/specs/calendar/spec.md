@@ -82,7 +82,7 @@ Health records, visits, vets and pet profiles have their own specs and appear he
 #### Acceptance Criteria
 
 1. THE navigation SHALL offer **Calendar** after Pets, in the sidebar and in the phone's bottom tabs. (manual)
-2. THE Calendar screen SHALL call `calendarEvents()` with Local_Today, and SHALL show the Month named by the address's `month` parameter, or the Month of Local_Today when there is none or it is not a Month. (`src/web/routes/calendar.test.tsx`)
+2. THE Calendar screen SHALL call `calendarEvents()` with Local_Today, read again each minute and whenever the tab is shown again, so that a screen left open over midnight moves on to the new day, and SHALL show the Month named by the address's `month` parameter, or the Month of Local_Today when there is none or it is not a Month. (`src/web/routes/calendar.test.tsx`)
 3. THE screen SHALL offer **Previous month** and **Next month**, a **Today** button that returns to the Month of Local_Today, and the chosen Month's name as its heading; each adds a step to the address's history, so a Month can be bookmarked and Back returns to the Month before. (`src/web/routes/calendar.test.tsx`)
 4. THE screen SHALL offer a pet filter listing "All pets" and each living pet. WHEN a pet is chosen, THE screen SHALL show only that pet's events, in the Month and in the overdue list, and keep the choice in the address's `pet` parameter, replacing the address rather than adding a step to its history. (`src/web/routes/calendar.test.tsx`)
 5. WHEN any event is `overdue`, THE screen SHALL list every such event above the Month under "Needs attention", whatever Month is shown, oldest first, each with its date and a danger badge reading "Overdue" for a vaccine or "Not recorded" for an Appointment; with none it SHALL show no such block. (`src/web/routes/calendar.test.tsx`)
@@ -110,11 +110,12 @@ Health records, visits, vets and pet profiles have their own specs and appear he
 
 #### Acceptance Criteria
 
-1. WHILE an Appointment's date is Local_Today or earlier, THE Appointment form SHALL offer **Record the visit**. (`src/web/routes/calendar.test.tsx`)
-2. WHEN **Record the visit** is pressed, THE dialog SHALL show the visit form (visits-and-files spec) titled "Add vet visit", as a vet visit pre-filled with the Appointment's date, vet, reason and notes. (`src/web/routes/calendar.test.tsx`)
+1. WHILE the date in the form of an Appointment being edited is Local_Today or earlier, THE Appointment form SHALL offer **Record the visit**. (`src/web/routes/calendar.test.tsx`)
+2. WHEN **Record the visit** is pressed, THE form SHALL validate as it does on Save and, when valid, THE dialog SHALL show the visit form (visits-and-files spec) titled "Add vet visit", as a vet visit pre-filled with the date, vet, reason and notes as the Appointment form then reads, saved or not. (`src/web/routes/calendar.test.tsx`)
 3. THE bodies of `POST /api/pets/:id/entries` and `PUT /api/entries/:id` SHALL accept an optional `appointmentId`. WHEN one is given, THE System SHALL save the visit and delete that Appointment in one transaction. (`src/server/routes/calendar.test.ts`)
 4. IF `appointmentId` names no Appointment, or one that belongs to another pet, THEN THE System SHALL respond 400 with `appointmentId: "Unknown appointment"` and write nothing. (`src/server/routes/calendar.test.ts`)
-5. WHEN the visit is saved, THE Calendar screen SHALL no longer show the Appointment, and the visit SHALL appear on the pet's timeline. (`src/web/routes/calendar.test.tsx` for the Calendar; the timeline is manual)
+5. IF the server refuses the visit's `appointmentId`, THEN THE visit form SHALL say "This appointment has already been recorded or deleted. Cancel and check the pet's timeline." in place of "Check the highlighted fields." (`src/web/routes/calendar.test.tsx`)
+6. WHEN the visit is saved, THE Calendar screen SHALL no longer show the Appointment, and the visit SHALL appear on the pet's timeline. (`src/web/routes/calendar.test.tsx` for the Calendar; the timeline is manual)
 
 ## Diagrams
 

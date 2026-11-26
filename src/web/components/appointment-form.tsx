@@ -10,8 +10,8 @@ import { VetPicker } from "./vets";
 
 /**
  * Books a visit for one of `pets`, or edits and deletes a booked one. Once
- * its day has come (`today` is the browser's date), `onRecordVisit` turns it
- * into the visit's record.
+ * its day has come (`today` is the browser's date), `onRecordVisit` gets the
+ * appointment as the form now reads, to turn it into the visit's record.
  */
 export function AppointmentForm({
   pets,
@@ -59,11 +59,20 @@ export function AppointmentForm({
     onSuccess: onDone,
   });
 
+  /** The form as the schema reads it, or nothing (with each failing field marked) when it is invalid. */
+  const valid = () => {
+    const result = appointmentInput.safeParse(body());
+    setErrors(issuesToErrors(result.error?.issues));
+    return result.data;
+  };
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    const found = issuesToErrors(appointmentInput.safeParse(body()).error?.issues);
-    setErrors(found);
-    if (Object.keys(found).length === 0) save.mutate();
+    if (valid()) save.mutate();
+  };
+  // The visit is filled in from the form as it stands, not as last saved.
+  const recordVisit = (booked: CalendarAppointment) => {
+    const typed = valid();
+    if (typed) onRecordVisit({ ...booked, ...typed });
   };
   const field = (name: keyof typeof form) => ({
     id: `${id}-${name}`,
@@ -74,10 +83,10 @@ export function AppointmentForm({
 
   return (
     <form onSubmit={submit} noValidate className="space-y-5">
-      {appointment && appointment.date <= today && (
+      {appointment && form.date <= today && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-background-secondary px-3 py-2">
           <p className="text-foreground-secondary">Has this visit happened?</p>
-          <Button onClick={() => onRecordVisit(appointment)}>
+          <Button onClick={() => recordVisit(appointment)}>
             <Stethoscope className="size-4" aria-hidden />
             Record the visit
           </Button>

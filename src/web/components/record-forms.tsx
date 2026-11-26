@@ -322,11 +322,14 @@ export function EntryForm({
         onDelete={entry ? () => remove.mutate() : undefined}
         deleting={remove.isPending}
         error={
-          Object.keys(errors).length
-            ? "Check the highlighted fields."
-            : ((save.error && !(save.error instanceof ApiError && Object.keys(save.error.fields).length)
-                ? save.error.message
-                : undefined) ?? remove.error?.message)
+          // No field shows this one: someone else recorded or deleted the appointment meanwhile.
+          errors.appointmentId
+            ? "This appointment has already been recorded or deleted. Cancel and check the pet's timeline."
+            : Object.keys(errors).length
+              ? "Check the highlighted fields."
+              : ((save.error && !(save.error instanceof ApiError && Object.keys(save.error.fields).length)
+                  ? save.error.message
+                  : undefined) ?? remove.error?.message)
         }
       />
     </form>

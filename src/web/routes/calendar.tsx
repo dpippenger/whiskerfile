@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { CalendarClock, ChevronLeft, ChevronRight, Pill, Plus, Syringe, TriangleAlert } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "wouter";
 import { calendarEvents, type CalendarAppointment, type CalendarEvent } from "../../shared/calendar";
 import { addMonths, formatDate, formatTime, isIsoMonth, localToday, monthOf, monthWeeks } from "../../shared/dates";
@@ -26,6 +26,24 @@ function weekStart(): number {
   );
   // 1 (Monday) to 7 (Sunday).
   return ((locale.getWeekInfo?.() ?? locale.weekInfo)?.firstDay ?? 1) % 7;
+}
+
+/**
+ * The browser's date, kept current while the page stays open: checked each
+ * minute and whenever the tab is shown again, so midnight moves "today".
+ */
+function useLocalToday(): string {
+  const [today, setToday] = useState(localToday);
+  useEffect(() => {
+    const check = () => setToday(localToday());
+    const timer = setInterval(check, 60_000);
+    document.addEventListener("visibilitychange", check);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", check);
+    };
+  }, []);
+  return today;
 }
 
 type Open = (appointment: CalendarAppointment) => void;
@@ -127,10 +145,12 @@ function dialogTitle(state: Exclude<DialogState, null>): string {
 
 /**
  * What is due, ending and booked for every living pet, a month at a time: a
- * grid on wide screens, an agenda on phones. `today` is the browser's date;
- * every status on the page is judged from it.
+ * grid on wide screens, an agenda on phones. Every status on the page is
+ * judged from the browser's date; `today` fixes that date instead (for tests).
  */
-export function Calendar({ today = localToday() }: { today?: string }) {
+export function Calendar({ today: fixedToday }: { today?: string }) {
+  const localDay = useLocalToday();
+  const today = fixedToday ?? localDay;
   const calendar = useCalendar();
   const units = useUnits();
   const queryClient = useQueryClient();

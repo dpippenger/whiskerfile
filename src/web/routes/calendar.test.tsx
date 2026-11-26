@@ -1,7 +1,8 @@
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { queries, within } from "@testing-library/react/pure";
-import { afterAll, afterEach, beforeAll, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, expect, setSystemTime, test } from "bun:test";
+import { eq } from "drizzle-orm";
 import { appointments, entries } from "../../server/db/schema";
 import { startApi } from "../../server/test-support";
 
@@ -53,6 +54,7 @@ beforeAll(async () => {
 afterEach(() => {
   rtl.cleanup();
   globalThis.fetch = realFetch;
+  setSystemTime();
 });
 
 afterAll(async () => {
@@ -82,11 +84,11 @@ const pet = (name: string, deceasedOn: string | null = null) => ({
 const booked = (date: string, time: string, reason: string) => ({ date, time, vetId: null, reason, notes: "" });
 
 /**
- * The screen on `today`, at `address`, for a household with Miso (a vaccine
+ * The screen on `today` (null: whatever the clock says), at `address`, for a household with Miso (a vaccine
  * overdue since October, a visit on Nov 20 and one on Dec 8), Zeus (a course
  * ending Nov 30) and Pepper, who has passed away but still has rows.
  */
-async function open(today = TODAY, address = "/calendar") {
+async function open(today: string | null = TODAY, address = "/calendar") {
   const api = await startApi();
   const { call } = api;
   const post = async (path: string, body: object) =>
@@ -123,7 +125,7 @@ async function open(today = TODAY, address = "/calendar") {
   rtl.render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <wouter.Router hook={route.hook} searchHook={route.searchHook}>
-        <Calendar today={today} />
+        <Calendar today={today ?? undefined} />
       </wouter.Router>
     </QueryClientProvider>,
   );
@@ -279,17 +281,24 @@ test("an appointment whose day has come is recorded as a vet visit and leaves th
   rtl.fireEvent.click(screen.dialog("Edit appointment").getByRole("button", { name: "Cancel" }));
 
   rtl.fireEvent.click(rtl.within(screen.attention()!).getByRole("button", { name: /Blood pressure recheck/ }));
-  rtl.fireEvent.click(screen.dialog("Edit appointment").getByRole("button", { name: "Record the visit" }));
+  const booked = screen.dialog("Edit appointment");
+  // What is typed into the appointment, saved or not, is what the visit starts from; it must be valid first.
+  rtl.fireEvent.change(booked.getByLabelText("Date"), { target: { value: "" } });
+  rtl.fireEvent.click(booked.getByRole("button", { name: "Record the visit" }));
+  expect(booked.getByText("Use a valid date")).toBeTruthy();
+  rtl.fireEvent.change(booked.getByLabelText("Date"), { target: { value: "2026-11-21" } });
+  rtl.fireEvent.change(booked.getByLabelText("Reason"), { target: { value: "Blood pressure" } });
+  rtl.fireEvent.click(booked.getByRole("button", { name: "Record the visit" }));
   const visit = screen.dialog("Add vet visit");
-  expect((visit.getByLabelText("Date") as HTMLInputElement).value).toBe("2026-11-20");
-  expect((visit.getByLabelText("Reason") as HTMLInputElement).value).toBe("Blood pressure recheck");
+  expect((visit.getByLabelText("Date") as HTMLInputElement).value).toBe("2026-11-21");
+  expect((visit.getByLabelText("Reason") as HTMLInputElement).value).toBe("Blood pressure");
   rtl.fireEvent.change(visit.getByLabelText("Notes"), { target: { value: "150 systolic" } });
   rtl.fireEvent.click(visit.getByRole("button", { name: "Save" }));
 
   await rtl.waitFor(() => expect(screen.texts(screen.attention()!)).toHaveLength(1));
   expect(page.queryByRole("dialog", { name: "Add vet visit" })).toBeNull();
   expect(screen.db.select().from(entries).all()).toMatchObject([
-    { petId: screen.miso, kind: "vet", date: "2026-11-20", reason: "Blood pressure recheck", notes: "150 systolic" },
+    { petId: screen.miso, kind: "vet", date: "2026-11-21", reason: "Blood pressure", notes: "150 systolic" },
   ]);
   expect(
     screen.db
@@ -298,4 +307,33 @@ test("an appointment whose day has come is recorded as a vet visit and leaves th
       .all()
       .map((a) => a.id),
   ).not.toContain(screen.recheck);
+});
+
+test("a visit for an appointment someone else already dealt with says so and saves nothing", async () => {
+  const screen = await open();
+  rtl.fireEvent.click(rtl.within(screen.attention()!).getByRole("button", { name: /Blood pressure recheck/ }));
+  rtl.fireEvent.click(screen.dialog("Edit appointment").getByRole("button", { name: "Record the visit" }));
+  // Deleted from another device while the visit form is open.
+  screen.db.delete(appointments).where(eq(appointments.id, screen.recheck)).run();
+
+  const visit = screen.dialog("Add vet visit");
+  rtl.fireEvent.click(visit.getByRole("button", { name: "Save" }));
+  expect(await visit.findByText(/This appointment has already been recorded or deleted\./)).toBeTruthy();
+  expect(visit.queryByText("Check the highlighted fields.")).toBeNull();
+  expect(screen.db.select().from(entries).all()).toEqual([]);
+});
+
+test("midnight moves today while the calendar stays open", async () => {
+  // The clock, not a prop, says what day it is: the evening of the Dec 8 visit.
+  setSystemTime(new Date(2026, 11, 8, 23, 59));
+  const screen = await open(null);
+  expect(page.getByRole("heading", { level: 2, name: /December 2026/ })).toBeTruthy();
+  expect(screen.agenda()[0]).toMatch(/Thyroid recheck.*Today$/);
+  expect(screen.texts(screen.attention()!)).toHaveLength(2);
+
+  // Two minutes later it is Dec 9, and the tab is looked at again.
+  setSystemTime(new Date(2026, 11, 9, 0, 1));
+  rtl.act(() => void document.dispatchEvent(new Event("visibilitychange")));
+  expect(screen.agenda()[0]).toMatch(/Thyroid recheck.*Not recorded$/);
+  expect(screen.texts(screen.attention()!)).toHaveLength(3);
 });
