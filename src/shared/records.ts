@@ -132,6 +132,8 @@ export const entryInput = z.object({
   vitals: vitalsInput,
   // The visit's attached files. Omitted leaves them as they are; a list replaces them.
   fileIds: z.array(z.number().int().positive()).max(50).optional(),
+  // The appointment this visit was booked as; saving the visit removes it.
+  appointmentId: z.number().int().positive().optional(),
 });
 
 /** A measurement taken on its own, such as a weigh-in at home. */

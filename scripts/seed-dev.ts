@@ -468,3 +468,22 @@ const health: [number, string, object][] = [
 ];
 for (const [petId, kind, body] of health) await call(`/pets/${petId}/${kind}`, "POST", body);
 console.log("Added health records");
+
+// Booked visits for the calendar: one whose day has passed without the visit
+// being recorded, one today and two ahead.
+const appointments: [string, number, string, string | null][] = [
+  ["Miso", -6, "", "Blood pressure recheck"],
+  ["Biscuit", 0, "16:15", "Puppy boosters"],
+  ["Miso", 9, "09:30", "Thyroid recheck"],
+  ["Sir Reginald Fluffington the Third", 23, "", null],
+];
+for (const [name, days, time, reason] of appointments) {
+  await call(`/pets/${idOf(name)}/appointments`, "POST", {
+    date: daysAhead(days),
+    time,
+    vetId: northside,
+    reason,
+    notes: null,
+  });
+}
+console.log("Added appointments");

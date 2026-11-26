@@ -64,15 +64,25 @@ export function formatAge(dob: string, today: string, estimated = false): string
   return estimated ? `~${text}` : text;
 }
 
-/** "Mar 4, 2024", formatted without any time zone conversion. */
-export function formatDate(date: string): string {
+const DAY_MONTH_YEAR: Intl.DateTimeFormatOptions = { year: "numeric", month: "short", day: "numeric" };
+
+/**
+ * "Mar 4, 2024", formatted without any time zone conversion. Other `options`
+ * give other shapes of the same date, such as its weekday or its month.
+ */
+export function formatDate(date: string, options = DAY_MONTH_YEAR): string {
   const p = parts(date);
   if (!p) return date;
-  return new Date(Date.UTC(p.y, p.m - 1, p.d)).toLocaleDateString(undefined, {
+  return new Date(Date.UTC(p.y, p.m - 1, p.d)).toLocaleDateString(undefined, { timeZone: "UTC", ...options });
+}
+
+/** A clock time stored as "HH:MM" in the reader's own format, such as "2:30 PM" or "14:30". */
+export function formatTime(time: string): string {
+  const [h, m] = time.split(":").map(Number) as [number, number];
+  return new Date(Date.UTC(1970, 0, 1, h, m)).toLocaleTimeString(undefined, {
     timeZone: "UTC",
-    year: "numeric",
-    month: "short",
-    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
   });
 }
 
@@ -92,4 +102,34 @@ export function addDays(date: string, days: number): string {
  */
 export function isFutureDate(date: string, todayUtc = new Date().toISOString().slice(0, 10)): boolean {
   return date > addDays(todayUtc, 1);
+}
+
+// Months are "YYYY-MM" strings.
+
+export const isIsoMonth = (value: string) => isIsoDate(`${value}-01`);
+
+/** The month a date falls in. */
+export const monthOf = (date: string) => date.slice(0, 7);
+
+/** The month `months` after `month` (negative for before). */
+export function addMonths(month: string, months: number): string {
+  const [y, m] = month.split("-").map(Number) as [number, number];
+  return monthOf(new Date(Date.UTC(y, m - 1 + months, 1)).toISOString());
+}
+
+/**
+ * The whole weeks that cover a month, each seven dates starting on
+ * `weekStart` (0 is Sunday, 1 Monday), so the first and last weeks can hold
+ * days of the neighbouring months.
+ */
+export function monthWeeks(month: string, weekStart: number): string[][] {
+  const first = `${month}-01`;
+  const weekday = new Date(`${first}T00:00:00Z`).getUTCDay();
+  const weeks: string[][] = [];
+  let day = addDays(first, -((weekday - weekStart + 7) % 7));
+  do {
+    weeks.push(Array.from({ length: 7 }, (_, i) => addDays(day, i)));
+    day = addDays(day, 7);
+  } while (monthOf(day) === month);
+  return weeks;
 }

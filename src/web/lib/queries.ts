@@ -6,6 +6,7 @@ import type { PetHealth } from "../../server/routes/health";
 import type { PetRecords } from "../../server/routes/records";
 import type { MetricOption } from "../../server/routes/series";
 import type { VetWithRecords } from "../../server/routes/vets";
+import type { CalendarData } from "../../shared/calendar";
 import type { ComparePet } from "../../shared/series";
 import { api } from "./api";
 
@@ -62,3 +63,6 @@ export const useSeries = (metric: string | null) =>
 /** A pet's vaccinations, medications and conditions. */
 export const useHealth = (petId: number) =>
   useQuery({ queryKey: ["pets", petId, "health"], queryFn: () => api<PetHealth>(`/pets/${petId}/health`) });
+
+/** Every pet's dated records; the calendar works out what is due from the browser's date. */
+export const useCalendar = () => useQuery({ queryKey: ["calendar"], queryFn: () => api<CalendarData>("/calendar") });

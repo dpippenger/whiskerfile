@@ -307,6 +307,32 @@ export const conditions = sqliteTable(
   (t) => [index("conditions_pet").on(t.petId)],
 );
 
+/**
+ * A visit that is booked but has not happened. Recording the visit deletes
+ * the appointment; the visit (an entry) is its record from then on.
+ */
+export const appointments = sqliteTable(
+  "appointments",
+  {
+    id: integer().primaryKey({ autoIncrement: true }),
+    petId: integer()
+      .notNull()
+      .references(() => pets.id, { onDelete: "cascade" }),
+    date: text().notNull(),
+    // Clock time at the clinic, "HH:MM"; null when only the day is known.
+    time: text(),
+    vetId: integer().references(() => vets.id, { onDelete: "set null" }),
+    reason: text(),
+    notes: text(),
+    createdBy: integer()
+      .notNull()
+      .references(() => users.id),
+    createdAt: integer().notNull(),
+    updatedAt: integer().notNull(),
+  },
+  (t) => [index("appointments_pet").on(t.petId)],
+);
+
 export type User = typeof users.$inferSelect;
 export type ChipRegistry = typeof chipRegistries.$inferSelect;
 export type StoredFile = typeof files.$inferSelect;

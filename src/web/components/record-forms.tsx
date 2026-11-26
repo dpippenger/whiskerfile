@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useId, useState, type FormEvent } from "react";
 import type { Measurement } from "../../server/db/schema";
 import type { EntryWithVitals } from "../../server/routes/records";
+import type { CalendarAppointment } from "../../shared/calendar";
 import { localToday } from "../../shared/dates";
 import {
   editedValue,
@@ -98,6 +99,7 @@ export function EntryForm({
   petId,
   units: unitsAtOpen,
   entry,
+  appointment,
   initialKind = "vet",
   onKindChange,
   onDone,
@@ -105,6 +107,8 @@ export function EntryForm({
   petId: number;
   units: Units;
   entry?: EntryWithVitals;
+  /** The appointment a new visit was booked as: it fills the form, and saving the visit removes it. */
+  appointment?: CalendarAppointment;
   initialKind?: "vet" | "home";
   onKindChange?: (kind: "vet" | "home") => void;
   onDone: () => void;
@@ -131,10 +135,10 @@ export function EntryForm({
   });
   const [form, setForm] = useState({
     kind: entry?.kind ?? initialKind,
-    date: entry?.date ?? localToday(),
-    vetId: entry?.vetId ? String(entry.vetId) : "",
-    reason: entry?.reason ?? "",
-    notes: entry?.notes ?? "",
+    date: entry?.date ?? appointment?.date ?? localToday(),
+    vetId: String(entry?.vetId ?? appointment?.vetId ?? ""),
+    reason: entry?.reason ?? appointment?.reason ?? "",
+    notes: entry?.notes ?? appointment?.notes ?? "",
     weight: shown.weight,
     temperature: shown.temperature,
     heart_rate: v.heart_rate != null ? String(v.heart_rate) : "",
@@ -180,6 +184,7 @@ export function EntryForm({
         body_condition: parseNumber(form.body_condition),
       },
       fileIds: attached.map((f) => f.fileId),
+      ...(appointment && { appointmentId: appointment.id }),
     };
     const found = issuesToErrors(entryInput.safeParse(body).error?.issues);
     for (const [kind, value] of Object.entries(body.vitals)) {
@@ -317,11 +322,14 @@ export function EntryForm({
         onDelete={entry ? () => remove.mutate() : undefined}
         deleting={remove.isPending}
         error={
-          Object.keys(errors).length
-            ? "Check the highlighted fields."
-            : ((save.error && !(save.error instanceof ApiError && Object.keys(save.error.fields).length)
-                ? save.error.message
-                : undefined) ?? remove.error?.message)
+          // No field shows this one: someone else recorded or deleted the appointment meanwhile.
+          errors.appointmentId
+            ? "This appointment has already been recorded or deleted. Cancel and check the pet's timeline."
+            : Object.keys(errors).length
+              ? "Check the highlighted fields."
+              : ((save.error && !(save.error instanceof ApiError && Object.keys(save.error.fields).length)
+                  ? save.error.message
+                  : undefined) ?? remove.error?.message)
         }
       />
     </form>
